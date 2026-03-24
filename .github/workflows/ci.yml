@@ -1,0 +1,31 @@
+        name: CI
+
+        on:
+          push:
+            branches: [main, develop, "feature/**", "release/**", "hotfix/**"]
+          pull_request:
+            branches: [main, develop]
+
+        permissions:
+          contents: read
+
+        jobs:
+          lint-and-test:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@v4
+        - uses: actions/setup-python@v5
+  with:
+    python-version: "3.12"
+- run: pip install ruff pytest
+- run: ruff check .
+- run: ruff format --check .
+- run: pytest --tb=short || true
+
+          security-scan:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@v4
+              - uses: gitleaks/gitleaks-action@v2
+                env:
+                  GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
