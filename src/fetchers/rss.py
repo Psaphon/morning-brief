@@ -72,11 +72,13 @@ def parse_feeds_md(feeds_path: Path) -> list[dict[str, str]]:
             if status in ("broken", "deprecated"):
                 continue
 
-            feeds.append({
-                "source": source,
-                "url": url,
-                "category": current_category,
-            })
+            feeds.append(
+                {
+                    "source": source,
+                    "url": url,
+                    "category": current_category,
+                }
+            )
 
     logger.info("Parsed %d feeds from %s", len(feeds), feeds_path)
     return feeds
@@ -111,15 +113,17 @@ async def fetch_feed(
         if not link or not title:
             continue
 
-        articles.append(RawArticle(
-            url=link,
-            title=title.strip(),
-            source=source,
-            category=category,
-            author=entry.get("author"),
-            published=entry.get("published"),
-            summary=entry.get("summary"),
-        ))
+        articles.append(
+            RawArticle(
+                url=link,
+                title=title.strip(),
+                source=source,
+                category=category,
+                author=entry.get("author"),
+                published=entry.get("published"),
+                summary=entry.get("summary"),
+            )
+        )
 
     logger.info("Fetched %d articles from %s", len(articles), source)
     return articles

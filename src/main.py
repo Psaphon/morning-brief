@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 from .config import load_config
 from .db import Database
 from .fetchers.rss import fetch_all_feeds
-from .processors.extractor import extract_articles
 from .processors.dedup import deduplicate
+from .processors.extractor import extract_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,8 +53,9 @@ async def run_pipeline() -> None:
             inserted = db.insert_article(**article)
             if inserted:
                 new_count += 1
-        logger.info("Stored %d new articles (%d duplicates skipped)",
-                     new_count, len(extracted) - new_count)
+        logger.info(
+            "Stored %d new articles (%d duplicates skipped)", new_count, len(extracted) - new_count
+        )
 
         # Stage 3: Summarize (requires Ollama — skip if unavailable)
         # TODO: implement in Phase 2

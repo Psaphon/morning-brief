@@ -8,7 +8,8 @@ from src.fetchers.rss import parse_feeds_md
 
 def test_parse_feeds_md(tmp_path: Path):
     feeds_file = tmp_path / "FEEDS.md"
-    feeds_file.write_text(dedent("""\
+    feeds_file.write_text(
+        dedent("""\
         # Feeds
 
         ## RSS Feeds
@@ -25,7 +26,8 @@ def test_parse_feeds_md(tmp_path: Path):
         | Source | Feed URL | Status | Notes |
         |--------|----------|--------|-------|
         | CoinDesk | `https://www.coindesk.com/arc/outboundfeeds/rss/` | active | Major |
-    """))
+    """)
+    )
 
     feeds = parse_feeds_md(feeds_file)
 

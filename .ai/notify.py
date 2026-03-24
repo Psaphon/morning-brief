@@ -15,18 +15,20 @@ TELEGRAM_CHAT_ID environment variables.
 import json
 import os
 import sys
-import urllib.request
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 
 def send_telegram(token: str, chat_id: str, message: str) -> bool:
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = urllib.parse.urlencode({
-        "chat_id": chat_id,
-        "text": message[:4096],
-        "parse_mode": "Markdown",
-    }).encode()
+    data = urllib.parse.urlencode(
+        {
+            "chat_id": chat_id,
+            "text": message[:4096],
+            "parse_mode": "Markdown",
+        }
+    ).encode()
     req = urllib.request.Request(url, data=data)
     try:
         urllib.request.urlopen(req, timeout=10)
@@ -52,7 +54,10 @@ def main() -> None:
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", notify.get("telegram_chat_id") or "")
 
     if not token or not chat_id:
-        print("[notify] Telegram not configured. Set token and chat_id in .ai/config.json", file=sys.stderr)
+        print(
+            "[notify] Telegram not configured. Set token and chat_id in .ai/config.json",
+            file=sys.stderr,
+        )
         print("[notify] or via TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID env vars.", file=sys.stderr)
         sys.exit(1)
 

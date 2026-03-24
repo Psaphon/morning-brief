@@ -51,7 +51,10 @@ async def check_endpoint(
 
         logger.info(
             "Health check %s: %d (%s, %.0fms)",
-            name, response.status_code, "UP" if is_up else "DOWN", elapsed_ms,
+            name,
+            response.status_code,
+            "UP" if is_up else "DOWN",
+            elapsed_ms,
         )
         return HealthResult(
             url=url,
@@ -85,10 +88,7 @@ async def check_all_endpoints(
         follow_redirects=True,
         headers={"User-Agent": "MorningBrief-HealthCheck/0.1"},
     ) as client:
-        tasks = [
-            check_endpoint(client, ep["url"], ep["name"])
-            for ep in endpoints
-        ]
+        tasks = [check_endpoint(client, ep["url"], ep["name"]) for ep in endpoints]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
     health_results: list[HealthResult] = []
@@ -101,6 +101,7 @@ async def check_all_endpoints(
     up_count = sum(1 for r in health_results if r.is_up)
     logger.info(
         "Health checks: %d/%d endpoints up",
-        up_count, len(health_results),
+        up_count,
+        len(health_results),
     )
     return health_results

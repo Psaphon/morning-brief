@@ -114,8 +114,18 @@ class Database:
                    (url, url_hash, title, source, category, author,
                     published_at, fetched_at, full_text, content_hash)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (url, url_hash, title, source, category, author,
-                 published_at, now, full_text, content_hash),
+                (
+                    url,
+                    url_hash,
+                    title,
+                    source,
+                    category,
+                    author,
+                    published_at,
+                    now,
+                    full_text,
+                    content_hash,
+                ),
             )
             self.conn.commit()
             return True

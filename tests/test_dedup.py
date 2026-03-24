@@ -1,6 +1,6 @@
 """Tests for article deduplication."""
 
-from src.processors.dedup import deduplicate, _normalize_title
+from src.processors.dedup import _normalize_title, deduplicate
 
 
 def test_normalize_title_strips_prefixes():
