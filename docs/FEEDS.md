@@ -12,21 +12,21 @@ This is the living registry of all data sources. Update status as feeds are test
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| AP Politics | `https://apnews.com/politics.rss` | untested | Wire service, gold standard for factual |
-| ProPublica | `https://www.propublica.org/feeds/propublica/main` | untested | Investigative journalism |
-| The Intercept | `https://theintercept.com/feed/` | untested | Investigative, national security focus |
-| NPR Politics | `https://feeds.npr.org/1014/rss.xml` | untested | Publicly funded, factual |
-| PBS NewsHour | `https://www.pbs.org/newshour/feeds/rss/politics` | untested | Publicly funded |
-| PolitiFact | `https://www.politifact.com/rss/all/` | untested | Fact-checking |
-| POLITICO | `https://www.politico.com/rss/politicopicks.xml` | untested | DC-focused, some opinion — filter carefully |
+| AP Politics | `https://apnews.com/politics.rss` | broken | 404 Not Found — URL may have changed |
+| ProPublica | `https://www.propublica.org/feeds/propublica/main` | active | Investigative journalism |
+| The Intercept | `https://theintercept.com/feed/` | active | Investigative, national security focus |
+| NPR Politics | `https://feeds.npr.org/1014/rss.xml` | active | Publicly funded, factual |
+| PBS NewsHour | `https://www.pbs.org/newshour/feeds/rss/politics` | active | Publicly funded |
+| PolitiFact | `https://www.politifact.com/rss/all/` | active | Fact-checking |
+| POLITICO | `https://www.politico.com/rss/politicopicks.xml` | broken | 403 Forbidden — blocks automated access |
 
 ### Florida Politics
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| Florida Politics | `https://floridapolitics.com/feed` | untested | Premier FL political news |
-| Miami Herald Politics | `https://www.miamiherald.com/news/politics-government/index.rss` | untested | Major FL paper |
-| Tampa Bay Times | `https://www.tampabay.com/news/florida-politics/?outputType=rss` | untested | Major FL paper |
+| Florida Politics | `https://floridapolitics.com/feed` | active | Premier FL political news |
+| Miami Herald Politics | `https://www.miamiherald.com/news/politics-government/index.rss` | broken | Server disconnected without response |
+| Tampa Bay Times | `https://www.tampabay.com/news/florida-politics/?outputType=rss` | broken | 500 Internal Server Error |
 | Sun Sentinel | TBD — needs RSS discovery | untested | South FL coverage |
 | WUSF (Tampa NPR) | TBD — needs RSS discovery | untested | Public radio |
 
@@ -34,47 +34,47 @@ This is the living registry of all data sources. Update status as feeds are test
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| BBC World | `https://feeds.bbci.co.uk/news/world/rss.xml` | untested | UK public broadcaster |
-| The Guardian World | `https://www.theguardian.com/world/rss` | untested | UK, strong international |
-| Al Jazeera | `https://www.aljazeera.com/xml/rss/all.xml` | untested | Middle East + global |
-| France 24 | `https://www.france24.com/en/rss` | untested | French public broadcaster |
-| Deutsche Welle | `https://rss.dw.com/rdf/rss-en-all` | untested | German public broadcaster |
+| BBC World | `https://feeds.bbci.co.uk/news/world/rss.xml` | active | UK public broadcaster |
+| The Guardian World | `https://www.theguardian.com/world/rss` | active | UK, strong international |
+| Al Jazeera | `https://www.aljazeera.com/xml/rss/all.xml` | active | Middle East + global |
+| France 24 | `https://www.france24.com/en/rss` | active | French public broadcaster |
+| Deutsche Welle | `https://rss.dw.com/rdf/rss-en-all` | active | German public broadcaster |
 
 ### Crypto / Web3 / ReFi
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| CoinDesk | `https://www.coindesk.com/arc/outboundfeeds/rss/` | untested | Major crypto news |
-| Decrypt | `https://decrypt.co/feed` | untested | Crypto + Web3 |
-| Ethereum Foundation Blog | `https://blog.ethereum.org/en/feed.xml` | untested | Official EF updates |
-| The Defiant | `https://thedefiant.io/api/feed` | untested | DeFi-focused |
-| Week in Ethereum | `https://weekinethereumnews.com/feed/` | untested | Weekly digest |
+| CoinDesk | `https://www.coindesk.com/arc/outboundfeeds/rss/` | active | Major crypto news |
+| Decrypt | `https://decrypt.co/feed` | active | Crypto + Web3 |
+| Ethereum Foundation Blog | `https://blog.ethereum.org/en/feed.xml` | active | Official EF updates |
+| The Defiant | `https://thedefiant.io/api/feed` | active | DeFi-focused |
+| Week in Ethereum | `https://weekinethereumnews.com/feed/` | broken | SSL certificate mismatch |
 | CARBON Copy (ReFi) | TBD — check paragraph.xyz | untested | ReFi-specific aggregator |
-| ReFi DAO Blog | `https://blog.refidao.com/` | untested | Needs RSS discovery |
+| ReFi DAO Blog | `https://blog.refidao.com/` | broken | Malformed XML — not well-formed |
 
 ### Software Dev / DevOps / AI / ML
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| Hacker News (100+ pts) | `https://hnrss.org/frontpage?points=100` | untested | Quality-filtered HN |
-| The New Stack | `https://thenewstack.io/feed/` | untested | Cloud-native, DevOps |
-| Import AI | `https://importai.substack.com/feed` | untested | Weekly AI newsletter |
-| ArXiv CS.AI | `https://rss.arxiv.org/rss/cs.AI` | untested | Academic AI papers |
-| Hugging Face Blog | `https://huggingface.co/blog/feed.xml` | untested | ML/AI tools and research |
-| DevOps.com | `https://devops.com/feed/` | untested | DevOps industry |
+| Hacker News (100+ pts) | `https://hnrss.org/frontpage?points=100` | active | Quality-filtered HN |
+| The New Stack | `https://thenewstack.io/feed/` | active | Cloud-native, DevOps |
+| Import AI | `https://importai.substack.com/feed` | active | Weekly AI newsletter |
+| ArXiv CS.AI | `https://rss.arxiv.org/rss/cs.AI` | active | Academic AI papers |
+| Hugging Face Blog | `https://huggingface.co/blog/feed.xml` | active | ML/AI tools and research |
+| DevOps.com | `https://devops.com/feed/` | active | DevOps industry |
 | TLDR Newsletter | TBD — check for RSS | untested | Daily dev news digest |
-| Changelog | `https://changelog.com/feed` | untested | Dev news podcast/blog |
+| Changelog | `https://changelog.com/feed` | active | Dev news podcast/blog |
 
 ### Art / Ceramics / Visual
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| Hyperallergic | `https://hyperallergic.com/feed/` | untested | Contemporary art, ~8/day |
-| This is Colossal | `https://www.thisiscolossal.com/feed/` | untested | Art, design, visual culture |
-| Contemporary Art Daily | `https://contemporaryartdaily.com/feed/` | untested | Gallery exhibitions |
-| e-flux | `https://www.e-flux.com/rss/` | untested | Art world news and essays |
-| Artnet News | `https://news.artnet.com/feed/` | untested | Art market and culture |
-| r/ceramics | `https://www.reddit.com/r/ceramics/.rss` | untested | Community ceramics posts |
+| Hyperallergic | `https://hyperallergic.com/feed/` | active | Contemporary art, ~8/day |
+| This is Colossal | `https://www.thisiscolossal.com/feed/` | active | Art, design, visual culture |
+| Contemporary Art Daily | `https://contemporaryartdaily.com/feed/` | active | Gallery exhibitions |
+| e-flux | `https://www.e-flux.com/rss/` | broken | 404 Not Found |
+| Artnet News | `https://news.artnet.com/feed/` | active | Art market and culture |
+| r/ceramics | `https://www.reddit.com/r/ceramics/.rss` | broken | 403 Blocked — Reddit blocks automated access |
 
 ---
 

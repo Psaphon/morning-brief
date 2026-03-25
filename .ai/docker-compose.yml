@@ -1,8 +1,10 @@
 services:
   claude-code:
     build: ./claude-code
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ../../:/workspace
+      - claude-data:/home/claude/.claude
     working_dir: /workspace
     stdin_open: true
     tty: true
@@ -19,3 +21,5 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_MODEL=claude-sonnet-4-20250514
 
+volumes:
+  claude-data:
