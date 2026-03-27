@@ -2,8 +2,11 @@
   "permissions": {
     "allow": [
       "Read",
+      "Write",
+      "Edit",
       "Glob",
-      "Grep"
+      "Grep",
+      "Bash(*)"
     ],
     "deny": []
   },
