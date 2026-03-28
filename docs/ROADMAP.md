@@ -53,11 +53,13 @@
 ## Phase 4: Dashboard Output
 *Render a mobile-friendly HTML dashboard.*
 
-- [ ] Create templates/dashboard.html — Jinja2 template with sections per category
-- [ ] Implement src/publishers/html.py — load data from SQLite, render template
-- [ ] Make it mobile-responsive (viewport meta, CSS media queries)
-- [ ] Sections: Top Stories, US Politics, Florida, World, Markets, Crypto, Dev/AI, Daily Art
-- [ ] Wire into main.py as the final stage
+- [x] Create templates/dashboard.html — Jinja2 template with sections per category
+- [x] Implement src/publishers/html.py — load data from SQLite, render template
+- [x] Make it mobile-responsive (viewport meta, CSS media queries)
+- [x] Sections: Top Stories, US Politics, Florida, World, Markets, Crypto, Dev/AI, Daily Art
+- [x] Implement src/publishers/terminal.py — Rich terminal dashboard with tables and panels
+- [x] Implement src/cli.py — Click CLI with run/dashboard/view commands
+- [x] Wire into main.py as the final stage
 - [ ] Test by opening output HTML on phone browser
 
 ## Phase 5: Daily Artwork

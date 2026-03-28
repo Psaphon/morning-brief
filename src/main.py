@@ -24,6 +24,7 @@ from .fetchers.financial import fetch_all_financial
 from .fetchers.rss import fetch_all_feeds
 from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
+from .publishers.html import render_dashboard
 from .summarizers.local import summarize_articles
 
 logging.basicConfig(
@@ -123,8 +124,20 @@ async def run_pipeline() -> None:
                     saved += 1
             logger.info("Saved %d summaries to database", saved)
 
-        # Stage 4: Publish
-        # TODO: implement in Phase 4
+        # Stage 4: Publish HTML dashboard
+        logger.info("Stage 4: Rendering dashboard...")
+        all_articles = db.get_todays_articles()
+        market = db.get_latest_market_data()
+        health = db.get_latest_health_checks()
+
+        output_path = config.output_dir / "dashboard.html"
+        render_dashboard(
+            articles=all_articles,
+            market_data=market,
+            health_checks=health,
+            output_path=output_path,
+        )
+        logger.info("Dashboard published with %d articles", len(all_articles))
 
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
