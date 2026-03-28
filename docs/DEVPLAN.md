@@ -47,6 +47,7 @@ Finalize Dockerfile and docker-compose.yml so the full pipeline runs unattended 
 |------|--------|---------|
 | `Dockerfile` | Modify | Multi-stage build with all dependencies |
 | `docker-compose.yml` | Modify | Volume mounts, security opts, network config |
+| `tests/test_docker.py` | Create | Test that container builds and pipeline runs |
 
 ### Key Decisions
 
@@ -111,10 +112,16 @@ Set up Cloudflare Pages to serve the dashboard and Cloudflare Access for authent
 - [ ] [HUMAN] Verify dashboard loads on phone with authentication
 - [ ] [HUMAN] robots.txt serves Disallow all (already in deploy script)
 
+### Key Decisions
+
+- Cloudflare Pages over self-hosting — no server to maintain, free tier, global CDN
+- Cloudflare Access for auth over HTTP basic — zero-trust, free for 1 user, works with phone browsers
+
 ### Notes
 
 - Alternative: Tailscale for private network access (simpler, no public exposure)
 - Deploy script already pushes to gh-pages with robots.txt
+- No files to create or modify — this is entirely manual infrastructure setup
 
 ---
 
@@ -135,6 +142,7 @@ Validate and tune Ollama summarization quality. Measure batch timing and adjust 
 - [ ] Measure and log total summarization time per batch run
 - [ ] Add timing metrics to pipeline output (articles/minute, total duration)
 - [ ] Adjust prompt template if quality review reveals issues
+- [ ] All tests pass
 - [ ] Lint clean
 
 ### Files to Create or Modify
@@ -143,6 +151,7 @@ Validate and tune Ollama summarization quality. Measure batch timing and adjust 
 |------|--------|---------|
 | `src/summarizers/local.py` | Modify | Add timing metrics, adjust prompt if needed |
 | `src/main.py` | Modify | Log batch timing summary |
+| `tests/test_summarizer.py` | Modify | Add timing metric tests |
 
 ### Notes
 
@@ -219,6 +228,7 @@ Optional upgrade: when `CLAUDE_API_KEY` is set, replace the Ollama daily briefin
 - [ ] Briefing appears as the first section of the dashboard ("Today's Briefing")
 - [ ] Rate-limited: one API call per pipeline run
 - [ ] Tests cover prompt construction and graceful skip
+- [ ] All tests pass
 - [ ] Lint clean
 
 ### Files to Create or Modify
@@ -256,6 +266,7 @@ Send a daily email digest with the briefing and top stories, as an alternative t
 - [ ] Gated behind `SENDGRID_API_KEY` env var — skips gracefully if not set
 - [ ] Configurable recipient via `EMAIL_TO` env var
 - [ ] Tests cover email formatting and graceful skip
+- [ ] All tests pass
 - [ ] Lint clean
 
 ### Files to Create or Modify
