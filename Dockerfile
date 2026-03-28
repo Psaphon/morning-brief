@@ -22,7 +22,12 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY src/ src/
 COPY templates/ templates/
+COPY scripts/ scripts/
 COPY docs/FEEDS.md docs/FEEDS.md
+
+# Copy test infrastructure so tests can run inside the container
+COPY tests/ tests/
+COPY pyproject.toml .
 
 # Create data directories for SQLite, output, and logs
 RUN mkdir -p data/output data/logs

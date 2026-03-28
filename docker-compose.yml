@@ -1,51 +1,22 @@
 services:
 
-  # ── Ollama — local LLM server ──────────────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama-models:/root/.ollama
-    ports:
-      - "11434:11434"
-    restart: unless-stopped
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    # Uncomment to enable GPU acceleration (requires nvidia-container-toolkit):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-
   # ── Morning Brief pipeline ─────────────────────────────────────────────────
+  # Ollama runs on the HOST (for GPU access).  The container reaches it via
+  # host.docker.internal or the OLLAMA_HOST env var from .env.
   morning-brief:
     build: .
-    depends_on:
-      ollama:
-        condition: service_healthy
     volumes:
       - ./data:/app/data
     env_file:
       - .env
     environment:
-      # Override so the pipeline reaches the ollama container, not localhost
-      - OLLAMA_HOST=http://ollama:11434
+      # Default: reach Ollama on the host.  Override in .env if needed.
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     # Runs once per invocation (triggered by systemd timer); does not restart
     restart: "no"
-
-volumes:
-  ollama-models:
