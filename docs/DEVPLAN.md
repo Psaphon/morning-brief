@@ -151,16 +151,65 @@ Validate and tune Ollama summarization quality. Measure batch timing and adjust 
 
 ---
 
-## Feature: claude-synthesis
+## Feature: daily-briefing
 
-**Branch:** `feature/claude-synthesis`
+**Branch:** `feature/daily-briefing`
 **Depends on:** summarization-quality
 **Status:** Not Started
 **Requires:** ai
 
 ### Goal
 
-Add optional Claude API integration that reads all article summaries and generates a cross-topic narrative briefing — connecting themes across politics, markets, tech, and world events.
+After all articles are summarized, combine today's summaries into a single ~500-1000 word daily briefing using Ollama. This runs locally at no cost and gives the dashboard a cohesive narrative instead of just a list of individual summaries.
+
+### Acceptance Criteria
+
+- [ ] New function in `src/summarizers/local.py` takes all today's summaries grouped by category and produces one combined briefing
+- [ ] Briefing is ~500-1000 words, covering the key themes across all categories
+- [ ] Briefing stored in SQLite (`daily_briefings` table with date, content, model, generated_at)
+- [ ] Appears as the first section of the dashboard ("Today's Briefing")
+- [ ] Appears in terminal output as a Rich panel
+- [ ] Skips gracefully if Ollama is unreachable (dashboard still renders without briefing)
+- [ ] Only generates once per day (check if today's briefing already exists)
+- [ ] Tests cover prompt construction, storage, and skip logic
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/summarizers/local.py` | Modify | Add `generate_daily_briefing()` function |
+| `src/db.py` | Modify | Add `daily_briefings` table, insert/query methods |
+| `src/main.py` | Modify | Wire briefing generation after summarization stage |
+| `src/publishers/html.py` | Modify | Pass briefing to template |
+| `src/publishers/terminal.py` | Modify | Render briefing as Rich panel |
+| `templates/dashboard.html` | Modify | Add briefing section at top |
+| `tests/test_briefing.py` | Create | Test prompt, storage, skip logic |
+
+### Key Decisions
+
+- Uses Ollama (same model as per-article summaries) — no paid API, runs locally
+- Prompt groups summaries by category (politics, markets, crypto, tech, world, etc.) so the model can identify cross-cutting themes
+- 500-1000 words target set via prompt instruction, not hard truncation
+- One briefing per day — if re-run, reuse existing briefing from DB
+
+### Notes
+
+- This is the default briefing. claude-synthesis (next feature) is an optional upgrade that replaces it with a higher-quality Claude-generated version when an API key is available.
+- Qwen 2.5 7B should handle this well — it's one call with ~2000-3000 words of input summaries
+
+---
+
+## Feature: claude-synthesis
+
+**Branch:** `feature/claude-synthesis`
+**Depends on:** daily-briefing
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+Optional upgrade: when `CLAUDE_API_KEY` is set, replace the Ollama daily briefing with a Claude-generated cross-topic narrative that connects themes across politics, markets, tech, and world events with higher reasoning quality.
 
 ### Acceptance Criteria
 
