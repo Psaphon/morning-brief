@@ -27,11 +27,11 @@
 ## Phase 2: Local LLM Summarization
 *Summarize articles with Qwen via Ollama.*
 
-- [ ] Implement src/summarizers/local.py — send articles to Ollama, get summaries
-- [ ] Create summarization prompt template (concise, factual, 2-3 sentences)
-- [ ] Handle long articles — truncate to ~3000 tokens before sending
-- [ ] Store summaries back in SQLite (summary column, summary_model column)
-- [ ] Wire into main.py — fetch → extract → dedup → store → summarize
+- [x] Implement src/summarizers/local.py — send articles to Ollama, get summaries
+- [x] Create summarization prompt template (concise, factual, 2-3 sentences)
+- [x] Handle long articles — truncate to ~3000 tokens before sending
+- [x] Store summaries back in SQLite (summary column, summary_model column)
+- [x] Wire into main.py — fetch → extract → dedup → store → summarize
 - [ ] Test quality: run on 20 articles, review summaries for accuracy
 - [ ] Measure timing: how long does a full batch take?
 

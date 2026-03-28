@@ -19,6 +19,7 @@ from .db import Database
 from .fetchers.rss import fetch_all_feeds
 from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
+from .summarizers.local import summarize_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,8 +58,19 @@ async def run_pipeline() -> None:
             "Stored %d new articles (%d duplicates skipped)", new_count, len(extracted) - new_count
         )
 
-        # Stage 3: Summarize (requires Ollama — skip if unavailable)
-        # TODO: implement in Phase 2
+        # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
+        logger.info("Stage 3: Summarizing articles...")
+        unsummarized = db.get_unsummarized_articles()
+        logger.info("Found %d unsummarized articles", len(unsummarized))
+
+        if unsummarized:
+            results = await summarize_articles(config.ollama, unsummarized)
+            saved = 0
+            for result in results:
+                if result.success and result.summary:
+                    db.update_summary(result.article_id, result.summary, result.model)
+                    saved += 1
+            logger.info("Saved %d summaries to database", saved)
 
         # Stage 4: Publish
         # TODO: implement in Phase 4
