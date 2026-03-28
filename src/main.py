@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -177,6 +178,25 @@ async def run_pipeline() -> None:
             output_path=output_path,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))
+
+        # Stage 5: Deploy to gh-pages (if enabled)
+        if config.deploy_enabled:
+            logger.info("Stage 5: Deploying dashboard...")
+            deploy_script = Path("scripts/deploy-dashboard.sh")
+            if deploy_script.exists():
+                result = subprocess.run(
+                    [str(deploy_script), str(output_path)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    logger.info("Dashboard deployed to %s branch", config.deploy_branch)
+                else:
+                    logger.warning("Deploy failed: %s", result.stderr.strip())
+            else:
+                logger.warning("Deploy script not found at %s", deploy_script)
+        else:
+            logger.info("Deploy disabled (set DEPLOY_ENABLED=true to enable)")
 
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
