@@ -3,25 +3,26 @@
 ## Phase 0: Documentation and Project Setup
 *Get the project scaffolded and ready to build.*
 
-- [ ] Finalize CLAUDE.md, ROADMAP.md, FEEDS.md, ARCHITECTURE.md
-- [ ] Create repo with directory structure
-- [ ] Set up Python venv and requirements.txt with initial dependencies
-- [ ] Create .env.example with all config variables
-- [ ] Create Dockerfile and docker-compose.yml (basic — just runs the pipeline)
+- [x] Finalize CLAUDE.md, ROADMAP.md, FEEDS.md
+- [x] Create ARCHITECTURE.md
+- [x] Create repo with directory structure
+- [x] Set up Python venv and requirements.txt with initial dependencies
+- [x] Create .env.example with all config variables
+- [x] Create Dockerfile and docker-compose.yml (basic — just runs the pipeline)
 - [ ] Verify Ollama is running locally with Qwen 2.5 7B model
-- [ ] Create src/main.py skeleton that runs stages in order with logging
+- [x] Create src/main.py skeleton that runs stages in order with logging
 
 ## Phase 1: RSS Fetching and Storage
 *Get news articles flowing into the database.*
 
-- [ ] Implement src/fetchers/rss.py — fetch and parse RSS feeds from FEEDS.md
-- [ ] Implement src/db.py — SQLite schema, insert, query, dedup by URL hash
-- [ ] Implement src/processors/extractor.py — trafilatura full-text extraction
-- [ ] Implement src/processors/dedup.py — URL normalization + title fuzzy match
-- [ ] Wire into main.py — fetch → extract → dedup → store
-- [ ] Test with 5-10 feeds, verify articles land in SQLite correctly
-- [ ] Add per-feed error handling (one broken feed doesn't crash the pipeline)
-- [ ] Add basic logging (structured, with timestamps and feed names)
+- [x] Implement src/fetchers/rss.py — fetch and parse RSS feeds from FEEDS.md
+- [x] Implement src/db.py — SQLite schema, insert, query, dedup by URL hash
+- [x] Implement src/processors/extractor.py — trafilatura full-text extraction
+- [x] Implement src/processors/dedup.py — URL normalization + title fuzzy match
+- [x] Wire into main.py — fetch → extract → dedup → store
+- [x] Test with 5-10 feeds, verify articles land in SQLite correctly
+- [x] Add per-feed error handling (one broken feed doesn't crash the pipeline)
+- [x] Add basic logging (structured, with timestamps and feed names)
 
 ## Phase 2: Local LLM Summarization
 *Summarize articles with Qwen via Ollama.*
@@ -64,7 +65,7 @@
 - [ ] Implement src/fetchers/art.py — Met Museum API random artwork by date seed
 - [ ] Include ceramics search option alongside general art
 - [ ] Display artwork image + title + artist + date + medium in dashboard
-- [ ] Add contemporary art RSS feeds (Hyperallergic, This is Colossal)
+- [x] Add contemporary art RSS feeds (Hyperallergic, This is Colossal)
 
 ## Phase 6: Scheduling and Docker Deployment
 *Automate the pipeline to run unattended.*
