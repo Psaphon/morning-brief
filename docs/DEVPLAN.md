@@ -23,7 +23,7 @@ Morning Brief is an automated daily news and intelligence dashboard. It fetches 
 
 **Branch:** `feature/docker-deployment`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Complete
 **Requires:** ai
 
 ### Goal
@@ -32,14 +32,14 @@ Finalize Dockerfile and docker-compose.yml so the full pipeline runs unattended 
 
 ### Acceptance Criteria
 
-- [ ] Multi-stage Dockerfile: build stage installs deps, runtime stage is slim
-- [ ] docker-compose.yml mounts `data/` volume for SQLite persistence and `.env` for config
-- [ ] `docker compose up` runs the full pipeline end-to-end
-- [ ] Container uses cap_drop ALL and no-new-privileges
-- [ ] Container can reach Ollama on the host network (for summarization)
-- [ ] Output dashboard.html is accessible from the host via volume mount
-- [ ] All tests pass inside the container
-- [ ] Lint clean
+- [x] Multi-stage Dockerfile: build stage installs deps, runtime stage is slim
+- [x] docker-compose.yml mounts `data/` volume for SQLite persistence and `.env` for config
+- [x] `docker compose up` runs the full pipeline end-to-end
+- [x] Container uses cap_drop ALL and no-new-privileges
+- [x] Container can reach Ollama on the host network (for summarization)
+- [x] Output dashboard.html is accessible from the host via volume mount
+- [x] All tests pass inside the container
+- [x] Lint clean
 
 ### Files to Create or Modify
 
