@@ -10,15 +10,21 @@ Runs all stages in order:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 from datetime import datetime, timezone
 
+import httpx
+
 from .config import load_config
 from .db import Database
+from .fetchers.crypto import fetch_all_crypto
+from .fetchers.financial import fetch_all_financial
 from .fetchers.rss import fetch_all_feeds
 from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
+from .summarizers.local import summarize_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,10 +44,56 @@ async def run_pipeline() -> None:
         start = datetime.now(timezone.utc)
         logger.info("Pipeline started at %s", start.isoformat())
 
-        # Stage 1: Fetch RSS feeds
-        logger.info("Stage 1: Fetching RSS feeds...")
-        raw_articles = await fetch_all_feeds(config.feeds_path)
+        # Stage 1: Fetch all data sources in parallel
+        logger.info("Stage 1: Fetching data sources...")
+
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            headers={"User-Agent": "MorningBrief/0.1"},
+        ) as client:
+            rss_task = fetch_all_feeds(config.feeds_path)
+            financial_task = fetch_all_financial(
+                client,
+                finnhub_key=config.api_keys.finnhub,
+                fred_key=config.api_keys.fred,
+            )
+            crypto_task = fetch_all_crypto(
+                client,
+                coingecko_key=config.api_keys.coingecko,
+                etherscan_key=config.api_keys.etherscan,
+            )
+
+            raw_articles, financial_data, crypto_data = await asyncio.gather(
+                rss_task, financial_task, crypto_task
+            )
+
         logger.info("Fetched %d raw articles", len(raw_articles))
+
+        # Store financial data
+        for point in financial_data:
+            extra_json = json.dumps(point.extra) if point.extra else None
+            db.insert_market_data(
+                symbol=point.symbol,
+                data_type=point.data_type,
+                value=point.value,
+                change_pct=point.change_pct,
+                extra_json=extra_json,
+            )
+        if financial_data:
+            logger.info("Stored %d financial data points", len(financial_data))
+
+        # Store crypto data
+        for point in crypto_data:
+            extra_json = json.dumps(point.extra) if point.extra else None
+            db.insert_market_data(
+                symbol=point.symbol,
+                data_type=point.data_type,
+                value=point.value,
+                change_pct=point.change_pct,
+                extra_json=extra_json,
+            )
+        if crypto_data:
+            logger.info("Stored %d crypto data points", len(crypto_data))
 
         # Stage 2: Process — extract and deduplicate
         logger.info("Stage 2: Processing articles...")
@@ -57,8 +109,19 @@ async def run_pipeline() -> None:
             "Stored %d new articles (%d duplicates skipped)", new_count, len(extracted) - new_count
         )
 
-        # Stage 3: Summarize (requires Ollama — skip if unavailable)
-        # TODO: implement in Phase 2
+        # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
+        logger.info("Stage 3: Summarizing articles...")
+        unsummarized = db.get_unsummarized_articles()
+        logger.info("Found %d unsummarized articles", len(unsummarized))
+
+        if unsummarized:
+            results = await summarize_articles(config.ollama, unsummarized)
+            saved = 0
+            for result in results:
+                if result.success and result.summary:
+                    db.update_summary(result.article_id, result.summary, result.model)
+                    saved += 1
+            logger.info("Saved %d summaries to database", saved)
 
         # Stage 4: Publish
         # TODO: implement in Phase 4

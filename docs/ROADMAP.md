@@ -9,7 +9,6 @@
 - [x] Set up Python venv and requirements.txt with initial dependencies
 - [x] Create .env.example with all config variables
 - [x] Create Dockerfile and docker-compose.yml (basic — just runs the pipeline)
-- [ ] Verify Ollama is running locally with Qwen 2.5 7B model
 - [x] Create src/main.py skeleton that runs stages in order with logging
 
 ## Phase 1: RSS Fetching and Storage
@@ -27,27 +26,29 @@
 ## Phase 2: Local LLM Summarization
 *Summarize articles with Qwen via Ollama.*
 
-- [ ] Implement src/summarizers/local.py — send articles to Ollama, get summaries
-- [ ] Create summarization prompt template (concise, factual, 2-3 sentences)
-- [ ] Handle long articles — truncate to ~3000 tokens before sending
-- [ ] Store summaries back in SQLite (summary column, summary_model column)
-- [ ] Wire into main.py — fetch → extract → dedup → store → summarize
+- [x] Implement src/summarizers/local.py — send articles to Ollama, get summaries
+- [x] Create summarization prompt template (concise, factual, 2-3 sentences)
+- [x] Handle long articles — truncate to ~3000 tokens before sending
+- [x] Store summaries back in SQLite (summary column, summary_model column)
+- [x] Wire into main.py — fetch → extract → dedup → store → summarize
+- [ ] Install and configure Ollama (separate project — do before Phase 6)
+- [ ] Pull Qwen 2.5 7B model (`ollama pull qwen2.5:7b-instruct-q4_K_M`)
 - [ ] Test quality: run on 20 articles, review summaries for accuracy
 - [ ] Measure timing: how long does a full batch take?
 
 ## Phase 3: Financial and Crypto Data
 *Add market context alongside news.*
 
-- [ ] Implement src/fetchers/financial.py — pull from Finnhub and/or FRED
-  - [ ] Index closes (SPY, QQQ, DIA)
-  - [ ] Treasury yields (FRED: DGS2, DGS10)
-  - [ ] VIX (FRED: VIXCLS)
-- [ ] Implement src/fetchers/crypto.py — pull from CoinGecko and DeFi Llama
-  - [ ] Top crypto prices (BTC, ETH + watchlist)
-  - [ ] Ethereum gas price (Etherscan)
-  - [ ] DeFi TVL snapshot
-- [ ] Store structured data in SQLite (separate tables or JSON blobs)
-- [ ] Wire into main.py as a parallel fetch stage
+- [x] Implement src/fetchers/financial.py — pull from Finnhub and/or FRED
+  - [x] Index closes (SPY, QQQ, DIA)
+  - [x] Treasury yields (FRED: DGS2, DGS10)
+  - [x] VIX (FRED: VIXCLS)
+- [x] Implement src/fetchers/crypto.py — pull from CoinGecko and DeFi Llama
+  - [x] Top crypto prices (BTC, ETH + watchlist)
+  - [x] Ethereum gas price (Etherscan)
+  - [x] DeFi TVL snapshot
+- [x] Store structured data in SQLite (separate tables or JSON blobs)
+- [x] Wire into main.py as a parallel fetch stage
 
 ## Phase 4: Dashboard Output
 *Render a mobile-friendly HTML dashboard.*
