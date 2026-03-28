@@ -14,6 +14,7 @@ import json
 import logging
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 
@@ -36,10 +37,30 @@ logging.basicConfig(
 logger = logging.getLogger("morning-brief")
 
 
+def _write_status(data_dir: Path, status: str, message: str, **extra) -> None:
+    """Write a JSON status file so health checks and alerting scripts can read it.
+
+    Written to data/last_run.json — checked by scripts/healthcheck.sh.
+    """
+    status_path = data_dir / "last_run.json"
+    payload = {
+        "status": status,
+        "message": message,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **extra,
+    }
+    try:
+        status_path.parent.mkdir(parents=True, exist_ok=True)
+        status_path.write_text(json.dumps(payload, indent=2))
+    except OSError as e:
+        logger.warning("Could not write status file: %s", e)
+
+
 async def run_pipeline() -> None:
     """Execute the full Morning Brief pipeline."""
     config = load_config()
     db = Database(config.database_path)
+    data_dir = config.database_path.parent
 
     try:
         db.connect()
@@ -159,6 +180,19 @@ async def run_pipeline() -> None:
 
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
+
+        _write_status(
+            data_dir,
+            status="ok",
+            message=f"Pipeline completed in {elapsed:.1f}s",
+            articles=len(all_articles),
+            elapsed_seconds=round(elapsed, 1),
+        )
+
+    except Exception as exc:
+        logger.exception("Pipeline failed: %s", exc)
+        _write_status(data_dir, status="error", message=str(exc))
+        raise
 
     finally:
         db.close()
