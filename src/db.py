@@ -212,6 +212,34 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def insert_artwork(
+        self,
+        title: str,
+        artist: str | None = None,
+        date: str | None = None,
+        medium: str | None = None,
+        image_url: str | None = None,
+        source_url: str | None = None,
+    ) -> None:
+        """Insert an artwork record."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO artworks
+               (title, artist, date, medium, image_url, source_url, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (title, artist, date, medium, image_url, source_url, now),
+        )
+        self.conn.commit()
+
+    def get_todays_artwork(self) -> list[dict[str, Any]]:
+        """Get artworks fetched today."""
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = self.conn.execute(
+            "SELECT * FROM artworks WHERE fetched_at >= ? ORDER BY id",
+            (today,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""
         rows = self.conn.execute(

@@ -56,6 +56,7 @@ def dashboard(output: str | None) -> None:
         articles = db.get_todays_articles()
         market_data = db.get_latest_market_data()
         health_checks = db.get_latest_health_checks()
+        artworks = db.get_todays_artwork()
 
         if not articles and not market_data:
             click.echo("No data found. Run the pipeline first: python -m src.main")
@@ -66,6 +67,7 @@ def dashboard(output: str | None) -> None:
             articles=articles,
             market_data=market_data,
             health_checks=health_checks,
+            artworks=artworks,
             output_path=output_path,
         )
         click.echo(f"Dashboard written to {output_path} ({len(articles)} articles)")
@@ -88,6 +90,7 @@ def view(limit: int) -> None:
         articles = db.get_todays_articles()
         market_data = db.get_latest_market_data()
         health_checks = db.get_latest_health_checks()
+        artworks = db.get_todays_artwork()
 
         if not articles and not market_data:
             click.echo("No data found. Run the pipeline first: python -m src.main")
@@ -97,6 +100,7 @@ def view(limit: int) -> None:
             articles=articles,
             market_data=market_data,
             health_checks=health_checks,
+            artworks=artworks,
             max_articles_per_category=limit,
         )
 
