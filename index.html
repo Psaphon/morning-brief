@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morning Brief — Saturday, March 28, 2026</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 1rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        header h1 { font-size: 1.5rem; font-weight: 600; }
+        header .date { color: var(--muted); font-size: 0.9rem; }
+        header .stats { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
+
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .section h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+
+        /* Market data */
+        .market-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.5rem;
+        }
+        .market-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+        }
+        .market-card .symbol { font-weight: 600; font-size: 0.85rem; }
+        .market-card .value { font-size: 1rem; }
+        .market-card .change { font-size: 0.8rem; }
+        .up { color: var(--green); }
+        .down { color: var(--red); }
+
+        /* Articles */
+        .article {
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 0;
+        }
+        .article:last-child { border-bottom: none; }
+        .article .source {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .article h3 {
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin: 0.15rem 0;
+        }
+        .article h3 a {
+            color: var(--text);
+            text-decoration: none;
+        }
+        .article h3 a:hover { color: var(--accent); }
+        .article .summary {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Health checks */
+        .health-list { list-style: none; }
+        .health-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.85rem;
+        }
+        .health-list .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        .health-list .status-dot.up { background: var(--green); }
+        .health-list .status-dot.down { background: var(--red); }
+        .health-list .response-time { color: var(--muted); }
+
+        /* Artwork */
+        .artwork-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .artwork-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .artwork-card img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            background: #000;
+        }
+        .artwork-card .artwork-info {
+            padding: 0.75rem;
+        }
+        .artwork-card .artwork-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+        .artwork-card .artwork-title a {
+            color: var(--text);
+            text-decoration: none;
+        }
+        .artwork-card .artwork-title a:hover { color: var(--accent); }
+        .artwork-card .artwork-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        footer {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.75rem;
+            padding: 1rem 0;
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 0.5rem; }
+            .market-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Morning Brief</h1>
+        <div class="date">Saturday, March 28, 2026</div>
+        <div class="stats">143 articles across 6 categories</div>
+    </header>
+
+    
+    <div class="section">
+        <h2>Daily Art</h2>
+        <div class="artwork-grid">
+            
+            <div class="artwork-card">
+                
+                <img src="https://images.metmuseum.org/CRDImages/is/web-large/DP234083.jpg" alt="&#34;The Concourse of the Birds&#34;, Folio 11r from a Mantiq al-Tayr (Language of the Birds)" loading="lazy">
+                
+                <div class="artwork-info">
+                    <div class="artwork-title">
+                        <a href="https://www.metmuseum.org/art/collection/search/451725">&#34;The Concourse of the Birds&#34;, Folio 11r from a Mantiq al-Tayr (Language of the Birds)</a>
+                        
+                    </div>
+                    <div class="artwork-meta">
+                        Habiballah of Sava, ca. 1600
+                        <br>Ink, opaque watercolor, gold, and silver on paper
+                    </div>
+                </div>
+            </div>
+            
+            <div class="artwork-card">
+                
+                <img src="https://images.metmuseum.org/CRDImages/ao/web-large/DP-13003-003.jpg" alt="Cylindrical Vessel" loading="lazy">
+                
+                <div class="artwork-info">
+                    <div class="artwork-title">
+                        <a href="https://www.metmuseum.org/art/collection/search/319633">Cylindrical Vessel</a>
+                        
+                    </div>
+                    <div class="artwork-meta">
+                        Unknown, 6th–9th century
+                        <br>Ceramic
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+
+    
+    <div class="section">
+        <h2>Markets</h2>
+        <div class="market-grid">
+            
+            <div class="market-card">
+                <div class="symbol">Bitcoin</div>
+                <div class="value">
+                    
+                        $4,543,508,957
+                    
+                </div>
+                
+            </div>
+            
+            <div class="market-card">
+                <div class="symbol">Bsc</div>
+                <div class="value">
+                    
+                        $5,294,027,576
+                    
+                </div>
+                
+            </div>
+            
+            <div class="market-card">
+                <div class="symbol">Ethereum</div>
+                <div class="value">
+                    
+                        $53,182,440,110
+                    
+                </div>
+                
+            </div>
+            
+            <div class="market-card">
+                <div class="symbol">Solana</div>
+                <div class="value">
+                    
+                        $6,426,703,243
+                    
+                </div>
+                
+            </div>
+            
+            <div class="market-card">
+                <div class="symbol">Tron</div>
+                <div class="value">
+                    
+                        $4,060,959,700
+                    
+                </div>
+                
+            </div>
+            
+            <div class="market-card">
+                <div class="symbol">DeFi TVL</div>
+                <div class="value">
+                    
+                        $92,872,580,452
+                    
+                </div>
+                
+                <div class="change down">
+                    -1.30%
+                </div>
+                
+            </div>
+            
+        </div>
+    </div>
+    
+
+    
+    <div class="section">
+        <h2>US Politics (factual, non-opinion)</h2>
+        
+        <div class="article">
+            <div class="source">PBS NewsHour</div>
+            <h3><a href="https://www.pbs.org/newshour/show/brooks-and-marcus-on-voters-fed-up-with-gridlock-in-congress">Brooks and Marcus on voters fed up with gridlock in Congress</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">PBS NewsHour</div>
+            <h3><a href="https://www.pbs.org/newshour/show/army-veteran-faces-conspiracy-charges-after-participating-in-anti-ice-protest">Army veteran faces conspiracy charges after participating in anti-ICE protest</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">PBS NewsHour</div>
+            <h3><a href="https://www.pbs.org/newshour/show/whats-next-after-house-republicans-reject-senate-deal-to-end-dhs-shutdown">What&#39;s next after House Republicans reject Senate deal to end DHS shutdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">PBS NewsHour</div>
+            <h3><a href="https://www.pbs.org/newshour/politics/a-year-after-trumps-doge-cuts-workers-whose-lives-were-upended-ask-what-was-saved">A year after Trump&#39;s DOGE cuts, workers whose lives were upended ask what was saved</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">NPR Politics</div>
+            <h3><a href="https://www.npr.org/2026/03/28/nx-s1-5755062/trump-wants-a-deadlocked-congress-to-move-on-ai-frustrated-states-say-they-already-have">Trump wants a deadlocked Congress to move on AI. Frustrated states say they already have</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">NPR Politics</div>
+            <h3><a href="https://www.npr.org/2026/03/28/nx-s1-5764275/cpac-2026">Rifts over Iran, but unity for Trump: Takeaways from CPAC 2026</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">NPR Politics</div>
+            <h3><a href="https://www.npr.org/2026/03/28/nx-s1-5760946/week-in-politics-the-iran-war-high-gas-prices-trumps-approval-ratings">Week in Politics: The Iran war; high gas prices; Trump&#39;s approval ratings</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">NPR Politics</div>
+            <h3><a href="https://www.npr.org/2026/03/28/nx-s1-5763740/ranking-member-of-house-armed-services-committee-david-smith-discusses-the-war-on-iran">Ranking Member of House Armed Services Committee David Smith discusses the war on Iran</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Intercept</div>
+            <h3><a href="https://theintercept.com/2026/03/28/ice-airports-tsa-fear/">ICE at Airports Trains Us to Accept Being Terrorized in Our Daily Lives</a></h3>
+            
+        </div>
+        
+    </div>
+    
+    <div class="section">
+        <h2>Florida Politics</h2>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787735-gov-desantis-reappoints-robert-cortes-to-seminole-state-college-board/">Governor reappoints Robert Cortes to Seminole State College Board</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787711-takeaways-from-tallahassee-springtime-for-tally/">Takeaways from Tallahassee — Springtime for Tally</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787783-tiger-woods-released-on-bail-hours-after-arrest-at-crash-scene-on-suspicion-of-dui/">Tiger Woods released on bail hours after arrest at crash scene on suspicion of DUI</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787785-donald-trump-signs-order-to-pay-tsa-employees-after-congress-fails-to-agree-on-dhs-funding/">Donald Trump signs order to pay TSA employees after Congress fails to agree on DHS funding</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787787-carlos-gimenez-iran-venezuela/">Carlos Giménez calls for regime change in Iran, Venezuela</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Florida Politics</div>
+            <h3><a href="https://floridapolitics.com/archives/787793-carlos-gimenez-urges-immigration-course-correction-in-wake-of-dem-upsets-in-special-elections/">Carlos Giménez urges immigration ‘course correction’ in wake of Dem upsets in Special Elections</a></h3>
+            
+        </div>
+        
+    </div>
+    
+    <div class="section">
+        <h2>World News</h2>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/nepal-former-pm-oli-arrested-over-deadly-protests/a-76573671?maca=en-rss-en-all-1573-rdf">Nepal: Former PM Oli arrested over deadly protests</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/bank-of-america-settles-epstein-case-for-72-5-million/a-76573867?maca=en-rss-en-all-1573-rdf">Bank of America settles Epstein case for $72.5 million</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/tiger-woods-released-on-bail-after-florida-car-crash/a-76573100?maca=en-rss-en-all-1573-rdf">Tiger Woods released on bail after Florida car crash</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/india-modi-inaugurates-new-international-airport-in-noida/live-76574317?maca=en-rss-en-all-1573-rdf">India: Modi inaugurates new international airport in Noida</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/the-turbulent-history-of-us-cuban-relations/a-76563311?maca=en-rss-en-all-1573-rdf">The turbulent history of US-Cuban relations</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/solar-is-winning-the-energy-race/a-76517556?maca=en-rss-en-all-1573-rdf">Solar is winning the energy race</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/indonesia-rolls-out-social-media-ban-for-under-16s/a-76574803?maca=en-rss-en-all-1573-rdf">Indonesia rolls out social media ban for under-16s</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/iran-war-houthis-claim-attack-on-israel-zelenskyy-in-uae/live-76573681?maca=en-rss-en-all-1573-rdf">Iran war: Houthis claim attack on Israel, Zelenskyy in UAE</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/earth-hour-monuments-to-go-dark-as-20th-edition-kicks-off/a-76576232?maca=en-rss-en-all-1573-rdf">Earth Hour: Monuments to go dark as 20th edition kicks off</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/germany-news-13-year-old-boy-killed-in-witten-stabbing/live-76576299?maca=en-rss-en-all-1573-rdf">Germany news: 13-year-old boy killed in Witten stabbing</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/pope-leo-tells-monaco-to-use-gift-of-smallness-for-good/a-76577459?maca=en-rss-en-all-1573-rdf">Pope Leo tells Monaco to use &#39;gift of smallness&#39; for good</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/zelenskyy-visits-doha-as-ukraine-qatar-sign-defense-pact/a-76578423?maca=en-rss-en-all-1573-rdf">Zelenskyy visits Doha as Ukraine, Qatar sign defense pact</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/whale-stranded-off-germany-s-coast-gets-stuck-again/a-76578984?maca=en-rss-en-all-1573-rdf">Whale stranded off Germany&#39;s coast gets stuck again</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Deutsche Welle</div>
+            <h3><a href="https://www.dw.com/en/belgium-s-state-owned-railway-shines-light-on-holocaust-role/a-76560363?maca=en-rss-en-all-1573-rdf">Belgium&#39;s state-owned railway shines light on Holocaust role</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/americas/20260328-millions-expected-to-fill-american-streets-in-third-no-kings-protest-against-trump">Millions expected to fill US streets in third &#39;No Kings&#39; protest against Trump</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/middle-east/20260328-war-in-the-middle-east-live-conflict-enters-second-month-us-expects-to-end-it-within-two-weeks">🔴 Live: Yemen&#39;s Houthis claim first attack on Israel since start of Mideast war</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/europe/20260328-strikes-on-ukrainian-cities-kill-three-child-dies-in-drone-attack-on-moscow">Russian attacks kill at least five across Ukraine as Ukrainian drone strike kills child in Russia</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/sport/20260328-senegal-stage-afcon-victory-celebrations-paris-despite-losing-title">Senegal to stage AFCON victory celebrations in Paris despite losing title</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/yemen-s-houthis-claim-missile-attack-on-israel-in-expanding-conflict">Yemen&#39;s Houthis claim missile attack on Israel in expanding conflict</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/iranian-backed-houthi-rebels-say-launched-missile-attack-on-israel">Iranian-backed Houthi rebels say launched missile attack on Israel</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/video/20260328-beirut-holding-its-breath-as-israel-launches-strikes-across-lebanon">Beirut &#39;holding its breath&#39; as Israel launches strikes across Lebanon</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/israeli-strike-hits-tehran-home-killing-several-children">Israeli strike hits Tehran home, killing several children</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/asia-pacific/20260328-what-taiwan-imprisonment-opposition-figure-ko-wen-je-means-political-landscape">What Taiwan&#39;s imprisonment of opposition figure Ko Wen-je means for its political landscape</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/europe/20260328-pope-leo-xiv-denounces-chasms-between-poor-and-rich-during-monaco-visit">Pope Leo XIV denounces &#39;chasms between the poor and the rich&#39; during Monaco visit</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/ukraine-uae-seal-defence-deal-kyiv-s-know-how-and-equipment-gain-recognition">Ukraine, UAE seal defence deal: Kyiv’s &#39;know-how and equipment” gain recognition</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/cuba-holds-civilian-military-drills-amid-deepening-fuel-crisis">Cuba holds civilian military drills amid deepening fuel crisis</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/indonesia-begins-enforcing-social-media-ban-for-children-under-16s">Indonesia begins enforcing social media ban for children under-16s</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/divide-among-men-above-and-under-35-cpac-highlights-generational-gop-split">&#39;Divide among men above and under 35&#39;: CPAC highlights generational GOP split</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/football-fever-hits-nyc-as-france-unveils-team-jersey-for-world-cup">Football fever hits NYC as France unveils team jersey for World Cup</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/scientists-dive-beneath-arctic-ice-to-study-threatened-ecosystems">Scientists dive beneath Arctic ice to study threatened ecosystems</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/europe/20260328-22-die-off-coast-of-greece-after-six-days-at-sea-on-migrant-rubber-boat">22 migrants die off Greek coast after six days at sea</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/france/20260328-%F0%9F%94%B4-france-foils-paris-bomb-plot-outside-us-bank-opens-anti-terror-probe">France foils Paris bomb plot outside US bank, opens anti-terror probe</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/history-is-repeating-itself-fears-of-israeli-occupation-grow-in-lebanon">&#39;History is repeating itself&#39;: Fears of Israeli occupation grow in Lebanon</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/deadly-russian-strikes-damage-port-maternity-hospital">Deadly Russian strikes damage port, maternity hospital</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/france-unveils-aid-to-shield-key-sectors-from-soaring-fuel-prices">France unveils aid to shield key sectors from soaring fuel prices</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/what-could-houthi-involvement-in-the-iran-war-mean">What could Houthi involvement in the Iran war mean?</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">France 24</div>
+            <h3><a href="https://www.france24.com/en/russian-strikes-on-ukraine-kill-at-least-5">Russian strikes on Ukraine kill at least 5</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/yemens-houthis-claim-responsibility-for-a-missile-attack-on-israel-2?traffic_source=rss">Yemen’s Houthis launch missile attack on Israel as war with Iran intensifies</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/trump-claims-iran-wants-to-make-a?traffic_source=rss">Trump claims Iran wants to ‘make a deal’</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/iran-war-what-is-happening-on-day-29-of-us-israel-attacks?traffic_source=rss">US-Israel war on Iran: What’s happening on day 29 of attacks?</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/economy/2026/3/28/philippine-transport-strikers-say-marcos-jr-failing-to-control-oil-prices?traffic_source=rss">Philippine transport strikers say Marcos Jr failing to control oil prices</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/us-house-passes-bill-funding-homeland-security-amid-shutdown?traffic_source=rss">US House passes bill funding Homeland Security amid shutdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/tiger-woods-released-on-bail-hours-after-arrest-on-suspicion-of-dui?traffic_source=rss">Tiger Woods released on bail hours after arrest on suspicion of DUI</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/nepals-ex-pm-arrested-over-alleged-role-in-protest-crackdown?traffic_source=rss">Nepal’s ex-PM Oli detained over alleged role in deadly protest crackdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/severe-floods-hit-makhachkala-capital-of-russias-dagestan-region?traffic_source=rss">Severe floods hit Makhachkala, capital of Russia’s Dagestan region</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/the-listening-post/2026/3/28/the-war-on-iran-faces-a-maga-backlash?traffic_source=rss">The war on Iran faces a MAGA backlash</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/russian-strikes-on-ukraine-cities-kill-4-as-deal-to-end-war-dims?traffic_source=rss">Russian strikes on Ukraine kill 4 as deal to end war dims</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/opinions/2026/3/28/how-the-us-and-israel-are-making-the-islamic-republic?traffic_source=rss">How the US and Israel are making the Islamic republic stronger</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/protests-in-yemen-against-us-israeli-attacks-as-houthis-warn-of-action?traffic_source=rss">Protests in Yemen against US-Israeli attacks as Houthis warn of action</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/diop-debut-for-morocco-adds-latest-twist-in-senegal-post-afcon-battle?traffic_source=rss">Diop debut for Morocco adds latest twist in Senegal post-AFCON dispute</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/former-us-defence-chief-says-more-war-wont-bring-peace-to-middle-east?traffic_source=rss">Former US defence chief says more war won’t bring peace to Middle East</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/iran-footballers-pay-tribute-to-victims-of-school-strike-at-start-of-war?traffic_source=rss">Iran footballers pay tribute to victims of school strike at start of war</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/at-least-15-us-troops-wounded-in-iran-strike-on-saudi-airbase-reports?traffic_source=rss">At least 15 US troops wounded in Iran strike on Saudi airbase: Reports</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/pakistan-quick-slammed-for-criticizing-politicians-presence-at-cricket-game?traffic_source=rss">Pakistan’s Naseem Shah under fire after criticism of politician’s PSL visit</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/verstappen-calls-his-red-bull-undriveable-after-more-f1-woes-at-japan-gp?traffic_source=rss">Verstappen calls his Red Bull ‘undriveable’ after more F1 woes at Japan GP</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/iran-warns-neighbours-not-to-let-enemies-run-the-war-from-their-land?traffic_source=rss">Iran warns neighbours not to let ‘enemies run the war’ from their land</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/defending-champion-aryna-sabalenka-and-coco-gauff-meet-for-the-miami-open-t?traffic_source=rss">Defending champion Aryna Sabalenka and Coco Gauff meet in Miami Open final</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/at-least-22-migrants-die-off-greece-after-6-days-at-sea?traffic_source=rss">At least 22 migrants die off Greece after 6 days at sea</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/sports/2026/3/28/morocco-claims-afcon-case-closed-despite-senegal-appeals-to-caf-and-cas?traffic_source=rss">Morocco claims AFCON case closed, despite Senegal appeals to CAF and CAS</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/one-month-in-disapproval-high-but-us-lawmakers-take-no-action-on-iran-war?traffic_source=rss">One month in, disapproval high but US lawmakers take no action on Iran war</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/news/2026/3/28/three-journalists-killed-in-israeli-strike-on-marked-press-car-in-lebanon?traffic_source=rss">Three journalists killed in Israeli strike on marked press car in Lebanon</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Al Jazeera</div>
+            <h3><a href="https://www.aljazeera.com/video/newsfeed/2026/3/28/israeli-forces-intensify-attacks-on-beirut?traffic_source=rss">Israeli forces intensify attacks on Beirut</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/us-house-stopgap-dhs-funding-bill-republicans-senate">US House passes stopgap DHS funding bill after Republicans reject Senate deal</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/trump-deportation-campaign-noem-bovino-change">How Trump’s deportation campaign has changed tack after deep unpopularity</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/california-dairy-e-coli-raw-cheese">Nine people sick from E coli linked to raw cheese from California farm, more than half of them children</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/iowa-drug-laced-lasagna-pregnant-woman">Two Iowans accused of lacing lasagna with drugs to cause woman’s miscarriage</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/live/2026/mar/28/no-kings-protests-us-trump-administration-latest-updates">No Kings protests live updates: millions of people across the US expected to rally against Trump administration</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/samba-runaway-capybara-search">‘It was bonkers’: Samba the runaway capybara inspires a wild rodent hunt</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/technology/2026/mar/28/how-fraudulent-church-data-revealed-ais-threat-to-polling">‘Our assumptions are broken’: how fraudulent church data revealed AI’s threat to polling</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/environment/2026/mar/28/how-evs-could-be-part-of-answer-to-uk-fuel-reserve-worries">How EVs could be part of answer to UK’s fuel reserve worries</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/uk-news/2026/mar/28/stabbing-death-westminster-abbey-london-met-police-investigate">Met police investigate stabbing death near Westminster Abbey</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/uk-news/live/2026/mar/28/london-protest-march-together-alliance-against-the-far-right-latest-news-updates">Huge crowds take part in London march against the far right – live</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/kp-sharma-oli-nepal-arrested-alleged-role-protest-crackdown-ntwnfb">KP Sharma Oli: Nepal’s former prime minister arrested over alleged role in deadly protest crackdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/gulf-countries-threat-iran-backed-militias-proxies-war-us-israel-middle-east">Gulf countries warn of rising threat from Iran-backed militias and proxies</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/iran-pro-regime-demonstrations-detained-people">Hundreds of organised protests show resilience of Iranian regime, experts say</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/as-us-troops-sail-to-middle-east-how-likely-is-trump-to-order-boots-on-the-ground">As US troops sail to Middle East, how likely is Trump to order boots on the ground?</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/houthi-forces-enter-iran-conflict-with-missile-attacks-on-israeli-military-sites">Houthi forces enter Iran conflict with missile attacks on Israeli military sites</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/pope-leo-monaco-papal-visit">Pope Leo heads to Monaco 488 years after the last papal visit</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/young-voters-italy-referendum-giorgia-meloni">Young voters shake Italy’s political calm as referendum exposes tensions for Giorgia Meloni</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/22-people-die-after-six-days-adrift-in-boat-attempting-to-reach-europe-from-libya">At least 22 people die off Greek coast after six days adrift in boat from Libya</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/world/2026/mar/28/paris-police-foil-attempted-bomb-attack-bank-of-america">Police in Paris foil attempted bomb attack outside Bank of America building</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/australia-news/2026/mar/28/anthony-albanese-chris-bowen-fuel-security-powers-oil-crisis-petrol-diesel-prices">Labor to use new fuel security powers to underwrite extra shipments to Australia</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/australia-news/2026/mar/28/tropical-cyclone-narelle-wa-carnavon-exmouth-perth-bom-weather-warning-forecasts">‘No one has had a dry run’: weather warnings for storm-ravaged WA after Cyclone Narelle downgraded to tropical low</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The Guardian World</div>
+            <h3><a href="https://www.theguardian.com/us-news/2026/mar/28/us-embassy-mexico-outrage-ai-video-self-deportation">US embassy in Mexico prompts outrage with AI video promoting ‘self-deportation’</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/videos/clyr530yry5o?at_medium=RSS&amp;at_campaign=rss">&#39;Our home is gone&#39;: BBC speaks to displaced families in Lebanon</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/c05dlnd3635o?at_medium=RSS&amp;at_campaign=rss">From jammed broadcasts to a blocked website: BBC Russian&#39;s 80 years of defiance</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/c86e3eglv2go?at_medium=RSS&amp;at_campaign=rss">&#39;We&#39;re having a moment&#39; - fear and denial in Silicon Valley over social media addiction trial</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/c15dz7ql59yo?at_medium=RSS&amp;at_campaign=rss">&#39;Memory of a generation&#39;: China mourns the sudden death of a controversial education influencer</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/czjw37ne208o?at_medium=RSS&amp;at_campaign=rss">Noah Wyle is back in A&amp;E with new drama The Pitt: &#39;I hope people watch with empathy&#39;</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/cnv8z1lvn8ro?at_medium=RSS&amp;at_campaign=rss">Twenty-two migrants die off Greek coast after six days at sea</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/c74vedxjq8zo?at_medium=RSS&amp;at_campaign=rss">Maldives tells UK it does not recognise Chagos Islands deal with Mauritius</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/clye4w10g22o?at_medium=RSS&amp;at_campaign=rss">Two Cuba-bound aid ships found days after disappearing</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/cn89ry7y835o?at_medium=RSS&amp;at_campaign=rss">Nepal&#39;s ex-PM arrested over fatal protest crackdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/c0rxqng5pyno?at_medium=RSS&amp;at_campaign=rss">&#39;The gravest crime against humanity&#39;: What does the UN vote on slavery mean?</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/cgj052l1j2no?at_medium=RSS&amp;at_campaign=rss">House Republicans reject Senate deal, prolonging partial US government shutdown</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/cr513g72vqgo?at_medium=RSS&amp;at_campaign=rss">Looksmaxxing influencer Clavicular arrested on battery charge in Florida</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/crr10v5p7lgo?at_medium=RSS&amp;at_campaign=rss">Gaza peace doubts deepen as attention shifts to Iran</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">BBC World</div>
+            <h3><a href="https://www.bbc.com/news/articles/cjd8e4px12ro?at_medium=RSS&amp;at_campaign=rss">Iran war splits older and younger conservatives - as pressure builds for Trump to find exit ramp</a></h3>
+            
+        </div>
+        
+    </div>
+    
+    <div class="section">
+        <h2>Crypto / Web3 / ReFi</h2>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/markets/2026/03/27/bitcoin-miners-are-becoming-ai-companies-and-selling-their-btc-to-fund-the-transition">Bitcoin miners are becoming AI companies and selling their BTC to fund the transition</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/tech/2026/03/27/ripple-turns-to-ai-to-stress-test-the-xrp-ledger-as-institutional-use-cases-scale">Ripple turns to AI to stress-test the XRP Ledger as institutional use cases scale</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/tech/2026/03/28/watch-out-bitcoin-devs-google-says-post-quantum-migration-needs-to-happen-by-2029">Watch out Bitcoin devs. Google says post-quantum migration needs to happen by 2029.</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/tech/2026/03/28/here-s-what-next-as-anthropic-s-most-powerful-ai-model-leaked-via-unsecured-data-cache">Here&#39;s what next as Anthropic&#39;s most powerful AI model leaked via unsecured data cache</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/business/2026/03/28/crypto-s-future-is-bright-in-the-context-of-ai-s-assault-on-software-firms-says-kraken-backed-investment-firm">Crypto&#39;s future is bright in the context of AI&#39;s assault on software firms, says Kraken-backed investment firm</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">CoinDesk</div>
+            <h3><a href="https://www.coindesk.com/tech/2026/03/28/here-s-how-bitcoin-ethereum-and-other-networks-are-preparing-for-the-looming-quantum-threat">Here&#39;s how bitcoin, Ethereum and other networks are preparing for the looming quantum threat</a></h3>
+            
+        </div>
+        
+    </div>
+    
+    <div class="section">
+        <h2>Software Dev / DevOps / AI / ML</h2>
+        
+        <div class="article">
+            <div class="source">Hugging Face Blog</div>
+            <h3><a href="https://huggingface.co/blog/mmbert">mmBERT: ModernBERT goes Multilingual</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hugging Face Blog</div>
+            <h3><a href="https://huggingface.co/blog/liberate-your-openclaw">Liberate your OpenClaw</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The New Stack</div>
+            <h3><a href="https://thenewstack.io/anthropic-march-2026-roundup/">Anthropic’s madcap March: 14+ launches, 5 outages, and an accidental Claude Mythos leak</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The New Stack</div>
+            <h3><a href="https://thenewstack.io/soloio-agentbench-evaluates-ai-agents/">Solo.io launches AgentBench to solve agentic AI’s “biggest unsolved problem”</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The New Stack</div>
+            <h3><a href="https://thenewstack.io/data-pipelines-serve-ai/">Build it yourself: A data pipeline that trains a real model</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">The New Stack</div>
+            <h3><a href="https://thenewstack.io/nvidia-nemoclaw-openclaw-security/">Nvidia’s NemoClaw has three layers of agent security. None of them solve the real problem.</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://www.pcworld.com/article/3096432/lgs-new-1hz-display-is-the-secret-behind-a-new-laptops-battery-life.html">LG&#39;s new 1Hz display is the secret behind a new laptop&#39;s battery life</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://www.axios.com/local/nashville/2026/03/16/nashville-library-digitize-home-movies">Nashville library launches Memory Lab for digitizing home movies</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://naturalist.bearblog.dev/the-bee-that-everyone-wants-to-save/">The bee that everyone wants to save</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://www.reuters.com/world/us/iran-linked-hackers-claim-breach-of-fbi-directors-personal-email-doj-official-2026-03-27/">Iran-linked hackers breach FBI director&#39;s personal email</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://annas-archive.gd/isbn-visualization?">ISBN Visualization</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://twitchroulette.net/">Show HN: Twitch Roulette – Find live streamers who need views the most</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://jai.scs.stanford.edu/">Go hard on agents, not on your filesystem</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://arstechnica.com/gadgets/2026/03/amds-ryzen-9-9950x3d2-dual-edition-crams-208mb-of-cache-into-a-single-chip/">AMD&#39;s Ryzen 9 9950X3D2 Dual Edition crams 208MB of cache into a single chip</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://theopenreader.org/Journalism:CERN_Uses_Tiny_AI_Models_Burned_into_Silicon_for_Real-Time_LHC_Data_Filtering">CERN uses tiny AI models burned into silicon for real-time LHC data filtering</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://github.com/J-x-Z/cocoa-way">Cocoa-Way – Native macOS Wayland compositor for running Linux apps seamlessly</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://grid.iamkate.com/">Britain today generating 90%+ of electricity from renewables</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://www.youtube.com/watch?v=lXxmIw9axWw">I Built an Open-World Engine for the N64 [video]</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://github.com/EnriqueLop/legalize-es">I put all 8,642 Spanish laws in Git – every reform is a commit</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hacker News (100+ pts)</div>
+            <h3><a href="https://news.stanford.edu/stories/2026/03/ai-advice-sycophantic-models-research">AI chatbots are &#34;Yes-Men&#34; that reinforce bad relationship decisions, study finds</a></h3>
+            
+        </div>
+        
+    </div>
+    
+    <div class="section">
+        <h2>Art / Ceramics / Visual</h2>
+        
+        <div class="article">
+            <div class="source">Artnet News</div>
+            <h3><a href="https://news.artnet.com/art-world/new-york-underground-railroad-merchants-museum-2759441">Hidden Underground Railroad Passage Discovered at New York Museum Faces Development Threat</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Contemporary Art Daily</div>
+            <h3><a href="https://www.contemporaryartdaily.com/project/waltz-at-cittipunkt-e-v-berlin-64706?source=rss">&lt;i&gt;Waltz&lt;/i&gt; at Cittipunkt e.V.</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Contemporary Art Daily</div>
+            <h3><a href="https://www.contemporaryartdaily.com/project/marieta-chirulescu-fred-sandback-at-galerie-thomas-schulte-berlin-64709?source=rss">Marieta Chirulescu, Fred Sandback at Galerie Thomas Schulte</a></h3>
+            
+        </div>
+        
+        <div class="article">
+            <div class="source">Hyperallergic</div>
+            <h3><a href="https://hyperallergic.com/whitney-biennial-can-you-hear-us/">Whitney Biennial, Can You Hear Us?</a></h3>
+            
+        </div>
+        
+    </div>
+    
+
+    
+
+    <footer>
+        Generated 2026-03-28 16:10 UTC | Morning Brief v0.1
+    </footer>
+</body>
+</html>
