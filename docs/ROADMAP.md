@@ -86,11 +86,13 @@
 ## Phase 7: Secure Mobile Access
 *Deploy dashboard where you can actually reach it from your phone.*
 
-- [ ] Set up Cloudflare Pages (connect to GitHub repo)
-- [ ] Configure Cloudflare Access for authentication (free, 1 user)
-- [ ] Pipeline pushes generated HTML to repo → auto-deploys
-- [ ] Verify access from phone with auth
-- [ ] Alternative: Tailscale for private network access (simpler, no public exposure)
+- [x] Create `scripts/deploy-dashboard.sh` — pushes dashboard.html to gh-pages branch
+- [x] Add `DEPLOY_ENABLED` / `DEPLOY_BRANCH` config options
+- [x] Wire deploy into pipeline (Stage 5, after render) and CLI (`deploy` command)
+- [ ] [HUMAN] Set up Cloudflare Pages (connect to GitHub repo, watch gh-pages branch)
+- [ ] [HUMAN] Configure Cloudflare Access for authentication (free, 1 user)
+- [ ] [HUMAN] Verify access from phone with auth
+- [ ] [HUMAN] Alternative: Tailscale for private network access (simpler, no public exposure)
 
 ---
 

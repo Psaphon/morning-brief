@@ -34,6 +34,8 @@ class Config:
     output_dir: Path = Path("data/output")
     database_path: Path = Path("data/morning_brief.db")
     feeds_path: Path = Path("docs/FEEDS.md")
+    deploy_enabled: bool = False
+    deploy_branch: str = "gh-pages"
 
 
 def load_config() -> Config:
@@ -53,4 +55,6 @@ def load_config() -> Config:
         ),
         output_dir=Path(os.environ.get("OUTPUT_DIR", "data/output")),
         database_path=Path(os.environ.get("DATABASE_PATH", "data/morning_brief.db")),
+        deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower() in ("1", "true", "yes"),
+        deploy_branch=os.environ.get("DEPLOY_BRANCH", "gh-pages"),
     )

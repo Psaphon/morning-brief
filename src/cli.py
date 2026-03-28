@@ -108,5 +108,27 @@ def view(limit: int) -> None:
         db.close()
 
 
+@cli.command()
+def deploy() -> None:
+    """Deploy the latest dashboard to gh-pages branch."""
+    import subprocess
+    from pathlib import Path
+
+    config = load_config()
+    dashboard = config.output_dir / "dashboard.html"
+    script = Path("scripts/deploy-dashboard.sh")
+
+    if not dashboard.exists():
+        click.echo(f"Dashboard not found at {dashboard}. Run the pipeline first.")
+        sys.exit(1)
+
+    if not script.exists():
+        click.echo(f"Deploy script not found at {script}.")
+        sys.exit(1)
+
+    result = subprocess.run([str(script), str(dashboard)], text=True)
+    sys.exit(result.returncode)
+
+
 if __name__ == "__main__":
     cli()
