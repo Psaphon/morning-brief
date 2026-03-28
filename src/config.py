@@ -22,6 +22,7 @@ class APIKeys:
     finnhub: str = ""
     fred: str = ""
     coingecko: str = ""
+    etherscan: str = ""
     anthropic: str = ""
     sendgrid: str = ""
 
@@ -46,6 +47,7 @@ def load_config() -> Config:
             finnhub=os.environ.get("FINNHUB_API_KEY", ""),
             fred=os.environ.get("FRED_API_KEY", ""),
             coingecko=os.environ.get("COINGECKO_API_KEY", ""),
+            etherscan=os.environ.get("ETHERSCAN_API_KEY", ""),
             anthropic=os.environ.get("ANTHROPIC_API_KEY", ""),
             sendgrid=os.environ.get("SENDGRID_API_KEY", ""),
         ),
