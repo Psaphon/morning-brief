@@ -19,6 +19,7 @@ import httpx
 
 from .config import load_config
 from .db import Database
+from .fetchers.art import fetch_daily_artwork
 from .fetchers.crypto import fetch_all_crypto
 from .fetchers.financial import fetch_all_financial
 from .fetchers.rss import fetch_all_feeds
@@ -64,8 +65,10 @@ async def run_pipeline() -> None:
                 etherscan_key=config.api_keys.etherscan,
             )
 
-            raw_articles, financial_data, crypto_data = await asyncio.gather(
-                rss_task, financial_task, crypto_task
+            art_task = fetch_daily_artwork(client)
+
+            raw_articles, financial_data, crypto_data, artworks = await asyncio.gather(
+                rss_task, financial_task, crypto_task, art_task
             )
 
         logger.info("Fetched %d raw articles", len(raw_articles))
@@ -95,6 +98,19 @@ async def run_pipeline() -> None:
             )
         if crypto_data:
             logger.info("Stored %d crypto data points", len(crypto_data))
+
+        # Store artwork
+        for artwork in artworks:
+            db.insert_artwork(
+                title=artwork["title"],
+                artist=artwork.get("artist"),
+                date=artwork.get("date"),
+                medium=artwork.get("medium"),
+                image_url=artwork.get("image_url"),
+                source_url=artwork.get("source_url"),
+            )
+        if artworks:
+            logger.info("Stored %d daily artworks", len(artworks))
 
         # Stage 2: Process — extract and deduplicate
         logger.info("Stage 2: Processing articles...")
@@ -129,12 +145,14 @@ async def run_pipeline() -> None:
         all_articles = db.get_todays_articles()
         market = db.get_latest_market_data()
         health = db.get_latest_health_checks()
+        daily_art = db.get_todays_artwork()
 
         output_path = config.output_dir / "dashboard.html"
         render_dashboard(
             articles=all_articles,
             market_data=market,
             health_checks=health,
+            artworks=daily_art,
             output_path=output_path,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))

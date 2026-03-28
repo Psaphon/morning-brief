@@ -114,6 +114,42 @@
         .health-list .status-dot.down { background: var(--red); }
         .health-list .response-time { color: var(--muted); }
 
+        /* Artwork */
+        .artwork-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .artwork-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .artwork-card img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            background: #000;
+        }
+        .artwork-card .artwork-info {
+            padding: 0.75rem;
+        }
+        .artwork-card .artwork-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+        .artwork-card .artwork-title a {
+            color: var(--text);
+            text-decoration: none;
+        }
+        .artwork-card .artwork-title a:hover { color: var(--accent); }
+        .artwork-card .artwork-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
         footer {
             text-align: center;
             color: var(--muted);
@@ -133,6 +169,31 @@
         <div class="date">{{ date }}</div>
         <div class="stats">{{ total_articles }} articles across {{ categories | length }} categories</div>
     </header>
+
+    {% if artworks %}
+    <div class="section">
+        <h2>Daily Art</h2>
+        <div class="artwork-grid">
+            {% for art in artworks %}
+            <div class="artwork-card">
+                {% if art.image_url %}
+                <img src="{{ art.image_url }}" alt="{{ art.title }}" loading="lazy">
+                {% endif %}
+                <div class="artwork-info">
+                    <div class="artwork-title">
+                        {% if art.source_url %}<a href="{{ art.source_url }}">{{ art.title }}</a>
+                        {% else %}{{ art.title }}{% endif %}
+                    </div>
+                    <div class="artwork-meta">
+                        {{ art.artist }}{% if art.date %}, {{ art.date }}{% endif %}
+                        {% if art.medium %}<br>{{ art.medium }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
     {% if market_data %}
     <div class="section">

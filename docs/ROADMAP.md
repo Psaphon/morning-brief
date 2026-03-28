@@ -65,10 +65,13 @@
 ## Phase 5: Daily Artwork
 *A nice touch — surface one artwork each morning.*
 
-- [ ] Implement src/fetchers/art.py — Met Museum API random artwork by date seed
-- [ ] Include ceramics search option alongside general art
-- [ ] Display artwork image + title + artist + date + medium in dashboard
+- [x] Implement src/fetchers/art.py — Met Museum API random artwork by date seed
+- [x] Include ceramics search option alongside general art
+- [x] Display artwork image + title + artist + date + medium in dashboard
 - [x] Add contemporary art RSS feeds (Hyperallergic, This is Colossal)
+- [x] Wire into main.py as parallel fetch stage
+- [x] Add artwork to terminal publisher (Rich panels)
+- [x] Store artworks in SQLite (insert + query methods)
 
 ## Phase 6: Scheduling and Docker Deployment
 *Automate the pipeline to run unattended.*

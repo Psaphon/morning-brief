@@ -92,6 +92,7 @@ def render_dashboard(
     articles: list[dict[str, Any]],
     market_data: list[dict[str, Any]],
     health_checks: list[dict[str, Any]],
+    artworks: list[dict[str, Any]] | None = None,
     template_dir: Path = Path("templates"),
     output_path: Path | None = None,
 ) -> str:
@@ -116,6 +117,7 @@ def render_dashboard(
         categories=categories,
         market_data=formatted_market,
         health_checks=health_checks,
+        artworks=artworks or [],
     )
 
     if output_path:
