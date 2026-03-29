@@ -1,0 +1,21 @@
+[Unit]
+Description=Morning Brief — daily news and intelligence pipeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Resolve the project directory relative to the user home
+WorkingDirectory=%h/morning-brief
+# Timer fires at 4:15 AM ET; keep TZ consistent with the timer unit
+Environment=TZ=America/New_York
+# Run the full pipeline via docker compose, then validate output
+ExecStart=/usr/bin/docker compose up --abort-on-container-exit --exit-code-from morning-brief
+ExecStartPost=%h/morning-brief/scripts/health-check.sh
+StandardOutput=journal
+StandardError=journal
+# Log failures to a persistent file so they survive journal rotation
+OnFailure=morning-brief-failure@%n.service
+
+[Install]
+WantedBy=default.target

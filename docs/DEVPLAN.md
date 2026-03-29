@@ -61,7 +61,7 @@ Finalize Dockerfile and docker-compose.yml so the full pipeline runs unattended 
 
 **Branch:** `feature/systemd-scheduling`
 **Depends on:** docker-deployment
-**Status:** Not Started
+**Status:** Complete
 **Requires:** both
 
 ### Goal
@@ -70,13 +70,13 @@ Create a systemd timer that triggers the pipeline at 4:15 AM ET daily, with heal
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief.service` systemd unit runs `docker compose up` (or direct python)
-- [ ] `morning-brief.timer` triggers at 4:15 AM ET daily
-- [ ] Health check: after run, verify dashboard.html exists and was modified within last hour
-- [ ] On failure: log to `~/.local/share/morning-brief/failures.log` with timestamp and exit code
+- [x] `morning-brief.service` systemd unit runs `docker compose up` (or direct python)
+- [x] `morning-brief.timer` triggers at 4:15 AM ET daily
+- [x] Health check: after run, verify dashboard.html exists and was modified within last hour
+- [x] On failure: log to `~/.local/share/morning-brief/failures.log` with timestamp and exit code
 - [ ] [HUMAN] Enable timer: `systemctl --user enable --now morning-brief.timer`
-- [ ] Tests cover health check logic
-- [ ] Lint clean
+- [x] Tests cover health check logic
+- [x] Lint clean
 
 ### Files to Create or Modify
 
