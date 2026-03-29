@@ -129,7 +129,7 @@ Set up Cloudflare Pages to serve the dashboard and Cloudflare Access for authent
 
 **Branch:** `feature/summarization-quality`
 **Depends on:** none
-**Status:** Not Started
+**Status:** In Progress
 **Requires:** both
 
 ### Goal
@@ -139,11 +139,11 @@ Validate and tune Ollama summarization quality. Measure batch timing and adjust 
 ### Acceptance Criteria
 
 - [ ] [HUMAN] Review 20 article summaries for accuracy, conciseness, and factual correctness
-- [ ] Measure and log total summarization time per batch run
-- [ ] Add timing metrics to pipeline output (articles/minute, total duration)
+- [x] Measure and log total summarization time per batch run
+- [x] Add timing metrics to pipeline output (articles/minute, total duration)
 - [ ] Adjust prompt template if quality review reveals issues
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 

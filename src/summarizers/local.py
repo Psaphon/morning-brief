@@ -66,6 +66,17 @@ class SummaryResult:
     error: str | None = None
 
 
+@dataclass
+class BatchMetrics:
+    """Aggregate timing and throughput stats for a summarization batch."""
+
+    total_articles: int
+    succeeded: int
+    failed: int
+    total_seconds: float
+    articles_per_minute: float
+
+
 def truncate_text(text: str, max_chars: int = MAX_INPUT_CHARS) -> str:
     """Truncate article text to fit within model context.
 
@@ -243,22 +254,41 @@ async def _async_sleep(seconds: float) -> None:
 async def summarize_articles(
     config: OllamaConfig,
     articles: list[dict],
-) -> list[SummaryResult]:
+) -> tuple[list[SummaryResult], BatchMetrics]:
     """Summarize a batch of articles via Ollama.
 
     Processes articles in small batches with pauses to avoid
     overwhelming the local model.
+
+    Returns a tuple of (results, metrics) where metrics contains
+    aggregate timing and throughput stats for the batch.
     """
     if not articles:
         logger.info("No articles to summarize")
-        return []
+        empty_metrics = BatchMetrics(
+            total_articles=0,
+            succeeded=0,
+            failed=0,
+            total_seconds=0.0,
+            articles_per_minute=0.0,
+        )
+        return [], empty_metrics
+
+    batch_start = time.monotonic()
 
     async with httpx.AsyncClient() as client:
         # Pre-flight check
         available = await check_ollama_available(client, config)
         if not available:
             logger.warning("Skipping summarization — Ollama not available")
-            return []
+            empty_metrics = BatchMetrics(
+                total_articles=len(articles),
+                succeeded=0,
+                failed=0,
+                total_seconds=0.0,
+                articles_per_minute=0.0,
+            )
+            return [], empty_metrics
 
         results: list[SummaryResult] = []
         total = len(articles)
@@ -302,10 +332,24 @@ async def summarize_articles(
             if i + BATCH_SIZE < total:
                 await _async_sleep(BATCH_PAUSE_SECONDS)
 
+        total_seconds = time.monotonic() - batch_start
+        articles_per_minute = (succeeded / total_seconds * 60) if total_seconds > 0 else 0.0
+
+        metrics = BatchMetrics(
+            total_articles=total,
+            succeeded=succeeded,
+            failed=failed,
+            total_seconds=total_seconds,
+            articles_per_minute=articles_per_minute,
+        )
+
         logger.info(
-            "Summarization complete: %d succeeded, %d failed out of %d",
+            "Summarization complete: %d succeeded, %d failed out of %d "
+            "(%.1fs total, %.1f articles/min)",
             succeeded,
             failed,
             total,
+            total_seconds,
+            articles_per_minute,
         )
-        return results
+        return results, metrics
