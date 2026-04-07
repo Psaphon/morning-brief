@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS articles (
     summary TEXT,
     summary_model TEXT,
     content_hash TEXT,
+    score REAL,
     last_seen_at TEXT,
     UNIQUE(url_hash)
 );
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score);
 CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON market_data(symbol);
 CREATE INDEX IF NOT EXISTS idx_health_checks_url ON health_checks(url);
@@ -90,12 +92,22 @@ class Database:
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
-        try:
-            self._conn.execute("ALTER TABLE articles ADD COLUMN last_seen_at TEXT")
-            self._conn.commit()
-        except sqlite3.OperationalError:
-            pass  # Column already exists
+        self._migrate()
         logger.info("Database connected: %s", self.db_path)
+
+    def _migrate(self) -> None:
+        """Apply idempotent schema migrations for columns added after initial release."""
+        migrations = [
+            ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
+            ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
+        ]
+        for sql, name in migrations:
+            try:
+                self.conn.execute(sql)
+                self.conn.commit()
+                logger.debug("Migration: added %s column to articles", name)
+            except sqlite3.OperationalError:
+                pass  # Column already exists
 
     def close(self) -> None:
         """Close the database connection."""
@@ -219,6 +231,14 @@ class Database:
         self.conn.execute(
             "UPDATE articles SET summary = ?, summary_model = ? WHERE id = ?",
             (summary, model, article_id),
+        )
+        self.conn.commit()
+
+    def update_score(self, article_id: int, score: float) -> None:
+        """Update an article's relevance score."""
+        self.conn.execute(
+            "UPDATE articles SET score = ? WHERE id = ?",
+            (score, article_id),
         )
         self.conn.commit()
 
