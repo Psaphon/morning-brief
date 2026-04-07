@@ -28,7 +28,8 @@ from .fetchers.rss import fetch_all_feeds
 from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
 from .publishers.html import render_dashboard
-from .summarizers.local import summarize_articles
+from .publishers.terminal import render_terminal
+from .summarizers.local import generate_daily_briefing, summarize_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -170,6 +171,14 @@ async def run_pipeline() -> None:
                     metrics.total_articles,
                 )
 
+        # Generate daily briefing (after summarization, before publish)
+        logger.info("Generating daily briefing...")
+        briefing = await generate_daily_briefing(db, config.ollama)
+        if briefing:
+            logger.info("Daily briefing ready (%d chars)", len(briefing))
+        else:
+            logger.info("No briefing generated (Ollama unavailable or no summaries)")
+
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")
         all_articles = db.get_todays_articles()
@@ -183,9 +192,18 @@ async def run_pipeline() -> None:
             market_data=market,
             health_checks=health,
             artworks=daily_art,
+            briefing=briefing,
             output_path=output_path,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))
+
+        render_terminal(
+            articles=all_articles,
+            market_data=market,
+            health_checks=health,
+            artworks=daily_art,
+            briefing=briefing,
+        )
 
         # Stage 5: Deploy to gh-pages (if enabled)
         if config.deploy_enabled:

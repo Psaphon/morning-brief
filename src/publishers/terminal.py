@@ -36,6 +36,7 @@ def render_terminal(
     market_data: list[dict[str, Any]],
     health_checks: list[dict[str, Any]],
     artworks: list[dict[str, Any]] | None = None,
+    briefing: str | None = None,
     max_articles_per_category: int = 5,
 ) -> None:
     """Render the briefing to the terminal using Rich."""
@@ -45,6 +46,11 @@ def render_terminal(
     # Header
     console.rule("[bold blue]Morning Brief[/bold blue]")
     console.print()
+
+    # Daily briefing narrative
+    if briefing:
+        console.print(Panel(briefing, title="[bold]Today's Briefing[/bold]", border_style="yellow"))
+        console.print()
 
     # Daily artwork
     if artworks:

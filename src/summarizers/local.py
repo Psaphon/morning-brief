@@ -11,10 +11,15 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import httpx
 
 from ..config import OllamaConfig
+
+if TYPE_CHECKING:
+    from ..db import Database
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,9 @@ BATCH_PAUSE_SECONDS = 1.0
 
 # Ollama API timeout — summarizing a long article can take a while
 REQUEST_TIMEOUT = 120.0
+
+# Longer timeout for briefing — one call with larger context
+BRIEFING_TIMEOUT = 300.0
 
 # Retry config
 MAX_RETRIES = 2
@@ -353,3 +361,121 @@ async def summarize_articles(
             articles_per_minute,
         )
         return results, metrics
+
+
+def _build_briefing_prompt(summaries_by_category: dict[str, list[str]]) -> str:
+    """Build the Ollama prompt for generating a daily briefing.
+
+    Takes article summaries grouped by category and returns a prompt that
+    instructs the model to write a 500-1000 word daily briefing.
+    """
+    if not summaries_by_category:
+        return ""
+
+    parts: list[str] = []
+
+    # Feed the model all of today's summaries grouped by topic
+    parts.append("Here are today's article summaries, organized by topic:\n")
+    for category, summaries in summaries_by_category.items():
+        if not summaries:
+            continue
+        parts.append(f"## {category}")
+        for i, summary in enumerate(summaries, 1):
+            parts.append(f"  {i}. {summary}")
+        parts.append("")
+
+    # Instruction block — drives the progressive-disclosure structure
+    parts.append(
+        "Using the summaries above, write a 500-1000 word daily intelligence "
+        "briefing. Follow this structure:\n"
+        "1. **Lead** (2-3 sentences): The most significant developments across "
+        "all topics today — what the reader must know.\n"
+        "2. **Topic sections**: Group related stories by theme (not necessarily "
+        "by the categories above — merge or split where it makes sense). For "
+        "each theme:\n"
+        "   - Open with the key takeaway in one sentence.\n"
+        "   - Weave in supporting stories that add context or contrast.\n"
+        "   - Where stories from different categories connect (e.g. a policy "
+        "decision affecting markets), draw that link explicitly.\n"
+        "3. **Looking ahead** (1-2 sentences): What to watch for tomorrow "
+        "based on today's developments.\n\n"
+        "Guidelines:\n"
+        "- Professional, concise tone — like an analyst briefing a decision-maker.\n"
+        "- Prioritize actionable insight over description: not just what happened, "
+        "but why it matters and what it signals.\n"
+        "- Every story mentioned should make the reader want to read the full "
+        "article — be specific enough to inform, brief enough to entice.\n"
+        "- Do not editorialize or speculate. Stick to what the summaries say."
+    )
+
+    return "\n".join(parts)
+
+
+async def generate_daily_briefing(
+    db: Database,
+    config: OllamaConfig,
+) -> str | None:
+    """Generate a combined daily briefing from today's article summaries.
+
+    Checks for an existing briefing first (skip if already generated today).
+    Returns the briefing text, or None if Ollama is unavailable or no summaries exist.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    existing = db.get_briefing(today)
+    if existing:
+        logger.info("Daily briefing already exists for %s, reusing", today)
+        return existing
+
+    articles = db.get_todays_articles()
+    summaries_by_category: dict[str, list[str]] = {}
+    for article in articles:
+        if not article.get("summary"):
+            continue
+        cat = article.get("category", "General")
+        summaries_by_category.setdefault(cat, []).append(article["summary"])
+
+    if not summaries_by_category:
+        logger.info("No summaries available for daily briefing")
+        return None
+
+    prompt = _build_briefing_prompt(summaries_by_category)
+    if not prompt:
+        logger.warning("Briefing prompt is empty — _build_briefing_prompt not yet implemented")
+        return None
+
+    async with httpx.AsyncClient() as client:
+        available = await check_ollama_available(client, config)
+        if not available:
+            logger.warning("Skipping daily briefing — Ollama not available")
+            return None
+
+        try:
+            resp = await client.post(
+                f"{config.host}/api/generate",
+                json={
+                    "model": config.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.5,
+                        "top_p": 0.9,
+                        "num_predict": 1500,
+                    },
+                },
+                timeout=BRIEFING_TIMEOUT,
+            )
+            resp.raise_for_status()
+            briefing = resp.json().get("response", "").strip()
+
+            if not briefing:
+                logger.warning("Empty briefing response from Ollama")
+                return None
+
+            db.save_briefing(today, briefing, config.model)
+            logger.info("Daily briefing generated (%d chars)", len(briefing))
+            return briefing
+
+        except httpx.HTTPError as e:
+            logger.warning("Failed to generate daily briefing: %s", e)
+            return None

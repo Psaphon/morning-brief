@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS artworks (
     fetched_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS daily_briefings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT UNIQUE NOT NULL,
+    content TEXT NOT NULL,
+    model TEXT NOT NULL,
+    generated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -239,6 +247,24 @@ class Database:
             (today,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def save_briefing(self, date: str, content: str, model: str) -> None:
+        """Insert or replace the daily briefing for a given date."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT OR REPLACE INTO daily_briefings (date, content, model, generated_at)
+               VALUES (?, ?, ?, ?)""",
+            (date, content, model, now),
+        )
+        self.conn.commit()
+
+    def get_briefing(self, date: str) -> str | None:
+        """Return the daily briefing content for a given date, or None if not found."""
+        row = self.conn.execute(
+            "SELECT content FROM daily_briefings WHERE date = ?",
+            (date,),
+        ).fetchone()
+        return row["content"] if row else None
 
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""
