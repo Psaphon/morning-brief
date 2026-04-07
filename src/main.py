@@ -149,6 +149,21 @@ async def run_pipeline() -> None:
             "Stored %d new articles (%d duplicates skipped)", new_count, len(extracted) - new_count
         )
 
+        # Stage 2.5: Score articles by relevance
+        logger.info("Scoring articles by relevance...")
+        from .processors.scorer import score_articles, select_top_articles
+
+        todays = db.get_todays_articles()
+        scored = score_articles(todays)
+        for sa in scored:
+            db.update_score(sa.article["id"], sa.score)
+        top = select_top_articles(scored)
+        logger.info(
+            "Scored %d articles, selected top %d for summarization",
+            len(scored),
+            len(top),
+        )
+
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
         unsummarized = db.get_unsummarized_articles()
