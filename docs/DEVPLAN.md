@@ -90,24 +90,6 @@ Combine article summaries into a ~500-1000 word daily briefing via Ollama.
 
 ---
 
-## Feature: cloudflare-access
-
-**Branch:** `feature/cloudflare-access`
-**Depends on:** docker-deployment
-**Status:** In Progress
-**Requires:** human
-
-### Goal
-
-Cloudflare Pages serves dashboard; Cloudflare Access provides authentication.
-
-### Acceptance Criteria
-
-- [x] [HUMAN] Cloudflare Pages connected to GitHub repo, watching gh-pages branch
-- [ ] [HUMAN] Cloudflare Access configured with email-based auth (free, 1 user)
-- [x] [HUMAN] Verify dashboard loads on phone
-- [x] robots.txt serves Disallow all (in deploy script)
-
 ---
 
 ## Feature: systemd-bugfix
@@ -473,3 +455,14 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 - Use Claude API directly (httpx), not anthropic SDK — keeps deps lighter
 - Same structured output format as Ollama briefing for UI compatibility
 - Max ~4000 tokens input to keep costs low
+
+---
+
+## Nice-to-Have
+
+### Cloudflare Access
+
+**Requires:** human
+**When:** Once personal/local content is added (Manatee County, portfolio data)
+
+Add Cloudflare Access email-based authentication (free, 1 user) to restrict dashboard access. Not needed while content is public news only — URL is obscure and robots.txt blocks indexing.
