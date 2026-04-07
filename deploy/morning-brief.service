@@ -8,14 +8,14 @@
 [Unit]
 Description=Morning Brief daily pipeline
 Documentation=https://github.com/youruser/morning-brief
-After=docker.service network-online.target
-Requires=docker.service
+After=network-online.target
 
 [Service]
 Type=oneshot
+Environment=DEPLOY_ENABLED=true
 
 # Set this to wherever you cloned the repo
-WorkingDirectory=/opt/morning-brief
+WorkingDirectory=%h/Projects/morning-brief
 
 # Run the pipeline container; --rm cleans up after exit
 ExecStart=/usr/bin/docker compose run --rm morning-brief
@@ -33,4 +33,4 @@ StandardError=append:/opt/morning-brief/data/logs/pipeline.log
 TimeoutStartSec=3600
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
