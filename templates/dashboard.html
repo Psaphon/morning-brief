@@ -150,6 +150,14 @@
             color: var(--muted);
         }
 
+        /* Daily briefing */
+        .briefing-text {
+            font-size: 0.9rem;
+            line-height: 1.75;
+            white-space: pre-wrap;
+        }
+        .briefing-text p { margin-bottom: 0.75rem; }
+
         footer {
             text-align: center;
             color: var(--muted);
@@ -169,6 +177,13 @@
         <div class="date">{{ date }}</div>
         <div class="stats">{{ total_articles }} articles across {{ categories | length }} categories</div>
     </header>
+
+    {% if briefing %}
+    <div class="section">
+        <h2>Today's Briefing</h2>
+        <div class="briefing-text">{{ briefing }}</div>
+    </div>
+    {% endif %}
 
     {% if artworks %}
     <div class="section">
