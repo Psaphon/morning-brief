@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS articles (
     summary TEXT,
     summary_model TEXT,
     content_hash TEXT,
+    last_seen_at TEXT,
     UNIQUE(url_hash)
 );
 
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
+CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON market_data(symbol);
 CREATE INDEX IF NOT EXISTS idx_health_checks_url ON health_checks(url);
 """
@@ -88,6 +90,11 @@ class Database:
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
+        try:
+            self._conn.execute("ALTER TABLE articles ADD COLUMN last_seen_at TEXT")
+            self._conn.commit()
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         logger.info("Database connected: %s", self.db_path)
 
     def close(self) -> None:
@@ -116,29 +123,48 @@ class Database:
     ) -> bool:
         """Insert an article. Returns True if inserted, False if duplicate."""
         now = datetime.now(timezone.utc).isoformat()
-        try:
-            self.conn.execute(
-                """INSERT INTO articles
-                   (url, url_hash, title, source, category, author,
-                    published_at, fetched_at, full_text, content_hash)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    url,
-                    url_hash,
-                    title,
-                    source,
-                    category,
-                    author,
-                    published_at,
-                    now,
-                    full_text,
-                    content_hash,
-                ),
-            )
-            self.conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        self.conn.execute(
+            """INSERT INTO articles
+               (url, url_hash, title, source, category, author,
+                published_at, fetched_at, full_text, content_hash, last_seen_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(url_hash) DO UPDATE SET last_seen_at = excluded.last_seen_at""",
+            (
+                url,
+                url_hash,
+                title,
+                source,
+                category,
+                author,
+                published_at,
+                now,
+                full_text,
+                content_hash,
+                now,
+            ),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT fetched_at FROM articles WHERE url_hash = ?", (url_hash,)
+        ).fetchone()
+        return row["fetched_at"] == now
+
+    def cleanup_old_articles(self, max_age_days: int = 2) -> int:
+        """Delete articles not seen in the last max_age_days days. Returns count deleted."""
+        from datetime import timedelta
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+        cursor = self.conn.execute(
+            """DELETE FROM articles
+               WHERE (last_seen_at IS NOT NULL AND last_seen_at < ?)
+                  OR (last_seen_at IS NULL AND fetched_at < ?)""",
+            (cutoff, cutoff),
+        )
+        self.conn.commit()
+        count = cursor.rowcount
+        if count:
+            logger.info("Deleted %d old articles (max_age_days=%d)", count, max_age_days)
+        return count
 
     def insert_market_data(
         self,
