@@ -23,7 +23,7 @@ Morning Brief is an automated daily news and intelligence dashboard. It fetches 
 
 **Branch:** `feature/docker-deployment`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Complete
 **Requires:** ai
 
 ### Goal
@@ -32,14 +32,14 @@ Finalize Dockerfile and docker-compose.yml so the full pipeline runs unattended 
 
 ### Acceptance Criteria
 
-- [ ] Multi-stage Dockerfile: build stage installs deps, runtime stage is slim
-- [ ] docker-compose.yml mounts `data/` volume for SQLite persistence and `.env` for config
-- [ ] `docker compose up` runs the full pipeline end-to-end
-- [ ] Container uses cap_drop ALL and no-new-privileges
-- [ ] Container can reach Ollama on the host network (for summarization)
-- [ ] Output dashboard.html is accessible from the host via volume mount
-- [ ] All tests pass inside the container
-- [ ] Lint clean
+- [x] Multi-stage Dockerfile: build stage installs deps, runtime stage is slim
+- [x] docker-compose.yml mounts `data/` volume for SQLite persistence and `.env` for config
+- [x] `docker compose up` runs the full pipeline end-to-end
+- [x] Container uses cap_drop ALL and no-new-privileges
+- [x] Container can reach Ollama on the host network (for summarization)
+- [x] Output dashboard.html is accessible from the host via volume mount
+- [x] All tests pass inside the container
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -61,7 +61,7 @@ Finalize Dockerfile and docker-compose.yml so the full pipeline runs unattended 
 
 **Branch:** `feature/systemd-scheduling`
 **Depends on:** docker-deployment
-**Status:** Not Started
+**Status:** Complete
 **Requires:** both
 
 ### Goal
@@ -70,13 +70,13 @@ Create a systemd timer that triggers the pipeline at 4:15 AM ET daily, with heal
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief.service` systemd unit runs `docker compose up` (or direct python)
-- [ ] `morning-brief.timer` triggers at 4:15 AM ET daily
-- [ ] Health check: after run, verify dashboard.html exists and was modified within last hour
-- [ ] On failure: log to `~/.local/share/morning-brief/failures.log` with timestamp and exit code
+- [x] `morning-brief.service` systemd unit runs `docker compose up` (or direct python)
+- [x] `morning-brief.timer` triggers at 4:15 AM ET daily
+- [x] Health check: after run, verify dashboard.html exists and was modified within last hour
+- [x] On failure: log to `~/.local/share/morning-brief/failures.log` with timestamp and exit code
 - [ ] [HUMAN] Enable timer: `systemctl --user enable --now morning-brief.timer`
-- [ ] Tests cover health check logic
-- [ ] Lint clean
+- [x] Tests cover health check logic
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -129,7 +129,7 @@ Set up Cloudflare Pages to serve the dashboard and Cloudflare Access for authent
 
 **Branch:** `feature/summarization-quality`
 **Depends on:** none
-**Status:** Not Started
+**Status:** In Progress
 **Requires:** both
 
 ### Goal
@@ -139,11 +139,11 @@ Validate and tune Ollama summarization quality. Measure batch timing and adjust 
 ### Acceptance Criteria
 
 - [ ] [HUMAN] Review 20 article summaries for accuracy, conciseness, and factual correctness
-- [ ] Measure and log total summarization time per batch run
-- [ ] Add timing metrics to pipeline output (articles/minute, total duration)
+- [x] Measure and log total summarization time per batch run
+- [x] Add timing metrics to pipeline output (articles/minute, total duration)
 - [ ] Adjust prompt template if quality review reveals issues
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 

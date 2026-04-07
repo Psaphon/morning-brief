@@ -154,13 +154,21 @@ async def run_pipeline() -> None:
         logger.info("Found %d unsummarized articles", len(unsummarized))
 
         if unsummarized:
-            results = await summarize_articles(config.ollama, unsummarized)
+            results, metrics = await summarize_articles(config.ollama, unsummarized)
             saved = 0
             for result in results:
                 if result.success and result.summary:
                     db.update_summary(result.article_id, result.summary, result.model)
                     saved += 1
             logger.info("Saved %d summaries to database", saved)
+            if metrics.total_articles > 0:
+                logger.info(
+                    "Summarization timing: %.1fs total, %.1f articles/min (%d/%d succeeded)",
+                    metrics.total_seconds,
+                    metrics.articles_per_minute,
+                    metrics.succeeded,
+                    metrics.total_articles,
+                )
 
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")

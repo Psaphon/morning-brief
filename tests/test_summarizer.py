@@ -9,6 +9,7 @@ import pytest
 from src.config import OllamaConfig
 from src.summarizers.local import (
     SUMMARY_PROMPT,
+    BatchMetrics,
     SummaryResult,
     check_ollama_available,
     summarize_articles,
@@ -220,9 +221,15 @@ async def test_summarize_single_http_error_retries(ollama_config):
 
 @pytest.mark.asyncio
 async def test_summarize_articles_empty_list(ollama_config):
-    """Empty article list returns empty results."""
-    results = await summarize_articles(ollama_config, [])
+    """Empty article list returns empty results and zero metrics."""
+    results, metrics = await summarize_articles(ollama_config, [])
     assert results == []
+    assert isinstance(metrics, BatchMetrics)
+    assert metrics.total_articles == 0
+    assert metrics.succeeded == 0
+    assert metrics.failed == 0
+    assert metrics.total_seconds == 0.0
+    assert metrics.articles_per_minute == 0.0
 
 
 @pytest.mark.asyncio
@@ -232,9 +239,11 @@ async def test_summarize_articles_ollama_unavailable(ollama_config):
     target = "src.summarizers.local.check_ollama_available"
     with patch(target, new_callable=AsyncMock) as mock_check:
         mock_check.return_value = False
-        results = await summarize_articles(ollama_config, [_make_article()])
+        results, metrics = await summarize_articles(ollama_config, [_make_article()])
 
     assert results == []
+    assert metrics.total_articles == 1
+    assert metrics.succeeded == 0
 
 
 @pytest.mark.asyncio
@@ -256,7 +265,7 @@ async def test_summarize_articles_batch_processing(ollama_config):
             success=True,
         )
 
-        results = await summarize_articles(ollama_config, articles)
+        results, metrics = await summarize_articles(ollama_config, articles)
 
     assert len(results) == 7
     assert all(r.success for r in results)
@@ -296,8 +305,70 @@ async def test_summarize_articles_mixed_results(ollama_config):
         patch("src.summarizers.local._async_sleep", new_callable=AsyncMock),
     ):
         mock_check.return_value = True
-        results = await summarize_articles(ollama_config, articles)
+        results, metrics = await summarize_articles(ollama_config, articles)
 
     assert len(results) == 3
     assert sum(1 for r in results if r.success) == 2
     assert sum(1 for r in results if not r.success) == 1
+
+
+# --- BatchMetrics ---
+
+
+@pytest.mark.asyncio
+async def test_batch_metrics_fields(ollama_config):
+    """BatchMetrics has correct counts and timing fields."""
+    articles = [_make_article(article_id=i) for i in range(4)]
+
+    async def mock_summarize(client, config, article):
+        success = article["id"] % 2 == 0  # even IDs succeed
+        return SummaryResult(
+            article_id=article["id"],
+            summary="Summary." if success else "",
+            model=config.model,
+            elapsed_seconds=1.0,
+            success=success,
+            error=None if success else "Failed",
+        )
+
+    with (
+        patch("src.summarizers.local.check_ollama_available", new_callable=AsyncMock) as mock_check,
+        patch("src.summarizers.local.summarize_single", side_effect=mock_summarize),
+        patch("src.summarizers.local._async_sleep", new_callable=AsyncMock),
+    ):
+        mock_check.return_value = True
+        _, metrics = await summarize_articles(ollama_config, articles)
+
+    assert metrics.total_articles == 4
+    assert metrics.succeeded == 2
+    assert metrics.failed == 2
+    assert metrics.total_seconds >= 0.0
+    assert isinstance(metrics.articles_per_minute, float)
+
+
+@pytest.mark.asyncio
+async def test_batch_metrics_articles_per_minute(ollama_config):
+    """articles_per_minute is computed from succeeded count and elapsed time."""
+    articles = [_make_article(article_id=i) for i in range(3)]
+
+    with (
+        patch("src.summarizers.local.check_ollama_available", new_callable=AsyncMock) as mock_check,
+        patch("src.summarizers.local.summarize_single", new_callable=AsyncMock) as mock_single,
+        patch("src.summarizers.local._async_sleep", new_callable=AsyncMock),
+        patch("src.summarizers.local.time") as mock_time,
+    ):
+        mock_check.return_value = True
+        mock_single.return_value = SummaryResult(
+            article_id=0,
+            summary="A summary.",
+            model=ollama_config.model,
+            elapsed_seconds=1.0,
+            success=True,
+        )
+        # Simulate 30s elapsed → 3 succeeded → 6 articles/min
+        mock_time.monotonic.side_effect = [0.0, 30.0]
+
+        _, metrics = await summarize_articles(ollama_config, articles)
+
+    assert metrics.total_seconds == pytest.approx(30.0)
+    assert metrics.articles_per_minute == pytest.approx(6.0)  # 3 / 30s * 60

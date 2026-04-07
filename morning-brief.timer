@@ -1,0 +1,12 @@
+[Unit]
+Description=Morning Brief daily timer — triggers pipeline at 4:15 AM ET
+
+[Timer]
+# Fire at 04:15 every day in Eastern Time
+OnCalendar=*-*-* 04:15:00
+TimeZone=America/New_York
+# Re-trigger if the system was off at the scheduled time
+Persistent=true
+
+[Install]
+WantedBy=timers.target
