@@ -10,11 +10,10 @@
 
 [Unit]
 Description=Run Morning Brief at 4:15 AM ET daily
-Requires=morning-brief.service
-
 [Timer]
 # Fires at 4:15 AM in the America/New_York timezone
-OnCalendar=America/New_York *-*-* 04:15:00
+OnCalendar=*-*-* 04:15:00
+TimeZone=America/New_York
 
 # If the timer was missed (e.g. machine was off), run immediately on next boot
 Persistent=true
