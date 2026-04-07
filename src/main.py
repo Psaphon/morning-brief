@@ -66,6 +66,9 @@ async def run_pipeline() -> None:
 
     try:
         db.connect()
+        cleaned = db.cleanup_old_articles()
+        if cleaned:
+            logger.info("Retention cleanup: removed %d old articles", cleaned)
         start = datetime.now(timezone.utc)
         logger.info("Pipeline started at %s", start.isoformat())
 

@@ -1,5 +1,6 @@
 """Tests for database helpers."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from src.db import Database
@@ -64,6 +65,116 @@ def test_insert_and_get_health_check(tmp_path: Path):
         assert len(results) == 1
         assert results[0]["name"] == "Example"
         assert results[0]["is_up"] == 1
+    finally:
+        db.close()
+
+
+def _insert_article_with_timestamps(
+    db: Database,
+    url_hash: str,
+    fetched_at: str,
+    last_seen_at: str | None = None,
+) -> None:
+    """Helper to insert an article with explicit timestamps for retention tests."""
+    db.conn.execute(
+        """INSERT INTO articles
+           (url, url_hash, title, source, category, fetched_at, last_seen_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            f"https://example.com/{url_hash}",
+            url_hash,
+            "Title",
+            "Src",
+            "Cat",
+            fetched_at,
+            last_seen_at,
+        ),
+    )
+    db.conn.commit()
+
+
+def test_cleanup_deletes_old_articles(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        old = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        _insert_article_with_timestamps(db, "old1", old, old)
+        count = db.cleanup_old_articles(max_age_days=2)
+        assert count == 1
+        rows = db.conn.execute("SELECT * FROM articles WHERE url_hash = 'old1'").fetchall()
+        assert len(rows) == 0
+    finally:
+        db.close()
+
+
+def test_cleanup_preserves_recent_articles(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        recent = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
+        _insert_article_with_timestamps(db, "recent1", recent, recent)
+        count = db.cleanup_old_articles(max_age_days=2)
+        assert count == 0
+        rows = db.conn.execute("SELECT * FROM articles WHERE url_hash = 'recent1'").fetchall()
+        assert len(rows) == 1
+    finally:
+        db.close()
+
+
+def test_cleanup_does_not_touch_daily_briefings(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        db.save_briefing("2020-01-01", "Old briefing content", "qwen2.5")
+        old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        _insert_article_with_timestamps(db, "oldarticle", old, old)
+        db.cleanup_old_articles(max_age_days=2)
+        briefing = db.get_briefing("2020-01-01")
+        assert briefing == "Old briefing content"
+    finally:
+        db.close()
+
+
+def test_refetch_updates_last_seen_at(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        # Insert article with old last_seen_at via direct SQL
+        old = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+        _insert_article_with_timestamps(db, "reseen1", old, old)
+
+        # Re-insert via insert_article — should update last_seen_at
+        result = db.insert_article(
+            url="https://example.com/reseen1",
+            url_hash="reseen1",
+            title="Title",
+            source="Src",
+            category="Cat",
+        )
+        assert result is False  # existing article
+
+        row = db.conn.execute(
+            "SELECT last_seen_at FROM articles WHERE url_hash = 'reseen1'"
+        ).fetchone()
+        updated_at = datetime.fromisoformat(row["last_seen_at"])
+        assert updated_at > datetime.now(timezone.utc) - timedelta(seconds=5)
+    finally:
+        db.close()
+
+
+def test_updated_last_seen_survives_cleanup(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        # Article has old fetched_at but fresh last_seen_at (re-fetched today)
+        old = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        _insert_article_with_timestamps(db, "survivor1", old, recent)
+
+        count = db.cleanup_old_articles(max_age_days=2)
+        assert count == 0
+        rows = db.conn.execute("SELECT * FROM articles WHERE url_hash = 'survivor1'").fetchall()
+        assert len(rows) == 1
     finally:
         db.close()
 
