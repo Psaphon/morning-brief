@@ -45,3 +45,4 @@ data/*.db
 data/*.db-journal
 data/*.json
 data/output/
+.venv311/
