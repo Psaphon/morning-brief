@@ -72,8 +72,6 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
-CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score);
-CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_market_data_symbol ON market_data(symbol);
 CREATE INDEX IF NOT EXISTS idx_health_checks_url ON health_checks(url);
 """
@@ -108,6 +106,11 @@ class Database:
                 logger.debug("Migration: added %s column to articles", name)
             except sqlite3.OperationalError:
                 pass  # Column already exists
+        # Create indexes for migrated columns (must run after columns exist)
+        self.conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score);
+            CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
+        """)
 
     def close(self) -> None:
         """Close the database connection."""
