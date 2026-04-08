@@ -96,7 +96,7 @@ Combine article summaries into a ~500-1000 word daily briefing via Ollama.
 
 **Branch:** `fix/systemd-units`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Merged
 **Requires:** ai
 
 ### Goal
@@ -127,7 +127,7 @@ Fix two bugs in the systemd unit files that prevent them from working as user-le
 
 **Branch:** `feature/article-retention`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Merged
 **Requires:** ai
 
 ### Goal
@@ -165,7 +165,7 @@ Clear old articles from the database daily so the pipeline always works with fre
 
 **Branch:** `feature/relevance-scoring`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Merged
 **Requires:** ai
 
 ### Goal
