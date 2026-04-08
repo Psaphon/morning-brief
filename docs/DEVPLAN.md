@@ -207,6 +207,39 @@ Score and rank articles by relevance using cheap heuristics (no LLM). This deter
 
 ---
 
+## Feature: docker-git-deploy
+
+**Branch:** `fix/docker-git-deploy`
+**Depends on:** none
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+Fix the gh-pages deploy step by adding git to the Docker runtime image. Currently `scripts/deploy-dashboard.sh` fails with `git: command not found` because the slim Python image doesn't include git.
+
+### Acceptance Criteria
+
+- [ ] `Dockerfile` runtime stage installs `git` via `apt-get`
+- [ ] Keep the image slim — only add git, not the full build toolchain
+- [ ] `scripts/deploy-dashboard.sh` runs successfully inside the container
+- [ ] Dashboard deploys to gh-pages branch
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `Dockerfile` | Modify | Add `git` to runtime stage apt-get |
+
+### Key Decisions
+
+- Only add `git` to runtime, not build stage — deploy runs at the end of the pipeline
+- Consider adding `openssh-client` too if git push uses SSH (check deploy script)
+
+---
+
 ## Feature: balanced-summarization
 
 **Branch:** `feature/balanced-summarization`
