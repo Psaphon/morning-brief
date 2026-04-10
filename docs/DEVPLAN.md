@@ -496,6 +496,6 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 ### Cloudflare Access
 
 **Requires:** human
-**When:** Once personal/local content is added (Manatee County, portfolio data)
+**When:** Once personal/local content is added (local news, portfolio data)
 
 Add Cloudflare Access email-based authentication (free, 1 user) to restrict dashboard access. Not needed while content is public news only — URL is obscure and robots.txt blocks indexing.
