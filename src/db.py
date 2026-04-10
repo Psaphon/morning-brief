@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS articles (
     summary TEXT,
     summary_model TEXT,
     content_hash TEXT,
+    score REAL,
+    last_seen_at TEXT,
     UNIQUE(url_hash)
 );
 
@@ -59,6 +61,14 @@ CREATE TABLE IF NOT EXISTS artworks (
     fetched_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS daily_briefings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT UNIQUE NOT NULL,
+    content TEXT NOT NULL,
+    model TEXT NOT NULL,
+    generated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -80,7 +90,27 @@ class Database:
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
+        self._migrate()
         logger.info("Database connected: %s", self.db_path)
+
+    def _migrate(self) -> None:
+        """Apply idempotent schema migrations for columns added after initial release."""
+        migrations = [
+            ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
+            ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
+        ]
+        for sql, name in migrations:
+            try:
+                self.conn.execute(sql)
+                self.conn.commit()
+                logger.debug("Migration: added %s column to articles", name)
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+        # Create indexes for migrated columns (must run after columns exist)
+        self.conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score);
+            CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
+        """)
 
     def close(self) -> None:
         """Close the database connection."""
@@ -108,29 +138,48 @@ class Database:
     ) -> bool:
         """Insert an article. Returns True if inserted, False if duplicate."""
         now = datetime.now(timezone.utc).isoformat()
-        try:
-            self.conn.execute(
-                """INSERT INTO articles
-                   (url, url_hash, title, source, category, author,
-                    published_at, fetched_at, full_text, content_hash)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    url,
-                    url_hash,
-                    title,
-                    source,
-                    category,
-                    author,
-                    published_at,
-                    now,
-                    full_text,
-                    content_hash,
-                ),
-            )
-            self.conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        self.conn.execute(
+            """INSERT INTO articles
+               (url, url_hash, title, source, category, author,
+                published_at, fetched_at, full_text, content_hash, last_seen_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(url_hash) DO UPDATE SET last_seen_at = excluded.last_seen_at""",
+            (
+                url,
+                url_hash,
+                title,
+                source,
+                category,
+                author,
+                published_at,
+                now,
+                full_text,
+                content_hash,
+                now,
+            ),
+        )
+        self.conn.commit()
+        row = self.conn.execute(
+            "SELECT fetched_at FROM articles WHERE url_hash = ?", (url_hash,)
+        ).fetchone()
+        return row["fetched_at"] == now
+
+    def cleanup_old_articles(self, max_age_days: int = 2) -> int:
+        """Delete articles not seen in the last max_age_days days. Returns count deleted."""
+        from datetime import timedelta
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+        cursor = self.conn.execute(
+            """DELETE FROM articles
+               WHERE (last_seen_at IS NOT NULL AND last_seen_at < ?)
+                  OR (last_seen_at IS NULL AND fetched_at < ?)""",
+            (cutoff, cutoff),
+        )
+        self.conn.commit()
+        count = cursor.rowcount
+        if count:
+            logger.info("Deleted %d old articles (max_age_days=%d)", count, max_age_days)
+        return count
 
     def insert_market_data(
         self,
@@ -188,6 +237,14 @@ class Database:
         )
         self.conn.commit()
 
+    def update_score(self, article_id: int, score: float) -> None:
+        """Update an article's relevance score."""
+        self.conn.execute(
+            "UPDATE articles SET score = ? WHERE id = ?",
+            (score, article_id),
+        )
+        self.conn.commit()
+
     def get_todays_articles(self) -> list[dict[str, Any]]:
         """Get all articles fetched today."""
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -211,6 +268,52 @@ class Database:
                ORDER BY m.data_type, m.symbol""",
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def insert_artwork(
+        self,
+        title: str,
+        artist: str | None = None,
+        date: str | None = None,
+        medium: str | None = None,
+        image_url: str | None = None,
+        source_url: str | None = None,
+    ) -> None:
+        """Insert an artwork record."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO artworks
+               (title, artist, date, medium, image_url, source_url, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (title, artist, date, medium, image_url, source_url, now),
+        )
+        self.conn.commit()
+
+    def get_todays_artwork(self) -> list[dict[str, Any]]:
+        """Get artworks fetched today."""
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = self.conn.execute(
+            "SELECT * FROM artworks WHERE fetched_at >= ? ORDER BY id",
+            (today,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_briefing(self, date: str, content: str, model: str) -> None:
+        """Insert or replace the daily briefing for a given date."""
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT OR REPLACE INTO daily_briefings (date, content, model, generated_at)
+               VALUES (?, ?, ?, ?)""",
+            (date, content, model, now),
+        )
+        self.conn.commit()
+
+    def get_briefing(self, date: str) -> str | None:
+        """Return the daily briefing content for a given date, or None if not found."""
+        row = self.conn.execute(
+            "SELECT content FROM daily_briefings WHERE date = ?",
+            (date,),
+        ).fetchone()
+        return row["content"] if row else None
 
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""

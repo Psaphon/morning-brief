@@ -21,7 +21,10 @@ Thumbs.db
 docker-compose.override.yml
 
 # AI sandbox
-.ai/config.json
+.ai/
+
+# Lock files
+*.~lock.*
 
 # Python
 __pycache__/
@@ -40,4 +43,6 @@ htmlcov/
 # Project data (generated, not committed)
 data/*.db
 data/*.db-journal
+data/*.json
 data/output/
+.venv311/

@@ -1,0 +1,25 @@
+# Morning Brief — systemd timer
+#
+# Fires the pipeline at 4:15 AM US/Eastern every day.
+# Requires systemd v247+ for timezone-aware OnCalendar.
+# On older systems, convert to UTC manually:
+#   EST (winter, UTC-5): 09:15 UTC
+#   EDT (summer, UTC-4): 08:15 UTC
+#
+# Install: see deploy/install.sh
+
+[Unit]
+Description=Run Morning Brief at 4:15 AM ET daily
+[Timer]
+# Fires at 4:15 AM in the America/New_York timezone
+OnCalendar=*-*-* 04:15:00
+TimeZone=America/New_York
+
+# If the timer was missed (e.g. machine was off), run immediately on next boot
+Persistent=true
+
+# Small random delay to avoid thundering-herd if multiple services fire together
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

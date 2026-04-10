@@ -22,6 +22,7 @@ class APIKeys:
     finnhub: str = ""
     fred: str = ""
     coingecko: str = ""
+    etherscan: str = ""
     anthropic: str = ""
     sendgrid: str = ""
 
@@ -33,6 +34,8 @@ class Config:
     output_dir: Path = Path("data/output")
     database_path: Path = Path("data/morning_brief.db")
     feeds_path: Path = Path("docs/FEEDS.md")
+    deploy_enabled: bool = False
+    deploy_branch: str = "gh-pages"
 
 
 def load_config() -> Config:
@@ -46,9 +49,12 @@ def load_config() -> Config:
             finnhub=os.environ.get("FINNHUB_API_KEY", ""),
             fred=os.environ.get("FRED_API_KEY", ""),
             coingecko=os.environ.get("COINGECKO_API_KEY", ""),
+            etherscan=os.environ.get("ETHERSCAN_API_KEY", ""),
             anthropic=os.environ.get("ANTHROPIC_API_KEY", ""),
             sendgrid=os.environ.get("SENDGRID_API_KEY", ""),
         ),
         output_dir=Path(os.environ.get("OUTPUT_DIR", "data/output")),
         database_path=Path(os.environ.get("DATABASE_PATH", "data/morning_brief.db")),
+        deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower() in ("1", "true", "yes"),
+        deploy_branch=os.environ.get("DEPLOY_BRANCH", "gh-pages"),
     )

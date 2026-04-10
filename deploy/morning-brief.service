@@ -1,0 +1,36 @@
+# Morning Brief — systemd one-shot service
+#
+# Invoked by morning-brief.timer. Runs the Docker pipeline once and exits.
+# Logs go to journald (view with: journalctl -u morning-brief.service).
+#
+# Install: see deploy/install.sh
+
+[Unit]
+Description=Morning Brief daily pipeline
+Documentation=https://github.com/youruser/morning-brief
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DEPLOY_ENABLED=true
+
+# Set this to wherever you cloned the repo
+WorkingDirectory=%h/Projects/morning-brief
+
+# Run the pipeline container; --rm cleans up after exit
+ExecStart=/usr/bin/docker compose run --rm morning-brief
+
+# Write a separate failure marker so healthcheck.sh can detect silent failures
+ExecStartPost=/bin/bash -c '\
+  STATUS=$(python3 -c "import json,sys; d=json.load(open('"'"'data/last_run.json'"'"')); sys.exit(0 if d['"'"'status'"'"']=='"'"'ok'"'"' else 1)" 2>/dev/null); \
+  [ $? -ne 0 ] && echo "[ALERT] Morning Brief pipeline reported an error — check data/last_run.json" >&2 || true'
+
+# Capture stdout+stderr to a persistent log file as well
+StandardOutput=append:/opt/morning-brief/data/logs/pipeline.log
+StandardError=append:/opt/morning-brief/data/logs/pipeline.log
+
+# Give the pipeline enough time to finish (default 90s is too short for LLM summarization)
+TimeoutStartSec=3600
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,22 @@
+services:
+
+  # ── Morning Brief pipeline ─────────────────────────────────────────────────
+  # Ollama runs on the HOST (for GPU access).  The container reaches it via
+  # host.docker.internal or the OLLAMA_HOST env var from .env.
+  morning-brief:
+    build: .
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      # Default: reach Ollama on the host.  Override in .env if needed.
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Runs once per invocation (triggered by systemd timer); does not restart
+    restart: "no"
