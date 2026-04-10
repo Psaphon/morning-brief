@@ -139,7 +139,7 @@ async def fetch_all_feeds(feeds_path: Path) -> list[RawArticle]:
 
     async with httpx.AsyncClient(
         follow_redirects=True,
-        headers={"User-Agent": "MorningBrief/0.1 (news aggregator; contact via GitHub)"},
+        headers={"User-Agent": "MorningBrief/0.1 (+https://github.com/Psaphon/morning-brief)"},
     ) as client:
         # Fetch in batches to respect rate limits
         for i in range(0, len(feed_list), MAX_CONCURRENT):
