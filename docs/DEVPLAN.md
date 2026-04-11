@@ -211,7 +211,7 @@ Score and rank articles by relevance using cheap heuristics (no LLM). This deter
 
 **Branch:** `fix/docker-git-deploy`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Merged
 **Requires:** ai
 
 ### Goal
