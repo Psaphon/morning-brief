@@ -244,7 +244,7 @@ Fix the gh-pages deploy step by adding git to the Docker runtime image. Currentl
 
 **Branch:** `feature/balanced-summarization`
 **Depends on:** relevance-scoring
-**Status:** Not Started
+**Status:** Merged
 **Requires:** ai
 
 ### Goal

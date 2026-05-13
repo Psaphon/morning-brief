@@ -12,10 +12,104 @@ from src.summarizers.local import (
     BatchMetrics,
     SummaryResult,
     check_ollama_available,
+    select_balanced_articles,
     summarize_articles,
     summarize_single,
     truncate_text,
 )
+
+# --- select_balanced_articles ---
+
+
+def _make_candidate(article_id: int, category: str, score: float = 0.5) -> dict:
+    return {
+        "id": article_id,
+        "title": f"Article {article_id}",
+        "source": "Test Source",
+        "category": category,
+        "full_text": "A" * 200,
+        "score": score,
+    }
+
+
+def test_select_balanced_empty():
+    """Empty input returns empty output."""
+    assert select_balanced_articles([]) == []
+
+
+def test_select_balanced_single_category():
+    """Respects per_category cap within a single category."""
+    articles = [_make_candidate(i, "Politics", score=float(10 - i)) for i in range(10)]
+    result = select_balanced_articles(articles, per_category=3, total=50)
+    assert len(result) == 3
+    # Highest scores retained
+    assert result[0]["id"] == 0
+    assert result[1]["id"] == 1
+    assert result[2]["id"] == 2
+
+
+def test_select_balanced_multiple_categories():
+    """Each category gets up to per_category slots."""
+    articles = (
+        [_make_candidate(i, "Politics", score=float(10 - i)) for i in range(5)]
+        + [_make_candidate(i + 10, "Crypto", score=float(10 - i)) for i in range(5)]
+        + [_make_candidate(i + 20, "Tech", score=float(10 - i)) for i in range(5)]
+    )
+    result = select_balanced_articles(articles, per_category=3, total=50)
+    assert len(result) == 9  # 3 per category × 3 categories
+
+    categories = [a["category"] for a in result]
+    assert categories.count("Politics") == 3
+    assert categories.count("Crypto") == 3
+    assert categories.count("Tech") == 3
+
+
+def test_select_balanced_total_cap():
+    """Total cap is enforced even when per_category would allow more."""
+    articles = (
+        [_make_candidate(i, "Politics", score=float(10 - i)) for i in range(5)]
+        + [_make_candidate(i + 10, "Crypto", score=float(10 - i)) for i in range(5)]
+        + [_make_candidate(i + 20, "Tech", score=float(10 - i)) for i in range(5)]
+    )
+    result = select_balanced_articles(articles, per_category=5, total=7)
+    assert len(result) == 7
+
+
+def test_select_balanced_sorted_by_score():
+    """Result is sorted by score descending."""
+    articles = [
+        _make_candidate(1, "Politics", score=0.3),
+        _make_candidate(2, "Crypto", score=0.9),
+        _make_candidate(3, "Tech", score=0.6),
+    ]
+    result = select_balanced_articles(articles, per_category=1, total=10)
+    scores = [a["score"] for a in result]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_select_balanced_none_score_ranked_last():
+    """Articles with None score are treated as 0 and ranked last."""
+    articles = [
+        _make_candidate(1, "Politics", score=0.8),
+        {**_make_candidate(2, "Crypto"), "score": None},
+        _make_candidate(3, "Tech", score=0.4),
+    ]
+    result = select_balanced_articles(articles, per_category=1, total=10)
+    assert result[0]["id"] == 1  # score 0.8
+    assert result[-1]["id"] == 2  # score None → 0
+
+
+def test_select_balanced_default_params():
+    """Default params yield at most 50 articles, 8 per category."""
+    articles = [_make_candidate(i, f"Cat{i % 10}", score=float(i)) for i in range(200)]
+    result = select_balanced_articles(articles)
+    assert len(result) <= 50
+    # No category should have more than 8
+    from collections import Counter
+
+    counts = Counter(a["category"] for a in result)
+    assert all(v <= 8 for v in counts.values())
+
 
 # --- truncate_text ---
 

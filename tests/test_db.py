@@ -200,12 +200,47 @@ def test_unsummarized_articles(tmp_path: Path):
             full_text=None,
         )
 
+        # Only articles with full_text and no summary are returned
         unsummarized = db.get_unsummarized_articles()
         assert len(unsummarized) == 1
         assert unsummarized[0]["title"] == "Article With Text"
 
-        # Summarize it
+        # Summarize it — should no longer appear
         db.update_summary(unsummarized[0]["id"], "A summary.", "qwen2.5")
         assert len(db.get_unsummarized_articles()) == 0
+    finally:
+        db.close()
+
+
+def test_unsummarized_articles_ordered_by_score(tmp_path: Path):
+    """get_unsummarized_articles returns articles ordered by score descending."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        db.insert_article(
+            url="https://example.com/low",
+            url_hash="low",
+            title="Low Score",
+            source="Src",
+            category="Cat",
+            full_text="Body text here.",
+        )
+        db.insert_article(
+            url="https://example.com/high",
+            url_hash="high",
+            title="High Score",
+            source="Src",
+            category="Cat",
+            full_text="Body text here.",
+        )
+        low_id = db.conn.execute("SELECT id FROM articles WHERE url_hash='low'").fetchone()["id"]
+        high_id = db.conn.execute("SELECT id FROM articles WHERE url_hash='high'").fetchone()["id"]
+        db.update_score(low_id, 0.2)
+        db.update_score(high_id, 0.9)
+
+        result = db.get_unsummarized_articles()
+        assert len(result) == 2
+        assert result[0]["title"] == "High Score"
+        assert result[1]["title"] == "Low Score"
     finally:
         db.close()
