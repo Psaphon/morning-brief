@@ -85,6 +85,38 @@ class BatchMetrics:
     articles_per_minute: float
 
 
+def select_balanced_articles(
+    articles: list[dict],
+    per_category: int = 8,
+    total: int = 50,
+) -> list[dict]:
+    """Select articles for summarization using category-balanced round-robin.
+
+    Picks up to `per_category` articles per category (highest-scored first),
+    then caps the overall result at `total`. Input should already be sorted by
+    score descending (as returned by ``Database.get_unsummarized_articles``).
+
+    Args:
+        articles: Candidate articles, pre-sorted by score descending.
+        per_category: Maximum articles to take from any single category.
+        total: Hard cap on the total number of articles returned.
+
+    Returns:
+        Balanced list of articles, sorted by score descending, length <= total.
+    """
+    by_category: dict[str, list[dict]] = {}
+    for article in articles:
+        cat = article.get("category", "")
+        by_category.setdefault(cat, []).append(article)
+
+    selected: list[dict] = []
+    for cat_articles in by_category.values():
+        selected.extend(cat_articles[:per_category])
+
+    selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
+    return selected[:total]
+
+
 def truncate_text(text: str, max_chars: int = MAX_INPUT_CHARS) -> str:
     """Truncate article text to fit within model context.
 

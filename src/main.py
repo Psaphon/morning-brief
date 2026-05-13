@@ -29,7 +29,7 @@ from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
-from .summarizers.local import generate_daily_briefing, summarize_articles
+from .summarizers.local import generate_daily_briefing, select_balanced_articles, summarize_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -169,8 +169,8 @@ async def run_pipeline() -> None:
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
-        unsummarized = db.get_unsummarized_articles()
-        logger.info("Found %d unsummarized articles", len(unsummarized))
+        unsummarized = select_balanced_articles(db.get_unsummarized_articles())
+        logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
         if unsummarized:
             results, metrics = await summarize_articles(config.ollama, unsummarized)

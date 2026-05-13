@@ -29,11 +29,22 @@ CATEGORY_ORDER = [
 
 
 def _group_articles_by_category(articles: list[dict[str, Any]]) -> OrderedDict:
-    """Group articles by category in display order."""
+    """Group articles by category in display order.
+
+    Within each category, summarized articles appear first (sorted by score
+    descending), followed by unsummarized articles as title-only links.
+    """
     grouped: dict[str, list] = {}
     for article in articles:
         cat = article.get("category", "Other")
         grouped.setdefault(cat, []).append(article)
+
+    # Within each category: summarized first (by score), then unsummarized
+    for cat, cat_articles in grouped.items():
+        summarized = [a for a in cat_articles if a.get("summary")]
+        unsummarized = [a for a in cat_articles if not a.get("summary")]
+        summarized.sort(key=lambda a: a.get("score") or 0, reverse=True)
+        grouped[cat] = summarized + unsummarized
 
     # Sort by defined order, then alphabetically for any extras
     ordered = OrderedDict()

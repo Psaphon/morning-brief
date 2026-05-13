@@ -217,15 +217,22 @@ class Database:
         )
         self.conn.commit()
 
-    def get_unsummarized_articles(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Get articles that haven't been summarized yet."""
+    def get_unsummarized_articles(self) -> list[dict[str, Any]]:
+        """Get today's unsummarized articles ordered by relevance score descending.
+
+        Returns all of today's unsummarized articles with full_text, ordered by
+        score so that callers can apply category-balanced selection on top.
+        Articles without a score are ranked last.
+        """
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         rows = self.conn.execute(
-            """SELECT id, url, title, source, category, full_text
+            """SELECT id, url, title, source, category, full_text, score
                FROM articles
-               WHERE summary IS NULL AND full_text IS NOT NULL
-               ORDER BY fetched_at DESC
-               LIMIT ?""",
-            (limit,),
+               WHERE summary IS NULL
+                 AND full_text IS NOT NULL
+                 AND fetched_at >= ?
+               ORDER BY COALESCE(score, 0) DESC""",
+            (today,),
         ).fetchall()
         return [dict(row) for row in rows]
 
