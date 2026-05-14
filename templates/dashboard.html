@@ -259,10 +259,63 @@
             border-radius: 6px;
             border: 1px solid var(--border);
             background: var(--bg);
+            color: var(--accent);
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s, opacity 0.15s;
+        }
+        .action-btn:hover:not(:disabled) { background: var(--surface); }
+        .action-btn:disabled {
             color: var(--muted);
             cursor: not-allowed;
-            opacity: 0.6;
+            opacity: 0.5;
+        }
+        .action-btn.loading {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        /* Research result panel */
+        .research-panel {
+            margin: 0 0.25rem 0.75rem;
+            padding: 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+        .research-panel .research-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.4rem;
+        }
+        .research-panel .research-content { white-space: pre-wrap; }
+        .research-panel.error { border-color: var(--red); color: var(--red); }
+
+        /* Research question input */
+        .research-question-row {
+            display: flex;
+            gap: 0.4rem;
+            padding: 0.25rem 0.25rem 0.5rem;
+            align-items: center;
+        }
+        .research-question-input {
+            flex: 1;
+            font-size: 0.82rem;
+            padding: 0.3rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
             font-family: inherit;
+        }
+        .research-question-input:focus {
+            outline: none;
+            border-color: var(--accent);
         }
 
         footer {
@@ -444,18 +497,170 @@
             return found > 0 ? container : null;
         }
 
-        function buildActionButtons() {
+        // Worker URL — set to empty string to disable (buttons shown as disabled)
+        var WORKER_URL = '/api/research';
+
+        function setButtonsDisabled(container, disabled) {
+            var btns = container.querySelectorAll('.action-btn');
+            btns.forEach(function (b) { b.disabled = disabled; });
+        }
+
+        function showResearchPanel(container, label, isError) {
+            var existing = container.querySelector('.research-panel');
+            if (existing) { existing.remove(); }
+
+            var panel = document.createElement('div');
+            panel.className = 'research-panel' + (isError ? ' error' : '');
+
+            var labelEl = document.createElement('div');
+            labelEl.className = 'research-label';
+            labelEl.textContent = label;
+
+            var content = document.createElement('div');
+            content.className = 'research-content';
+
+            panel.appendChild(labelEl);
+            panel.appendChild(content);
+
+            var actionBtns = container.querySelector('.action-buttons');
+            actionBtns.insertAdjacentElement('afterend', panel);
+
+            return content;
+        }
+
+        function callWorker(action, articleIds, articlesById, question, container) {
+            setButtonsDisabled(container, true);
+
+            var labelMap = { elaborate: 'Elaboration', research: 'Research', sources: 'Sources & Further Reading' };
+            var contentEl = showResearchPanel(container, labelMap[action] || action, false);
+            contentEl.textContent = 'Loading\u2026';
+
+            var body = { action: action, article_ids: articleIds, articles_by_id: articlesById };
+            if (question) { body.question = question; }
+
+            fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            }).then(function (res) {
+                if (!res.ok || !res.body) {
+                    return res.json().then(function (data) {
+                        throw new Error(data.error || ('HTTP ' + res.status));
+                    });
+                }
+
+                contentEl.textContent = '';
+                var reader = res.body.getReader();
+                var decoder = new TextDecoder();
+                var sseBuffer = '';
+
+                function pump() {
+                    return reader.read().then(function (result) {
+                        if (result.done) {
+                            setButtonsDisabled(container, false);
+                            return;
+                        }
+
+                        sseBuffer += decoder.decode(result.value, { stream: true });
+                        var lines = sseBuffer.split('\n');
+                        sseBuffer = lines.pop();
+
+                        lines.forEach(function (line) {
+                            if (!line.startsWith('data: ')) { return; }
+                            var data;
+                            try { data = JSON.parse(line.slice(6)); } catch (e) { return; }
+
+                            if (data.type === 'text') {
+                                contentEl.textContent += data.text;
+                            } else if (data.type === 'error') {
+                                contentEl.textContent = data.error;
+                                contentEl.closest('.research-panel').classList.add('error');
+                                setButtonsDisabled(container, false);
+                            } else if (data.type === 'done') {
+                                setButtonsDisabled(container, false);
+                            }
+                        });
+
+                        return pump();
+                    });
+                }
+
+                return pump();
+            }).catch(function (err) {
+                contentEl.textContent = err.message || 'Request failed';
+                contentEl.closest('.research-panel').classList.add('error');
+                setButtonsDisabled(container, false);
+            });
+        }
+
+        function showResearchInput(articleIds, articlesById, container) {
+            var existing = container.querySelector('.research-question-row');
+            if (existing) { existing.remove(); }
+            // Remove any existing research panel
+            var existingPanel = container.querySelector('.research-panel');
+            if (existingPanel) { existingPanel.remove(); }
+
+            var row = document.createElement('div');
+            row.className = 'research-question-row';
+
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'research-question-input';
+            input.placeholder = 'Ask a question about this topic\u2026';
+
+            var goBtn = document.createElement('button');
+            goBtn.className = 'action-btn';
+            goBtn.textContent = 'Ask';
+
+            function submit() {
+                var q = input.value.trim();
+                if (!q) { return; }
+                row.remove();
+                callWorker('research', articleIds, articlesById, q, container);
+            }
+
+            goBtn.addEventListener('click', submit);
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { submit(); }
+                if (e.key === 'Escape') { row.remove(); }
+            });
+
+            row.appendChild(input);
+            row.appendChild(goBtn);
+
+            var actionBtns = container.querySelector('.action-buttons');
+            actionBtns.insertAdjacentElement('afterend', row);
+            input.focus();
+        }
+
+        function buildActionButtons(articleIds, articlesById) {
+            var container = document.createElement('div');
+
             var div = document.createElement('div');
             div.className = 'action-buttons';
-            ['Elaborate', 'Research', 'Sources & Further Reading'].forEach(function (label) {
+
+            var actions = [
+                { label: 'Elaborate', action: 'elaborate' },
+                { label: 'Research\u2026', action: 'research' },
+                { label: 'Sources', action: 'sources' },
+            ];
+
+            actions.forEach(function (item) {
                 var btn = document.createElement('button');
                 btn.className = 'action-btn';
-                btn.textContent = label;
-                btn.disabled = true;
-                btn.title = 'Coming soon';
+                btn.textContent = item.label;
+                btn.addEventListener('click', function () {
+                    if (item.action === 'research') {
+                        showResearchInput(articleIds, articlesById, container);
+                    } else {
+                        callWorker(item.action, articleIds, articlesById, null, container);
+                    }
+                });
                 div.appendChild(btn);
             });
-            return div;
+
+            container.appendChild(div);
+            return container;
         }
 
         function buildSegmentEl(seg, articlesById) {
@@ -497,7 +702,7 @@
 
             var sources = buildSourceArticles(seg.source_article_ids || [], articlesById);
             if (sources) { body.appendChild(sources); }
-            body.appendChild(buildActionButtons());
+            body.appendChild(buildActionButtons(seg.source_article_ids || [], articlesById));
 
             wrapper.appendChild(header);
             wrapper.appendChild(textDiv);
