@@ -197,6 +197,13 @@ async def run_pipeline() -> None:
         else:
             logger.info("No briefing generated (Ollama unavailable or no summaries)")
 
+        # Retrieve structured segment map for interactive HTML
+        briefing_segments = None
+        if briefing:
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            bref_record = db.get_briefing(today_str)
+            briefing_segments = bref_record["segment_map"] if bref_record else None
+
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")
         all_articles = db.get_todays_articles()
@@ -211,6 +218,7 @@ async def run_pipeline() -> None:
             health_checks=health,
             artworks=daily_art,
             briefing=briefing,
+            briefing_segments=briefing_segments,
             output_path=output_path,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))

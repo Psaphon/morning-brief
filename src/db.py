@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -66,7 +67,8 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
     date TEXT UNIQUE NOT NULL,
     content TEXT NOT NULL,
     model TEXT NOT NULL,
-    generated_at TEXT NOT NULL
+    generated_at TEXT NOT NULL,
+    segment_map TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
@@ -98,6 +100,10 @@ class Database:
         migrations = [
             ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
             ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
+            (
+                "ALTER TABLE daily_briefings ADD COLUMN segment_map TEXT",
+                "daily_briefings.segment_map",
+            ),
         ]
         for sql, name in migrations:
             try:
@@ -304,23 +310,50 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def save_briefing(self, date: str, content: str, model: str) -> None:
-        """Insert or replace the daily briefing for a given date."""
+    def save_briefing(
+        self,
+        date: str,
+        content: str,
+        model: str,
+        segment_map: str | None = None,
+    ) -> None:
+        """Insert or replace the daily briefing for a given date.
+
+        Args:
+            date: ISO date string (YYYY-MM-DD).
+            content: Rendered briefing text (joined from segments or plain text).
+            model: Name of the model that generated the briefing.
+            segment_map: JSON-encoded list of segment dicts, or None if unavailable.
+        """
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
-            """INSERT OR REPLACE INTO daily_briefings (date, content, model, generated_at)
-               VALUES (?, ?, ?, ?)""",
-            (date, content, model, now),
+            """INSERT OR REPLACE INTO daily_briefings
+               (date, content, model, generated_at, segment_map)
+               VALUES (?, ?, ?, ?, ?)""",
+            (date, content, model, now, segment_map),
         )
         self.conn.commit()
 
-    def get_briefing(self, date: str) -> str | None:
-        """Return the daily briefing content for a given date, or None if not found."""
+    def get_briefing(self, date: str) -> dict[str, Any] | None:
+        """Return the daily briefing for a given date, or None if not found.
+
+        Returns a dict with keys:
+            content (str): The rendered briefing text.
+            segment_map (list | None): Parsed segment list, or None if not stored.
+        """
         row = self.conn.execute(
-            "SELECT content FROM daily_briefings WHERE date = ?",
+            "SELECT content, segment_map FROM daily_briefings WHERE date = ?",
             (date,),
         ).fetchone()
-        return row["content"] if row else None
+        if not row:
+            return None
+        segments = None
+        if row["segment_map"]:
+            try:
+                segments = json.loads(row["segment_map"])
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse segment_map JSON for date %s", date)
+        return {"content": row["content"], "segment_map": segments}
 
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""

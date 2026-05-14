@@ -130,7 +130,8 @@ def test_cleanup_does_not_touch_daily_briefings(tmp_path: Path):
         _insert_article_with_timestamps(db, "oldarticle", old, old)
         db.cleanup_old_articles(max_age_days=2)
         briefing = db.get_briefing("2020-01-01")
-        assert briefing == "Old briefing content"
+        assert briefing is not None
+        assert briefing["content"] == "Old briefing content"
     finally:
         db.close()
 

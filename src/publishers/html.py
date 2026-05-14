@@ -105,12 +105,18 @@ def render_dashboard(
     health_checks: list[dict[str, Any]],
     artworks: list[dict[str, Any]] | None = None,
     briefing: str | None = None,
+    briefing_segments: list[dict[str, Any]] | None = None,
     template_dir: Path = Path("templates"),
     output_path: Path | None = None,
 ) -> str:
     """Render the HTML dashboard.
 
     Returns the rendered HTML string and optionally writes it to a file.
+
+    Args:
+        briefing_segments: Parsed segment list from the structured briefing, or
+            None if unavailable. Passed to the template as JSON for JavaScript
+            expand/collapse UI.
     """
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -131,6 +137,7 @@ def render_dashboard(
         health_checks=health_checks,
         artworks=artworks or [],
         briefing=briefing,
+        briefing_segments_json=json.dumps(briefing_segments or []),
     )
 
     if output_path:
