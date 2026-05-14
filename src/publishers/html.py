@@ -128,6 +128,17 @@ def render_dashboard(
     categories = _group_articles_by_category(articles)
     formatted_market = _format_market_data(market_data)
 
+    articles_by_id = {
+        str(a["id"]): {
+            "title": a.get("title") or "",
+            "url": a.get("url") or "",
+            "source": a.get("source") or "",
+            "summary": a.get("summary") or "",
+        }
+        for a in articles
+        if a.get("id") is not None
+    }
+
     html = template.render(
         date=now.strftime("%A, %B %-d, %Y"),
         generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -138,6 +149,7 @@ def render_dashboard(
         artworks=artworks or [],
         briefing=briefing,
         briefing_segments_json=json.dumps(briefing_segments or []),
+        articles_by_id_json=json.dumps(articles_by_id),
     )
 
     if output_path:
