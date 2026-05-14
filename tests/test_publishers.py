@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from collections import OrderedDict
 from pathlib import Path
 
@@ -172,3 +174,88 @@ def test_render_dashboard_with_health_checks(tmp_path):
     )
     assert "API Server" in html
     assert "Database" in html
+
+
+def test_render_dashboard_embeds_segment_json():
+    """Segment JSON is embedded in page when briefing_segments provided."""
+    segments = [{"topic": "Lead Story", "text": "Something happened.", "source_article_ids": [1]}]
+    html = render_dashboard(
+        articles=[],
+        market_data=[],
+        health_checks=[],
+        template_dir=Path("templates"),
+        briefing="Something happened.",
+        briefing_segments=segments,
+    )
+    assert 'id="segment-data"' in html
+    m = re.search(r'id="segment-data"[^>]*>(.*?)</script>', html, re.DOTALL)
+    assert m is not None
+    embedded = json.loads(m.group(1))
+    assert len(embedded) == 1
+    assert embedded[0]["topic"] == "Lead Story"
+    assert embedded[0]["source_article_ids"] == [1]
+
+
+def test_render_dashboard_embeds_articles_by_id():
+    """articles_by_id JSON is embedded for JS lookup by article ID."""
+    articles = [
+        {
+            "id": 7,
+            "category": "World News",
+            "title": "Breaking News",
+            "source": "AP",
+            "url": "https://example.com/breaking",
+            "summary": "Things happened.",
+        }
+    ]
+    html = render_dashboard(
+        articles=articles,
+        market_data=[],
+        health_checks=[],
+        template_dir=Path("templates"),
+    )
+    assert 'id="articles-data"' in html
+    m = re.search(r'id="articles-data"[^>]*>(.*?)</script>', html, re.DOTALL)
+    assert m is not None
+    embedded = json.loads(m.group(1))
+    assert "7" in embedded
+    assert embedded["7"]["title"] == "Breaking News"
+    assert embedded["7"]["url"] == "https://example.com/breaking"
+    assert embedded["7"]["source"] == "AP"
+
+
+def test_render_dashboard_articles_by_id_skips_missing_id():
+    """Articles without an id field are excluded from articles_by_id JSON."""
+    articles = [
+        {
+            "category": "World News",
+            "title": "No ID Article",
+            "source": "BBC",
+            "url": "https://example.com",
+            "summary": None,
+        }
+    ]
+    html = render_dashboard(
+        articles=articles,
+        market_data=[],
+        health_checks=[],
+        template_dir=Path("templates"),
+    )
+    m = re.search(r'id="articles-data"[^>]*>(.*?)</script>', html, re.DOTALL)
+    assert m is not None
+    embedded = json.loads(m.group(1))
+    assert embedded == {}
+
+
+def test_render_dashboard_segment_json_empty_without_segments():
+    """segment-data embeds empty array when no briefing_segments provided."""
+    html = render_dashboard(
+        articles=[],
+        market_data=[],
+        health_checks=[],
+        template_dir=Path("templates"),
+    )
+    m = re.search(r'id="segment-data"[^>]*>(.*?)</script>', html, re.DOTALL)
+    assert m is not None
+    embedded = json.loads(m.group(1))
+    assert embedded == []

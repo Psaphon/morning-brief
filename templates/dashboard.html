@@ -158,6 +158,113 @@
         }
         .briefing-text p { margin-bottom: 0.75rem; }
 
+        /* Interactive segments */
+        .segment {
+            border-bottom: 1px solid var(--border);
+        }
+        .segment:last-child { border-bottom: none; }
+        .segment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 0.75rem 0.5rem;
+            margin: 0 -0.5rem;
+            border-radius: 6px;
+            min-height: 44px;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .segment-header:hover { background: var(--bg); }
+        .segment-topic {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--accent);
+        }
+        .segment-chevron {
+            color: var(--muted);
+            font-size: 0.7rem;
+            flex-shrink: 0;
+            margin-left: 0.75rem;
+            transition: transform 0.2s ease;
+        }
+        .segment-header[aria-expanded="true"] .segment-chevron {
+            transform: rotate(90deg);
+        }
+        .segment-text {
+            font-size: 0.9rem;
+            line-height: 1.75;
+            padding: 0 0.25rem 0.75rem;
+        }
+        .segment-text p { margin-bottom: 0.75rem; }
+        .segment-text p:last-child { margin-bottom: 0; }
+        .segment-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .segment-body.expanded { max-height: 3000px; }
+
+        /* Source articles inside expanded segment */
+        .segment-sources {
+            border-top: 1px solid var(--border);
+            padding-top: 0.75rem;
+            margin: 0 0.25rem 0.5rem;
+        }
+        .sources-heading {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .source-article {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .source-article:last-child { border-bottom: none; }
+        .source-attr {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .source-title {
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 0.15rem 0;
+        }
+        .source-title a {
+            color: var(--text);
+            text-decoration: none;
+        }
+        .source-title a:hover { color: var(--accent); }
+        .source-summary {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 0.2rem;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            padding: 0.5rem 0.25rem 0.75rem;
+        }
+        .action-btn {
+            font-size: 0.8rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--muted);
+            cursor: not-allowed;
+            opacity: 0.6;
+            font-family: inherit;
+        }
+
         footer {
             text-align: center;
             color: var(--muted);
@@ -181,7 +288,8 @@
     {% if briefing %}
     <div class="section">
         <h2>Today's Briefing</h2>
-        <div class="briefing-text">{{ briefing }}</div>
+        <div class="briefing-text" id="briefing-fallback">{{ briefing }}</div>
+        <div id="briefing-segments" style="display:none"></div>
     </div>
     {% endif %}
 
@@ -278,5 +386,168 @@
     <footer>
         Generated {{ generated_at }} | Morning Brief v0.1
     </footer>
+
+    <script type="application/json" id="segment-data">{{ briefing_segments_json | safe }}</script>
+    <script type="application/json" id="articles-data">{{ articles_by_id_json | safe }}</script>
+    <script>
+    (function () {
+        'use strict';
+
+        function escapeHtml(str) {
+            var d = document.createElement('div');
+            d.textContent = str || '';
+            return d.innerHTML;
+        }
+
+        function buildSourceArticles(ids, articlesById) {
+            var container = document.createElement('div');
+            container.className = 'segment-sources';
+
+            var heading = document.createElement('div');
+            heading.className = 'sources-heading';
+            heading.textContent = 'Source Articles';
+            container.appendChild(heading);
+
+            var found = 0;
+            ids.forEach(function (id) {
+                var art = articlesById[String(id)];
+                if (!art) { return; }
+                found++;
+                var div = document.createElement('div');
+                div.className = 'source-article';
+
+                var attrEl = document.createElement('div');
+                attrEl.className = 'source-attr';
+                attrEl.textContent = art.source;
+
+                var titleEl = document.createElement('div');
+                titleEl.className = 'source-title';
+                if (art.url) {
+                    titleEl.innerHTML = '<a href="' + escapeHtml(art.url) + '" target="_blank" rel="noopener">' + escapeHtml(art.title) + '</a>';
+                } else {
+                    titleEl.textContent = art.title;
+                }
+
+                div.appendChild(attrEl);
+                div.appendChild(titleEl);
+
+                if (art.summary) {
+                    var summaryEl = document.createElement('div');
+                    summaryEl.className = 'source-summary';
+                    summaryEl.textContent = art.summary;
+                    div.appendChild(summaryEl);
+                }
+
+                container.appendChild(div);
+            });
+
+            return found > 0 ? container : null;
+        }
+
+        function buildActionButtons() {
+            var div = document.createElement('div');
+            div.className = 'action-buttons';
+            ['Elaborate', 'Research', 'Sources & Further Reading'].forEach(function (label) {
+                var btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.textContent = label;
+                btn.disabled = true;
+                btn.title = 'Coming soon';
+                div.appendChild(btn);
+            });
+            return div;
+        }
+
+        function buildSegmentEl(seg, articlesById) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'segment';
+
+            // Clickable header
+            var header = document.createElement('div');
+            header.className = 'segment-header';
+            header.setAttribute('role', 'button');
+            header.setAttribute('tabindex', '0');
+            header.setAttribute('aria-expanded', 'false');
+
+            var topicSpan = document.createElement('span');
+            topicSpan.className = 'segment-topic';
+            topicSpan.textContent = seg.topic;
+
+            var chevron = document.createElement('span');
+            chevron.className = 'segment-chevron';
+            chevron.textContent = '▶';
+
+            header.appendChild(topicSpan);
+            header.appendChild(chevron);
+
+            // Text paragraphs (always visible)
+            var textDiv = document.createElement('div');
+            textDiv.className = 'segment-text';
+            var paras = (seg.text || '').split(/\n\n+/);
+            paras.forEach(function (p) {
+                if (!p.trim()) { return; }
+                var el = document.createElement('p');
+                el.textContent = p.trim();
+                textDiv.appendChild(el);
+            });
+
+            // Collapsible body: source articles + action buttons
+            var body = document.createElement('div');
+            body.className = 'segment-body';
+
+            var sources = buildSourceArticles(seg.source_article_ids || [], articlesById);
+            if (sources) { body.appendChild(sources); }
+            body.appendChild(buildActionButtons());
+
+            wrapper.appendChild(header);
+            wrapper.appendChild(textDiv);
+            wrapper.appendChild(body);
+
+            function toggle() {
+                var expanded = header.getAttribute('aria-expanded') === 'true';
+                var next = !expanded;
+                header.setAttribute('aria-expanded', String(next));
+                body.classList.toggle('expanded', next);
+            }
+
+            header.addEventListener('click', toggle);
+            header.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggle();
+                }
+            });
+
+            return wrapper;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var segEl = document.getElementById('segment-data');
+            var artEl = document.getElementById('articles-data');
+            if (!segEl || !artEl) { return; }
+
+            var segments, articlesById;
+            try {
+                segments = JSON.parse(segEl.textContent);
+                articlesById = JSON.parse(artEl.textContent);
+            } catch (e) {
+                return;
+            }
+
+            if (!Array.isArray(segments) || segments.length === 0) { return; }
+
+            var fallback = document.getElementById('briefing-fallback');
+            var container = document.getElementById('briefing-segments');
+            if (!fallback || !container) { return; }
+
+            fallback.style.display = 'none';
+            container.style.display = '';
+
+            segments.forEach(function (seg) {
+                container.appendChild(buildSegmentEl(seg, articlesById));
+            });
+        });
+    }());
+    </script>
 </body>
 </html>
