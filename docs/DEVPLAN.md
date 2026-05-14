@@ -284,7 +284,7 @@ Summarize only the top-ranked articles, balanced across categories. Replace the 
 
 **Branch:** `feature/structured-briefing`
 **Depends on:** balanced-summarization
-**Status:** Not Started
+**Status:** PR Open
 **Requires:** ai
 
 ### Goal
