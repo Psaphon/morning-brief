@@ -325,7 +325,7 @@ Evolve the daily briefing to output structured data — the ~1000 word narrative
 
 **Branch:** `feature/interactive-dashboard`
 **Depends on:** structured-briefing
-**Status:** PR Open
+**Status:** Merged
 **Requires:** ai
 
 ### Goal
