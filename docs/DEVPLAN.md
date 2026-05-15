@@ -372,7 +372,7 @@ Transform the static HTML dashboard into a progressive-disclosure reading experi
 
 **Branch:** `feature/research-worker`
 **Depends on:** interactive-dashboard
-**Status:** Not Started
+**Status:** PR Open
 **Requires:** both
 
 ### Goal
@@ -381,20 +381,20 @@ Cloudflare Worker that proxies Claude API calls for on-demand research. Powers t
 
 ### Acceptance Criteria
 
-- [ ] Cloudflare Worker at `/api/research` accepts POST with `{action, article_ids, question?}`
-- [ ] Three actions:
+- [x] Cloudflare Worker at `/api/research` accepts POST with `{action, article_ids, question?}`
+- [x] Three actions:
   - `elaborate`: Claude explains significance/importance of the topic
   - `research`: Claude investigates a user-provided question about the topic
   - `sources`: Claude/Ollama extracts citations, sources, and further reading from articles
-- [ ] Worker proxies to Claude API with `ANTHROPIC_API_KEY` stored as Cloudflare secret
-- [ ] Response streams back to the dashboard and renders inline below the segment
-- [ ] Rate limiting: max 10 requests per hour per user (prevent abuse)
-- [ ] Error handling: graceful failure message if API is down or rate limited
+- [x] Worker proxies to Claude API with `ANTHROPIC_API_KEY` stored as Cloudflare secret
+- [x] Response streams back to the dashboard and renders inline below the segment
+- [x] Rate limiting: max 10 requests per hour per user (prevent abuse)
+- [x] Error handling: graceful failure message if API is down or rate limited
 - [ ] [HUMAN] Deploy Worker to Cloudflare (`wrangler deploy`)
 - [ ] [HUMAN] Set `ANTHROPIC_API_KEY` as Cloudflare Worker secret
-- [ ] Tests cover request validation and response formatting
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Tests cover request validation and response formatting
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
