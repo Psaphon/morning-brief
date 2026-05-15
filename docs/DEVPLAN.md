@@ -372,7 +372,7 @@ Transform the static HTML dashboard into a progressive-disclosure reading experi
 
 **Branch:** `feature/research-worker`
 **Depends on:** interactive-dashboard
-**Status:** PR Open
+**Status:** Merged
 **Requires:** both
 
 ### Goal
