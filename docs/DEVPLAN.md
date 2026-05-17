@@ -420,7 +420,7 @@ Cloudflare Worker that proxies Claude API calls for on-demand research. Powers t
 
 **Branch:** `feature/worker-hardening`
 **Depends on:** research-worker
-**Status:** In Progress
+**Status:** PR Open
 **Requires:** both
 
 ### Goal
