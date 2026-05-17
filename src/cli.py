@@ -109,6 +109,40 @@ def view(limit: int) -> None:
 
 
 @cli.command()
+@click.option("--days", "-d", default=7, show_default=True, help="Days of history to show")
+def history(days: int) -> None:
+    """View past daily briefings from the archive."""
+    config = load_config()
+    db = Database(config.database_path)
+
+    try:
+        db.connect()
+        briefings = db.get_briefing_history(days=days)
+
+        if not briefings:
+            click.echo(f"No briefings found in the last {days} day(s).")
+            return
+
+        for entry in briefings:
+            meta = entry["briefing_metadata"] or {}
+            article_count = meta.get("article_count", "?")
+            categories = ", ".join(meta.get("categories_covered", [])) or "—"
+            top_sources = ", ".join(meta.get("top_sources", [])) or "—"
+            click.echo(f"\n{'=' * 60}")
+            click.echo(f"Date:        {entry['date']}")
+            click.echo(f"Model:       {entry['model']}")
+            click.echo(f"Generated:   {entry['generated_at']}")
+            click.echo(f"Articles:    {article_count}")
+            click.echo(f"Categories:  {categories}")
+            click.echo(f"Top sources: {top_sources}")
+            click.echo(f"{'=' * 60}")
+            click.echo(entry["content"])
+
+    finally:
+        db.close()
+
+
+@cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""
     import subprocess

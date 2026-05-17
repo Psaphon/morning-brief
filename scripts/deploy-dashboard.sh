@@ -56,6 +56,11 @@ fi
 # Copy dashboard and commit
 cp "$DASHBOARD" "$DEPLOY_DIR/index.html"
 
+# Copy Pages Functions if present (proxies /api/* to bound Workers)
+if [ -d "functions" ]; then
+    cp -r functions "$DEPLOY_DIR/functions"
+fi
+
 cd "$DEPLOY_DIR"
 
 # Add a minimal robots.txt (authenticated anyway, but good practice)

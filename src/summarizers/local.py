@@ -8,6 +8,7 @@ Ollama API docs: POST /api/generate with model, prompt, stream=false.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -83,6 +84,38 @@ class BatchMetrics:
     failed: int
     total_seconds: float
     articles_per_minute: float
+
+
+def select_balanced_articles(
+    articles: list[dict],
+    per_category: int = 8,
+    total: int = 50,
+) -> list[dict]:
+    """Select articles for summarization using category-balanced round-robin.
+
+    Picks up to `per_category` articles per category (highest-scored first),
+    then caps the overall result at `total`. Input should already be sorted by
+    score descending (as returned by ``Database.get_unsummarized_articles``).
+
+    Args:
+        articles: Candidate articles, pre-sorted by score descending.
+        per_category: Maximum articles to take from any single category.
+        total: Hard cap on the total number of articles returned.
+
+    Returns:
+        Balanced list of articles, sorted by score descending, length <= total.
+    """
+    by_category: dict[str, list[dict]] = {}
+    for article in articles:
+        cat = article.get("category", "")
+        by_category.setdefault(cat, []).append(article)
+
+    selected: list[dict] = []
+    for cat_articles in by_category.values():
+        selected.extend(cat_articles[:per_category])
+
+    selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
+    return selected[:total]
 
 
 def truncate_text(text: str, max_chars: int = MAX_INPUT_CHARS) -> str:
@@ -363,52 +396,101 @@ async def summarize_articles(
         return results, metrics
 
 
-def _build_briefing_prompt(summaries_by_category: dict[str, list[str]]) -> str:
-    """Build the Ollama prompt for generating a daily briefing.
+def _build_briefing_prompt(summaries_by_category: dict[str, list[tuple[int, str]]]) -> str:
+    """Build the Ollama prompt for generating a structured daily briefing.
 
-    Takes article summaries grouped by category and returns a prompt that
-    instructs the model to write a 500-1000 word daily briefing.
+    Takes article summaries (with IDs) grouped by category and returns a prompt
+    that instructs the model to output a JSON segment map.
+
+    Args:
+        summaries_by_category: Dict mapping category name to a list of
+            (article_id, summary) tuples. Article IDs are embedded in the prompt
+            so the model can reference them in source_article_ids.
+
+    Returns:
+        Prompt string, or empty string if no summaries provided.
     """
     if not summaries_by_category:
         return ""
 
     parts: list[str] = []
 
-    # Feed the model all of today's summaries grouped by topic
     parts.append("Here are today's article summaries, organized by topic:\n")
-    for category, summaries in summaries_by_category.items():
-        if not summaries:
+    for category, id_summary_pairs in summaries_by_category.items():
+        if not id_summary_pairs:
             continue
         parts.append(f"## {category}")
-        for i, summary in enumerate(summaries, 1):
-            parts.append(f"  {i}. {summary}")
+        for article_id, summary in id_summary_pairs:
+            parts.append(f"  [{article_id}] {summary}")
         parts.append("")
 
-    # Instruction block — drives the progressive-disclosure structure
     parts.append(
-        "Using the summaries above, write a 500-1000 word daily intelligence "
-        "briefing. Follow this structure:\n"
-        "1. **Lead** (2-3 sentences): The most significant developments across "
-        "all topics today — what the reader must know.\n"
-        "2. **Topic sections**: Group related stories by theme (not necessarily "
-        "by the categories above — merge or split where it makes sense). For "
-        "each theme:\n"
-        "   - Open with the key takeaway in one sentence.\n"
-        "   - Weave in supporting stories that add context or contrast.\n"
-        "   - Where stories from different categories connect (e.g. a policy "
-        "decision affecting markets), draw that link explicitly.\n"
-        "3. **Looking ahead** (1-2 sentences): What to watch for tomorrow "
-        "based on today's developments.\n\n"
-        "Guidelines:\n"
-        "- Professional, concise tone — like an analyst briefing a decision-maker.\n"
-        "- Prioritize actionable insight over description: not just what happened, "
-        "but why it matters and what it signals.\n"
-        "- Every story mentioned should make the reader want to read the full "
-        "article — be specific enough to inform, brief enough to entice.\n"
-        "- Do not editorialize or speculate. Stick to what the summaries say."
+        "Using the summaries above, write a structured daily intelligence briefing.\n\n"
+        "Output ONLY a JSON object in this exact format (no other text before or after):\n"
+        '{"segments": [\n'
+        '  {"topic": "Thematic section title", "text": "2-3 paragraph narrative for this theme.", '
+        '"source_article_ids": [1, 2, 3]},\n'
+        "  ...\n"
+        "]}\n\n"
+        "Requirements:\n"
+        "- 4-6 thematic segments total, grouping related stories across categories.\n"
+        "- The first segment should cover the most significant developments (the lead).\n"
+        "- The last segment should look ahead: what to watch for tomorrow.\n"
+        "- Each segment text should be 2-3 paragraphs, professional analyst tone.\n"
+        "- source_article_ids lists the bracketed article IDs that informed that segment.\n"
+        "- Total text across all segments: 500-1000 words.\n"
+        "- Do not editorialize or speculate. Stick to what the summaries say.\n"
+        "- Output ONLY the JSON object. Do not include markdown fences or any other text."
     )
 
     return "\n".join(parts)
+
+
+def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
+    """Parse Ollama's response as a structured JSON briefing.
+
+    Attempts to extract a JSON object with a ``segments`` list. Each segment
+    must have ``topic``, ``text``, and ``source_article_ids`` keys.
+
+    Returns:
+        A tuple of (rendered_text, segment_map_json) where:
+        - rendered_text is the concatenated segment texts (or raw if parsing fails).
+        - segment_map_json is the JSON-encoded segments list, or None on failure.
+    """
+    # Strip markdown code fences if the model wrapped the JSON
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        # Drop opening fence (```json or ```) and closing fence
+        inner = [line for line in lines[1:] if line.strip() != "```"]
+        cleaned = "\n".join(inner).strip()
+
+    try:
+        data = json.loads(cleaned)
+        segments = data.get("segments")
+        if not isinstance(segments, list) or not segments:
+            raise ValueError("Missing or empty segments list")
+
+        for seg in segments:
+            if not isinstance(seg.get("topic"), str):
+                raise ValueError("Segment missing 'topic'")
+            if not isinstance(seg.get("text"), str):
+                raise ValueError("Segment missing 'text'")
+            if not isinstance(seg.get("source_article_ids"), list):
+                raise ValueError("Segment missing 'source_article_ids'")
+
+        rendered = "\n\n".join(seg["text"] for seg in segments)
+        segment_map_json = json.dumps(segments)
+        logger.info(
+            "Parsed structured briefing: %d segments, %d chars",
+            len(segments),
+            len(rendered),
+        )
+        return rendered, segment_map_json
+
+    except (json.JSONDecodeError, ValueError, KeyError) as e:
+        logger.warning("Briefing JSON parse failed (%s) — storing plain text, no segments", e)
+        return raw, None
 
 
 async def generate_daily_briefing(
@@ -418,22 +500,29 @@ async def generate_daily_briefing(
     """Generate a combined daily briefing from today's article summaries.
 
     Checks for an existing briefing first (skip if already generated today).
-    Returns the briefing text, or None if Ollama is unavailable or no summaries exist.
+    Returns the rendered briefing text, or None if Ollama is unavailable or no
+    summaries exist.
+
+    The briefing prompt instructs Ollama to output structured JSON
+    (``{"segments": [{"topic": ..., "text": ..., "source_article_ids": [...]}]}``).
+    If parsing succeeds the segment map is stored alongside the briefing text.
+    If parsing fails the raw response is stored as plain text with no segments
+    (graceful fallback).
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     existing = db.get_briefing(today)
     if existing:
         logger.info("Daily briefing already exists for %s, reusing", today)
-        return existing
+        return existing["content"]
 
     articles = db.get_todays_articles()
-    summaries_by_category: dict[str, list[str]] = {}
+    summaries_by_category: dict[str, list[tuple[int, str]]] = {}
     for article in articles:
         if not article.get("summary"):
             continue
         cat = article.get("category", "General")
-        summaries_by_category.setdefault(cat, []).append(article["summary"])
+        summaries_by_category.setdefault(cat, []).append((article["id"], article["summary"]))
 
     if not summaries_by_category:
         logger.info("No summaries available for daily briefing")
@@ -441,7 +530,7 @@ async def generate_daily_briefing(
 
     prompt = _build_briefing_prompt(summaries_by_category)
     if not prompt:
-        logger.warning("Briefing prompt is empty — _build_briefing_prompt not yet implemented")
+        logger.warning("Briefing prompt is empty")
         return None
 
     async with httpx.AsyncClient() as client:
@@ -466,15 +555,16 @@ async def generate_daily_briefing(
                 timeout=BRIEFING_TIMEOUT,
             )
             resp.raise_for_status()
-            briefing = resp.json().get("response", "").strip()
+            raw = resp.json().get("response", "").strip()
 
-            if not briefing:
+            if not raw:
                 logger.warning("Empty briefing response from Ollama")
                 return None
 
-            db.save_briefing(today, briefing, config.model)
-            logger.info("Daily briefing generated (%d chars)", len(briefing))
-            return briefing
+            rendered, segment_map_json = _parse_briefing_response(raw)
+            db.save_briefing(today, rendered, config.model, segment_map_json)
+            logger.info("Daily briefing generated (%d chars)", len(rendered))
+            return rendered
 
         except httpx.HTTPError as e:
             logger.warning("Failed to generate daily briefing: %s", e)

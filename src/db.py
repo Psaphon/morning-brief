@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
@@ -66,7 +67,9 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
     date TEXT UNIQUE NOT NULL,
     content TEXT NOT NULL,
     model TEXT NOT NULL,
-    generated_at TEXT NOT NULL
+    generated_at TEXT NOT NULL,
+    segment_map TEXT,
+    briefing_metadata TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
@@ -98,6 +101,14 @@ class Database:
         migrations = [
             ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
             ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
+            (
+                "ALTER TABLE daily_briefings ADD COLUMN segment_map TEXT",
+                "daily_briefings.segment_map",
+            ),
+            (
+                "ALTER TABLE daily_briefings ADD COLUMN briefing_metadata TEXT",
+                "daily_briefings.briefing_metadata",
+            ),
         ]
         for sql, name in migrations:
             try:
@@ -217,15 +228,22 @@ class Database:
         )
         self.conn.commit()
 
-    def get_unsummarized_articles(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Get articles that haven't been summarized yet."""
+    def get_unsummarized_articles(self) -> list[dict[str, Any]]:
+        """Get today's unsummarized articles ordered by relevance score descending.
+
+        Returns all of today's unsummarized articles with full_text, ordered by
+        score so that callers can apply category-balanced selection on top.
+        Articles without a score are ranked last.
+        """
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         rows = self.conn.execute(
-            """SELECT id, url, title, source, category, full_text
+            """SELECT id, url, title, source, category, full_text, score
                FROM articles
-               WHERE summary IS NULL AND full_text IS NOT NULL
-               ORDER BY fetched_at DESC
-               LIMIT ?""",
-            (limit,),
+               WHERE summary IS NULL
+                 AND full_text IS NOT NULL
+                 AND fetched_at >= ?
+               ORDER BY COALESCE(score, 0) DESC""",
+            (today,),
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -297,23 +315,90 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def save_briefing(self, date: str, content: str, model: str) -> None:
-        """Insert or replace the daily briefing for a given date."""
+    def save_briefing(
+        self,
+        date: str,
+        content: str,
+        model: str,
+        segment_map: str | None = None,
+        briefing_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Insert or replace the daily briefing for a given date.
+
+        Args:
+            date: ISO date string (YYYY-MM-DD).
+            content: Rendered briefing text (joined from segments or plain text).
+            model: Name of the model that generated the briefing.
+            segment_map: JSON-encoded list of segment dicts, or None if unavailable.
+            briefing_metadata: Dict with article count, categories covered, top sources.
+        """
         now = datetime.now(timezone.utc).isoformat()
+        metadata_json = json.dumps(briefing_metadata) if briefing_metadata is not None else None
         self.conn.execute(
-            """INSERT OR REPLACE INTO daily_briefings (date, content, model, generated_at)
-               VALUES (?, ?, ?, ?)""",
-            (date, content, model, now),
+            """INSERT OR REPLACE INTO daily_briefings
+               (date, content, model, generated_at, segment_map, briefing_metadata)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (date, content, model, now, segment_map, metadata_json),
         )
         self.conn.commit()
 
-    def get_briefing(self, date: str) -> str | None:
-        """Return the daily briefing content for a given date, or None if not found."""
+    def get_briefing(self, date: str) -> dict[str, Any] | None:
+        """Return the daily briefing for a given date, or None if not found.
+
+        Returns a dict with keys:
+            content (str): The rendered briefing text.
+            segment_map (list | None): Parsed segment list, or None if not stored.
+        """
         row = self.conn.execute(
-            "SELECT content FROM daily_briefings WHERE date = ?",
+            "SELECT content, segment_map FROM daily_briefings WHERE date = ?",
             (date,),
         ).fetchone()
-        return row["content"] if row else None
+        if not row:
+            return None
+        segments = None
+        if row["segment_map"]:
+            try:
+                segments = json.loads(row["segment_map"])
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse segment_map JSON for date %s", date)
+        return {"content": row["content"], "segment_map": segments}
+
+    def get_briefing_history(self, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily briefings from the past N days, newest first.
+
+        Each entry includes date, content, model, generated_at, and parsed
+        briefing_metadata (or None if not stored).
+        """
+        from datetime import timedelta
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = self.conn.execute(
+            """SELECT date, content, model, generated_at, briefing_metadata
+               FROM daily_briefings
+               WHERE date >= ?
+               ORDER BY date DESC""",
+            (cutoff,),
+        ).fetchall()
+        results = []
+        for row in rows:
+            metadata = None
+            if row["briefing_metadata"]:
+                try:
+                    metadata = json.loads(row["briefing_metadata"])
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Failed to parse briefing_metadata JSON for date %s", row["date"]
+                    )
+            results.append(
+                {
+                    "date": row["date"],
+                    "content": row["content"],
+                    "model": row["model"],
+                    "generated_at": row["generated_at"],
+                    "briefing_metadata": metadata,
+                }
+            )
+        return results
 
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""

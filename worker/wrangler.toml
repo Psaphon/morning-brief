@@ -1,0 +1,33 @@
+name = "morning-brief-research"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+# Secrets (set via `wrangler secret put`):
+#   ANTHROPIC_API_KEY  — Anthropic Claude API key
+#   DASHBOARD_HMAC_KEY — 32-byte hex key shared with the pipeline
+#                        Generate: openssl rand -hex 32
+#                        Set same value in pipeline env as DASHBOARD_HMAC_KEY
+
+[vars]
+# Allowed CORS origin for the dashboard. Set to the Cloudflare Pages production URL.
+# [HUMAN] Set this to your Pages URL, e.g. https://morning-brief.pages.dev
+DASHBOARD_ORIGIN = "https://morning-brief-abh.pages.dev"
+
+# Claude model to use for research. Override to pin a specific version.
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
+
+# Workers KV namespace for per-IP rate limiting.
+# [HUMAN] Run: wrangler kv:namespace create RATE_LIMIT
+#         Then paste the returned id below.
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "a4e426a93d5d4351afca34412577cea6"
+
+# Routes are configured in the Cloudflare dashboard or via:
+# [[routes]]
+# pattern = "yourdomain.pages.dev/api/research"
+# zone_name = "yourdomain.pages.dev"

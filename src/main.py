@@ -29,7 +29,8 @@ from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
-from .summarizers.local import generate_daily_briefing, summarize_articles
+from .summarizers.cloud import generate_daily_briefing_claude
+from .summarizers.local import generate_daily_briefing, select_balanced_articles, summarize_articles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -169,8 +170,8 @@ async def run_pipeline() -> None:
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
-        unsummarized = db.get_unsummarized_articles()
-        logger.info("Found %d unsummarized articles", len(unsummarized))
+        unsummarized = select_balanced_articles(db.get_unsummarized_articles())
+        logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
         if unsummarized:
             results, metrics = await summarize_articles(config.ollama, unsummarized)
@@ -190,12 +191,30 @@ async def run_pipeline() -> None:
                 )
 
         # Generate daily briefing (after summarization, before publish)
+        # Try Claude first if API key is configured, fall back to Ollama.
         logger.info("Generating daily briefing...")
-        briefing = await generate_daily_briefing(db, config.ollama)
+        briefing = None
+        if config.api_keys.anthropic:
+            logger.info("ANTHROPIC_API_KEY set — attempting Claude synthesis")
+            briefing = await generate_daily_briefing_claude(db, config.api_keys.anthropic)
+            if briefing:
+                logger.info("Claude briefing ready (%d chars)", len(briefing))
+            else:
+                logger.info("Claude synthesis failed or skipped — falling back to Ollama")
+
+        if briefing is None:
+            briefing = await generate_daily_briefing(db, config.ollama)
+            if briefing:
+                logger.info("Daily briefing ready (%d chars)", len(briefing))
+            else:
+                logger.info("No briefing generated (Ollama unavailable or no summaries)")
+
+        # Retrieve structured segment map for interactive HTML
+        briefing_segments = None
         if briefing:
-            logger.info("Daily briefing ready (%d chars)", len(briefing))
-        else:
-            logger.info("No briefing generated (Ollama unavailable or no summaries)")
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            bref_record = db.get_briefing(today_str)
+            briefing_segments = bref_record["segment_map"] if bref_record else None
 
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")
@@ -205,13 +224,17 @@ async def run_pipeline() -> None:
         daily_art = db.get_todays_artwork()
 
         output_path = config.output_dir / "dashboard.html"
+        today_brief_id = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         render_dashboard(
             articles=all_articles,
             market_data=market,
             health_checks=health,
             artworks=daily_art,
             briefing=briefing,
+            briefing_segments=briefing_segments,
             output_path=output_path,
+            hmac_key=config.dashboard_hmac_key,
+            brief_id=today_brief_id,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))
 
