@@ -544,7 +544,7 @@ Persist daily briefings in SQLite for historical reference and future use (e.g.,
 
 **Branch:** `feature/claude-synthesis`
 **Depends on:** structured-briefing
-**Status:** In Progress
+**Status:** PR Open
 **Requires:** ai
 
 ### Goal
