@@ -212,6 +212,7 @@ async def run_pipeline() -> None:
         daily_art = db.get_todays_artwork()
 
         output_path = config.output_dir / "dashboard.html"
+        today_brief_id = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         render_dashboard(
             articles=all_articles,
             market_data=market,
@@ -220,6 +221,8 @@ async def run_pipeline() -> None:
             briefing=briefing,
             briefing_segments=briefing_segments,
             output_path=output_path,
+            hmac_key=config.dashboard_hmac_key,
+            brief_id=today_brief_id,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))
 
