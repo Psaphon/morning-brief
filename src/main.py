@@ -29,6 +29,7 @@ from .processors.dedup import deduplicate
 from .processors.extractor import extract_articles
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
+from .summarizers.cloud import generate_daily_briefing_claude
 from .summarizers.local import generate_daily_briefing, select_balanced_articles, summarize_articles
 
 logging.basicConfig(
@@ -190,12 +191,23 @@ async def run_pipeline() -> None:
                 )
 
         # Generate daily briefing (after summarization, before publish)
+        # Try Claude first if API key is configured, fall back to Ollama.
         logger.info("Generating daily briefing...")
-        briefing = await generate_daily_briefing(db, config.ollama)
-        if briefing:
-            logger.info("Daily briefing ready (%d chars)", len(briefing))
-        else:
-            logger.info("No briefing generated (Ollama unavailable or no summaries)")
+        briefing = None
+        if config.api_keys.anthropic:
+            logger.info("ANTHROPIC_API_KEY set — attempting Claude synthesis")
+            briefing = await generate_daily_briefing_claude(db, config.api_keys.anthropic)
+            if briefing:
+                logger.info("Claude briefing ready (%d chars)", len(briefing))
+            else:
+                logger.info("Claude synthesis failed or skipped — falling back to Ollama")
+
+        if briefing is None:
+            briefing = await generate_daily_briefing(db, config.ollama)
+            if briefing:
+                logger.info("Daily briefing ready (%d chars)", len(briefing))
+            else:
+                logger.info("No briefing generated (Ollama unavailable or no summaries)")
 
         # Retrieve structured segment map for interactive HTML
         briefing_segments = None
