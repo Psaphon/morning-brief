@@ -36,6 +36,7 @@ class Config:
     feeds_path: Path = Path("docs/FEEDS.md")
     deploy_enabled: bool = False
     deploy_branch: str = "gh-pages"
+    dashboard_hmac_key: str = ""
 
 
 def load_config() -> Config:
@@ -57,4 +58,5 @@ def load_config() -> Config:
         database_path=Path(os.environ.get("DATABASE_PATH", "data/morning_brief.db")),
         deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower() in ("1", "true", "yes"),
         deploy_branch=os.environ.get("DEPLOY_BRANCH", "gh-pages"),
+        dashboard_hmac_key=os.environ.get("DASHBOARD_HMAC_KEY", ""),
     )

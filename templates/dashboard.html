@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="dashboard-token" content="{{ dashboard_token }}">
     <title>Morning Brief — {{ date }}</title>
     <style>
         :root {
@@ -528,6 +529,11 @@
             return content;
         }
 
+        function getDashboardToken() {
+            var meta = document.querySelector('meta[name="dashboard-token"]');
+            return meta ? (meta.getAttribute('content') || '') : '';
+        }
+
         function callWorker(action, articleIds, articlesById, question, container) {
             setButtonsDisabled(container, true);
 
@@ -535,12 +541,17 @@
             var contentEl = showResearchPanel(container, labelMap[action] || action, false);
             contentEl.textContent = 'Loading\u2026';
 
+            // Articles carry their own pipeline-generated signatures inline;
+            // the Worker verifies each sig before proxying to Claude.
             var body = { action: action, article_ids: articleIds, articles_by_id: articlesById };
             if (question) { body.question = question; }
 
             fetch(WORKER_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Dashboard-Token': getDashboardToken(),
+                },
                 body: JSON.stringify(body),
             }).then(function (res) {
                 if (!res.ok || !res.body) {
