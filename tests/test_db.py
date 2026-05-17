@@ -1,5 +1,6 @@
 """Tests for database helpers."""
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -209,6 +210,126 @@ def test_unsummarized_articles(tmp_path: Path):
         # Summarize it — should no longer appear
         db.update_summary(unsummarized[0]["id"], "A summary.", "qwen2.5")
         assert len(db.get_unsummarized_articles()) == 0
+    finally:
+        db.close()
+
+
+def test_briefing_metadata_stored_and_retrieved(tmp_path: Path):
+    """save_briefing persists briefing_metadata; get_briefing returns it parsed."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        metadata = {
+            "article_count": 42,
+            "categories_covered": ["tech", "politics"],
+            "top_sources": ["Reuters", "BBC"],
+        }
+        db.save_briefing("2026-01-01", "Briefing content", "qwen2.5", briefing_metadata=metadata)
+        row = db.conn.execute(
+            "SELECT briefing_metadata FROM daily_briefings WHERE date = '2026-01-01'"
+        ).fetchone()
+        assert row is not None
+        parsed = json.loads(row["briefing_metadata"])
+        assert parsed["article_count"] == 42
+        assert "tech" in parsed["categories_covered"]
+        assert "Reuters" in parsed["top_sources"]
+    finally:
+        db.close()
+
+
+def test_get_briefing_history_returns_recent(tmp_path: Path):
+    """get_briefing_history returns briefings within the requested window."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        old = (datetime.now(timezone.utc) - timedelta(days=40)).strftime("%Y-%m-%d")
+
+        db.save_briefing(today, "Today's briefing", "qwen2.5")
+        db.save_briefing(yesterday, "Yesterday's briefing", "qwen2.5")
+        db.save_briefing(old, "Old briefing", "qwen2.5")
+
+        history = db.get_briefing_history(days=30)
+        dates = [e["date"] for e in history]
+        assert today in dates
+        assert yesterday in dates
+        assert old not in dates
+    finally:
+        db.close()
+
+
+def test_get_briefing_history_newest_first(tmp_path: Path):
+    """get_briefing_history returns entries ordered newest first."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        db.save_briefing(yesterday, "Yesterday", "qwen2.5")
+        db.save_briefing(today, "Today", "qwen2.5")
+
+        history = db.get_briefing_history(days=7)
+        assert len(history) >= 2
+        assert history[0]["date"] >= history[1]["date"]
+    finally:
+        db.close()
+
+
+def test_get_briefing_history_includes_parsed_metadata(tmp_path: Path):
+    """get_briefing_history parses briefing_metadata JSON into a dict."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        metadata = {
+            "article_count": 10,
+            "categories_covered": ["crypto"],
+            "top_sources": ["CoinDesk"],
+        }
+        db.save_briefing(today, "Content", "qwen2.5", briefing_metadata=metadata)
+
+        history = db.get_briefing_history(days=1)
+        assert len(history) == 1
+        assert history[0]["briefing_metadata"]["article_count"] == 10
+        assert history[0]["briefing_metadata"]["categories_covered"] == ["crypto"]
+    finally:
+        db.close()
+
+
+def test_briefing_archive_survives_article_cleanup(tmp_path: Path):
+    """daily_briefings rows are never deleted by cleanup_old_articles."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        # Insert a very old briefing
+        db.save_briefing("2020-06-01", "Ancient briefing", "qwen2.5")
+
+        # Insert and clean up old articles
+        old = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        _insert_article_with_timestamps(db, "stale1", old, old)
+        deleted = db.cleanup_old_articles(max_age_days=2)
+        assert deleted == 1
+
+        # Briefing must still be present
+        history = db.get_briefing_history(days=99999)
+        dates = [e["date"] for e in history]
+        assert "2020-06-01" in dates
+    finally:
+        db.close()
+
+
+def test_briefing_archive_no_metadata(tmp_path: Path):
+    """Briefings saved without metadata return None for briefing_metadata."""
+    db = Database(tmp_path / "test.db")
+    db.connect()
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        db.save_briefing(today, "No meta", "qwen2.5")
+
+        history = db.get_briefing_history(days=1)
+        assert len(history) == 1
+        assert history[0]["briefing_metadata"] is None
     finally:
         db.close()
 

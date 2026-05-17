@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
     content TEXT NOT NULL,
     model TEXT NOT NULL,
     generated_at TEXT NOT NULL,
-    segment_map TEXT
+    segment_map TEXT,
+    briefing_metadata TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
@@ -103,6 +104,10 @@ class Database:
             (
                 "ALTER TABLE daily_briefings ADD COLUMN segment_map TEXT",
                 "daily_briefings.segment_map",
+            ),
+            (
+                "ALTER TABLE daily_briefings ADD COLUMN briefing_metadata TEXT",
+                "daily_briefings.briefing_metadata",
             ),
         ]
         for sql, name in migrations:
@@ -316,6 +321,7 @@ class Database:
         content: str,
         model: str,
         segment_map: str | None = None,
+        briefing_metadata: dict[str, Any] | None = None,
     ) -> None:
         """Insert or replace the daily briefing for a given date.
 
@@ -324,13 +330,15 @@ class Database:
             content: Rendered briefing text (joined from segments or plain text).
             model: Name of the model that generated the briefing.
             segment_map: JSON-encoded list of segment dicts, or None if unavailable.
+            briefing_metadata: Dict with article count, categories covered, top sources.
         """
         now = datetime.now(timezone.utc).isoformat()
+        metadata_json = json.dumps(briefing_metadata) if briefing_metadata is not None else None
         self.conn.execute(
             """INSERT OR REPLACE INTO daily_briefings
-               (date, content, model, generated_at, segment_map)
-               VALUES (?, ?, ?, ?, ?)""",
-            (date, content, model, now, segment_map),
+               (date, content, model, generated_at, segment_map, briefing_metadata)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (date, content, model, now, segment_map, metadata_json),
         )
         self.conn.commit()
 
@@ -354,6 +362,43 @@ class Database:
             except json.JSONDecodeError:
                 logger.warning("Failed to parse segment_map JSON for date %s", date)
         return {"content": row["content"], "segment_map": segments}
+
+    def get_briefing_history(self, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily briefings from the past N days, newest first.
+
+        Each entry includes date, content, model, generated_at, and parsed
+        briefing_metadata (or None if not stored).
+        """
+        from datetime import timedelta
+
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = self.conn.execute(
+            """SELECT date, content, model, generated_at, briefing_metadata
+               FROM daily_briefings
+               WHERE date >= ?
+               ORDER BY date DESC""",
+            (cutoff,),
+        ).fetchall()
+        results = []
+        for row in rows:
+            metadata = None
+            if row["briefing_metadata"]:
+                try:
+                    metadata = json.loads(row["briefing_metadata"])
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "Failed to parse briefing_metadata JSON for date %s", row["date"]
+                    )
+            results.append(
+                {
+                    "date": row["date"],
+                    "content": row["content"],
+                    "model": row["model"],
+                    "generated_at": row["generated_at"],
+                    "briefing_metadata": metadata,
+                }
+            )
+        return results
 
     def get_latest_health_checks(self) -> list[dict[str, Any]]:
         """Get the most recent health check for each endpoint."""
