@@ -15,7 +15,7 @@ enabled = true
 [vars]
 # Allowed CORS origin for the dashboard. Set to the Cloudflare Pages production URL.
 # [HUMAN] Set this to your Pages URL, e.g. https://morning-brief.pages.dev
-DASHBOARD_ORIGIN = ""
+DASHBOARD_ORIGIN = "https://morning-brief-abh.pages.dev"
 
 # Claude model to use for research. Override to pin a specific version.
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
@@ -25,7 +25,7 @@ ANTHROPIC_MODEL = "claude-sonnet-4-6"
 #         Then paste the returned id below.
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "a4e426a93d5d4351afca34412577cea6"
 
 # Routes are configured in the Cloudflare dashboard or via:
 # [[routes]]
