@@ -507,7 +507,7 @@ Close the three credit-drain attack vectors in the research Worker (open CORS, c
 
 **Branch:** `feature/briefing-archive`
 **Depends on:** structured-briefing
-**Status:** Not Started
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal
