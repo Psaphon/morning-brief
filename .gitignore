@@ -20,6 +20,9 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Wrangler local cache
+.wrangler/
+
 # AI sandbox
 .ai/
 
