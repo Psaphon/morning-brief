@@ -44,6 +44,7 @@ def run() -> None:
 @click.option("--output", "-o", type=click.Path(), help="Write HTML to file")
 def dashboard(output: str | None) -> None:
     """Render the HTML dashboard from today's data."""
+    from datetime import datetime, timezone
     from pathlib import Path
 
     from .publishers.html import render_dashboard
@@ -62,13 +63,22 @@ def dashboard(output: str | None) -> None:
             click.echo("No data found. Run the pipeline first: python -m src.main")
             sys.exit(1)
 
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        bref_record = db.get_briefing(today_str)
+        briefing = bref_record["content"] if bref_record else None
+        briefing_segments = bref_record["segment_map"] if bref_record else None
+
         output_path = Path(output) if output else config.output_dir / "dashboard.html"
         render_dashboard(
             articles=articles,
             market_data=market_data,
             health_checks=health_checks,
             artworks=artworks,
+            briefing=briefing,
+            briefing_segments=briefing_segments,
             output_path=output_path,
+            hmac_key=config.dashboard_hmac_key,
+            brief_id=today_str,
         )
         click.echo(f"Dashboard written to {output_path} ({len(articles)} articles)")
 
