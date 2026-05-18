@@ -543,7 +543,18 @@
 
             // Articles carry their own pipeline-generated signatures inline;
             // the Worker verifies each sig before proxying to Claude.
-            var body = { action: action, article_ids: articleIds, articles_by_id: articlesById };
+            // Trim the full articles table down to only the articles referenced by
+            // this segment — the full table is ~158 KB but the Worker only needs
+            // the ~3 KB worth of rows whose keys appear in articleIds.
+            var minimalArticlesById = {};
+            articleIds.forEach(function (id) {
+                var key = String(id);
+                if (articlesById[key]) {
+                    minimalArticlesById[key] = articlesById[key];
+                }
+            });
+
+            var body = { action: action, article_ids: articleIds, articles_by_id: minimalArticlesById };
             if (question) { body.question = question; }
 
             fetch(WORKER_URL, {
