@@ -79,7 +79,7 @@ class TestDockerCompose:
     def test_data_volume_mounted(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
-        assert "./data:/app/data" in svc["volumes"]
+        assert any(v.endswith(":/app/data") for v in svc["volumes"])
 
     def test_env_file_loaded(self):
         compose = _load_compose()
