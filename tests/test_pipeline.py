@@ -47,7 +47,7 @@ def _verify_brief_token(token: str, hmac_key: str) -> dict:
 
     brief_id = datetime.fromtimestamp(timestamp_s, tz=timezone.utc).strftime("%Y-%m-%d")
     message = f"{brief_id}:{timestamp_str}"
-    expected = _hmac.new(hmac_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    expected = _hmac.new(bytes.fromhex(hmac_key), message.encode(), hashlib.sha256).hexdigest()
     if provided_hmac != expected:
         return {"valid": False, "reason": "Bad signature"}
     return {"valid": True}
@@ -68,7 +68,7 @@ def _verify_article_sig(article: dict, hmac_key: str) -> dict:
         },
         separators=(",", ":"),
     )
-    expected = _hmac.new(hmac_key.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    expected = _hmac.new(bytes.fromhex(hmac_key), canonical.encode(), hashlib.sha256).hexdigest()
     if sig != expected:
         return {"valid": False, "reason": "Mismatch"}
     return {"valid": True}
@@ -139,7 +139,7 @@ def test_compute_brief_token_is_verifiable():
 def test_compute_brief_token_wrong_key_fails():
     brief_id = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     token = compute_brief_token(HMAC_KEY, brief_id)
-    result = _verify_brief_token(token, "wrongkey" * 8)
+    result = _verify_brief_token(token, "baadf00d" * 8)
     assert result["valid"] is False
 
 
