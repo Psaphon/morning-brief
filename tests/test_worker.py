@@ -508,7 +508,7 @@ def compute_brief_token(hmac_key: str, brief_id: str, timestamp_s: int | None = 
     """Python mirror of the pipeline's compute_brief_token()."""
     ts = timestamp_s if timestamp_s is not None else int(time.time())
     message = f"{brief_id}:{ts}"
-    sig = _hmac.new(hmac_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    sig = _hmac.new(bytes.fromhex(hmac_key), message.encode(), hashlib.sha256).hexdigest()
     return f"{ts}:{sig}"
 
 
@@ -540,7 +540,7 @@ def verify_brief_token(token: str, hmac_key: str) -> dict:
 
     brief_id = _brief_id_from_timestamp(timestamp_s)
     message = f"{brief_id}:{timestamp_str}"
-    expected = _hmac.new(hmac_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    expected = _hmac.new(bytes.fromhex(hmac_key), message.encode(), hashlib.sha256).hexdigest()
 
     if provided_hmac != expected:
         return {"valid": False, "reason": "Invalid token signature"}
@@ -578,7 +578,7 @@ def test_forged_hmac_rejected():
     brief_id = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     ts = int(time.time())
     # Use wrong key to forge
-    forged = compute_brief_token("wrongkey" * 4, brief_id, timestamp_s=ts)
+    forged = compute_brief_token("baadf00d" * 8, brief_id, timestamp_s=ts)
     result = verify_brief_token(forged, key)
     assert result["valid"] is False
     assert "signature" in result["reason"].lower()
@@ -611,7 +611,7 @@ def compute_article_sig(hmac_key: str, article: dict) -> str:
         },
         separators=(",", ":"),
     )
-    return _hmac.new(hmac_key.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    return _hmac.new(bytes.fromhex(hmac_key), canonical.encode(), hashlib.sha256).hexdigest()
 
 
 def verify_article_sig(article: dict, hmac_key: str) -> dict:
