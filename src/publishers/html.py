@@ -42,7 +42,7 @@ def compute_brief_token(hmac_key: str, brief_id: str) -> str:
     """
     timestamp_s = int(time.time())
     message = f"{brief_id}:{timestamp_s}"
-    sig = _hmac.new(hmac_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    sig = _hmac.new(bytes.fromhex(hmac_key), message.encode(), hashlib.sha256).hexdigest()
     return f"{timestamp_s}:{sig}"
 
 
@@ -59,7 +59,7 @@ def compute_article_sig(
         {"id": article_id, "title": title, "source": source, "summary": summary},
         separators=(",", ":"),
     )
-    return _hmac.new(hmac_key.encode(), canonical.encode(), hashlib.sha256).hexdigest()
+    return _hmac.new(bytes.fromhex(hmac_key), canonical.encode(), hashlib.sha256).hexdigest()
 
 
 def _group_articles_by_category(articles: list[dict[str, Any]]) -> OrderedDict:
