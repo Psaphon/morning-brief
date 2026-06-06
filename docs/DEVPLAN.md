@@ -578,6 +578,57 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 
 ---
 
+## Feature: signal-emit
+
+**Branch:** `feature/signal-emit`
+**Depends on:** relevance-scoring
+**Status:** Not Started
+**Requires:** both
+
+### Goal
+
+Emit a point-in-time, per-ticker signal artifact for the **atrade** project to consume. This is the *producer* side of a versioned contract shared with atrade (`/home/comp/Projects/atrade`). morning-brief already scores *articles* for relevance; this feature maps that news flow onto a fixed ticker universe, aggregates a per-ticker score, stamps each with the timestamp it was actually knowable, records provenance, and writes a stable, versioned artifact atrade reads.
+
+This is a **shared contract** — the schema is defined once and versioned. It must match atrade's consumer (`docs/SIGNAL-SCHEMA.md` in atrade, feature `signal-schema-and-ingest`). Coordinate both sides before either merges.
+
+### Acceptance Criteria
+
+- [ ] Maps scored articles to tickers via a committed ticker→keyword/entity map covering atrade's fixed universe (config-driven; unmatched articles contribute to no ticker)
+- [ ] Aggregates matched articles into a per-ticker numeric score (bounded, rank-able — never free text)
+- [ ] Each emitted signal record carries: `schema_version`, `ticker`, `score`, `knowable_at` (the article's publish/ingest time — the point-in-time control), and `provenance` (contributing article IDs + sources)
+- [ ] `knowable_at` is derived from real article timestamps, never "now at emit time" — no look-ahead leakage into the artifact
+- [ ] Writes a versioned artifact to a stable path morning-brief and atrade agree on (e.g. `data/signals/signals-<date>.json`, schema_version pinned); atomic write (temp + rename)
+- [ ] Emitting is optional/gated and never crashes the main pipeline if it fails (one broken stage must not break the brief)
+- [ ] [HUMAN] Coordinate the schema + output path with atrade's `signal-schema-and-ingest` before merge; version it; this feature must land before atrade's strategy layer depends on it
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/publishers/signals.py` | Create | Map articles→tickers, aggregate, write versioned artifact |
+| `config/ticker_map.toml` | Create | Ticker → keyword/entity map over atrade's fixed universe |
+| `src/main.py` | Modify | Call the signal emitter after scoring (gated, non-fatal) |
+| `src/config.py` | Modify | Config for emit toggle + output path |
+| `tests/test_signals.py` | Create | Aggregation, knowable_at correctness, no-look-ahead, atomic write |
+
+### Key Decisions
+
+- **Score is bounded and auditable**, never free text — mitigates prompt-injection from poisoned news sources (atrade treats it as non-dispositive anyway).
+- **`knowable_at` comes from the article, not emit time** — the single most important correctness property; it is the look-ahead-bias control the whole atrade backtest rests on.
+- **Versioned artifact, atomic write** — atrade may read while morning-brief writes; never expose a partial file.
+- Ticker universe is owned by atrade (`config/universe.toml`); morning-brief's ticker_map references the same symbols. Keep them in sync.
+
+### Cross-Repo Note
+
+This is the morning-brief half of a two-repo contract flagged by the PM:
+`signal-emit` (this, producer) ↔ atrade `signal-schema-and-ingest` (consumer).
+Build/coordinate this **before** atrade's `strategy-and-risk-gate` (which depends
+on `signal-schema-and-ingest`) so the strategy layer has a real, agreed signal feed.
+
+---
+
 ## Nice-to-Have
 
 ### Cloudflare Access
