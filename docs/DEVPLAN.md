@@ -390,8 +390,8 @@ Cloudflare Worker that proxies Claude API calls for on-demand research. Powers t
 - [x] Response streams back to the dashboard and renders inline below the segment
 - [x] Rate limiting: max 10 requests per hour per user (prevent abuse)
 - [x] Error handling: graceful failure message if API is down or rate limited
-- [ ] [HUMAN] Deploy Worker to Cloudflare (`wrangler deploy`)
-- [ ] [HUMAN] Set `ANTHROPIC_API_KEY` as Cloudflare Worker secret
+- [x] [HUMAN] Deploy Worker to Cloudflare (`wrangler deploy`)
+- [x] [HUMAN] Set `ANTHROPIC_API_KEY` as Cloudflare Worker secret
 - [x] Tests cover request validation and response formatting
 - [x] All tests pass
 - [x] Lint clean
@@ -466,12 +466,12 @@ Close the three credit-drain attack vectors in the research Worker (open CORS, c
 - [ ] Lint clean
 
 **[HUMAN] Cloudflare setup**
-- [ ] [HUMAN] Create Workers KV namespace `RATE_LIMIT` via `wrangler kv:namespace create RATE_LIMIT`, paste the binding ID into `wrangler.toml`
-- [ ] [HUMAN] Set `wrangler secret put DASHBOARD_HMAC_KEY` (generate with `openssl rand -hex 32`); copy the same value into pipeline env as `DASHBOARD_HMAC_KEY`
-- [ ] [HUMAN] Set `wrangler vars` for `DASHBOARD_ORIGIN` to the Pages production URL
-- [ ] [HUMAN] Set `wrangler secret put ANTHROPIC_API_KEY`
-- [ ] [HUMAN] `wrangler deploy`
-- [ ] [HUMAN] Smoke-test from the live dashboard; check `wrangler tail` for any 401/400 noise
+- [x] [HUMAN] Create Workers KV namespace `RATE_LIMIT` via `wrangler kv:namespace create RATE_LIMIT`, paste the binding ID into `wrangler.toml`
+- [x] [HUMAN] Set `wrangler secret put DASHBOARD_HMAC_KEY` (generate with `openssl rand -hex 32`); copy the same value into pipeline env as `DASHBOARD_HMAC_KEY`
+- [x] [HUMAN] Set `wrangler vars` for `DASHBOARD_ORIGIN` to the Pages production URL
+- [x] [HUMAN] Set `wrangler secret put ANTHROPIC_API_KEY`
+- [x] [HUMAN] `wrangler deploy`
+- [x] [HUMAN] Smoke-test from the live dashboard; check `wrangler tail` for any 401/400 noise
 
 ### Files to Create or Modify
 
