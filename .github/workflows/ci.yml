@@ -22,7 +22,12 @@ jobs:
       # happened on 2026-08-26, when 0.16.4 changed formatter output and
       # blocked an open PR that touched no Python at all.
       # Bump this deliberately, in its own PR, with the reformat it requires.
-      - run: pip install ruff==0.15.7 pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
+      #
+      # 0.15.7 -> 0.16.4 done that way. Note what 0.16 changed here: it began
+      # formatting Python code blocks inside MARKDOWN, which is why this repo
+      # broke on docs/GETTING-STARTED.md while siblings with the same explicit
+      # `select` did not.
+      - run: pip install ruff==0.16.4 pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest --tb=short

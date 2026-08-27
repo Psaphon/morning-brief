@@ -104,6 +104,7 @@ print(f"Found {len(feeds)} feeds in FEEDS.md\n")
 for f in feeds:
     print(f"  [{f['category']}] {f['source']}: {f['url']}")
 
+
 # Then fetch a few (hits the network)
 async def test_fetch():
     articles = await fetch_all_feeds(Path("docs/FEEDS.md"))
@@ -111,6 +112,7 @@ async def test_fetch():
 
     # Show breakdown by category
     from collections import Counter
+
     cats = Counter(a.category for a in articles)
     for cat, count in cats.most_common():
         print(f"  {cat}: {count}")
@@ -120,6 +122,7 @@ async def test_fetch():
     for a in articles[:5]:
         print(f"  [{a.source}] {a.title}")
         print(f"    {a.url}")
+
 
 asyncio.run(test_fetch())
 ```
