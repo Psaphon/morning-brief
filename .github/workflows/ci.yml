@@ -17,7 +17,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
+      # Ruff is PINNED deliberately. An unpinned install lets any upstream
+      # release turn CI red with no change on our side — which is exactly what
+      # happened on 2026-08-26, when 0.16.4 changed formatter output and
+      # blocked an open PR that touched no Python at all.
+      # Bump this deliberately, in its own PR, with the reformat it requires.
+      - run: pip install ruff==0.15.7 pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest --tb=short
