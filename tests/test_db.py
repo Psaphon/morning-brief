@@ -366,3 +366,136 @@ def test_unsummarized_articles_ordered_by_score(tmp_path: Path):
         assert result[1]["title"] == "Low Score"
     finally:
         db.close()
+
+
+class TestPublishedAtNormalisation:
+    """published_at must reach the table as ISO-8601 UTC 'Z', or NULL.
+
+    Feeds deliver RFC 822, which cannot be ordered against the ISO-8601
+    fetched_at written alongside it. insert_article is the single choke point
+    where every article enters, so normalising there is what gives every
+    consumer a column it can actually compare.
+    """
+
+    def _insert(self, db, url, published_at):
+        return db.insert_article(
+            url=url,
+            url_hash=url,
+            title="t",
+            source="reuters",
+            category="US Politics",
+            published_at=published_at,
+        )
+
+    def _stored(self, db, url):
+        return db.conn.execute(
+            "SELECT published_at FROM articles WHERE url_hash = ?", (url,)
+        ).fetchone()["published_at"]
+
+    def test_rfc822_is_normalised_on_insert(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._insert(db, "a", "Tue, 14 Jul 2026 06:12:00 GMT")
+            assert self._stored(db, "a") == "2026-07-14T06:12:00Z"
+        finally:
+            db.close()
+
+    def test_unparseable_is_stored_as_null(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._insert(db, "b", "not a date")
+            assert self._stored(db, "b") is None
+        finally:
+            db.close()
+
+    def test_missing_published_at_stays_null(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._insert(db, "c", None)
+            assert self._stored(db, "c") is None
+        finally:
+            db.close()
+
+    def test_stored_values_order_correctly_against_fetched_at(self, tmp_path: Path):
+        """The point of all this: string comparison must now give the right answer."""
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._insert(db, "d", "Tue, 14 Jul 2026 00:00:00 GMT")
+            row = db.conn.execute(
+                "SELECT published_at, fetched_at FROM articles WHERE url_hash = 'd'"
+            ).fetchone()
+            assert row["published_at"] < row["fetched_at"]
+        finally:
+            db.close()
+
+
+class TestPublishedAtBackfill:
+    def _legacy_row(self, db, url, raw):
+        """Write a legacy value directly, bypassing insert_article's normalisation."""
+        now = datetime.now(timezone.utc).isoformat()
+        db.conn.execute(
+            "INSERT INTO articles (url, url_hash, title, source, category,"
+            " published_at, fetched_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?)",
+            (url, url, "t", "reuters", "US Politics", raw, now, now),
+        )
+        db.conn.commit()
+
+    def test_backfill_rewrites_legacy_rfc822(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._legacy_row(db, "a", "Tue, 14 Jul 2026 06:12:00 GMT")
+            assert db._normalise_published_at() == 1
+            assert (
+                db.conn.execute("SELECT published_at FROM articles WHERE url_hash='a'").fetchone()[
+                    "published_at"
+                ]
+                == "2026-07-14T06:12:00Z"
+            )
+        finally:
+            db.close()
+
+    def test_backfill_is_idempotent(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._legacy_row(db, "a", "Tue, 14 Jul 2026 06:12:00 GMT")
+            assert db._normalise_published_at() == 1
+            assert db._normalise_published_at() == 0  # nothing left to do
+        finally:
+            db.close()
+
+    def test_backfill_leaves_unparseable_values_alone(self, tmp_path: Path):
+        """Refusing to store garbage is a policy for new data; existing data is not destroyed."""
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._legacy_row(db, "a", "total nonsense")
+            assert db._normalise_published_at() == 0
+            assert (
+                db.conn.execute("SELECT published_at FROM articles WHERE url_hash='a'").fetchone()[
+                    "published_at"
+                ]
+                == "total nonsense"
+            )
+        finally:
+            db.close()
+
+    def test_backfill_preserves_null(self, tmp_path: Path):
+        db = Database(tmp_path / "t.db")
+        db.connect()
+        try:
+            self._legacy_row(db, "a", None)
+            db._normalise_published_at()
+            assert (
+                db.conn.execute("SELECT published_at FROM articles WHERE url_hash='a'").fetchone()[
+                    "published_at"
+                ]
+                is None
+            )
+        finally:
+            db.close()

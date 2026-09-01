@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .timeutil import UTC_Z_FORMAT, normalise_timestamp
+
 logger = logging.getLogger(__name__)
 
 SCHEMA = """
@@ -122,6 +124,51 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score);
             CREATE INDEX IF NOT EXISTS idx_articles_last_seen ON articles(last_seen_at);
         """)
+        self._normalise_published_at()
+
+    def _normalise_published_at(self) -> int:
+        """Rewrite legacy RFC 822 published_at values as ISO-8601 UTC 'Z'.
+
+        Rows written before normalisation moved into insert_article hold the
+        feed's own format, which cannot be ordered against fetched_at. This
+        converts what it can prove and returns the number of rows changed.
+
+        Deliberately conservative: a value that will not parse is **left
+        alone**, not nulled. Refusing to store an unparseable timestamp going
+        forward is a policy choice about new data; destroying one already on
+        disk is not the same thing, and a human can still inspect it.
+
+        Idempotent -- rows already in the canonical format are skipped, so this
+        is a no-op on every connect after the first.
+        """
+        rows = self.conn.execute(
+            "SELECT id, published_at FROM articles WHERE published_at IS NOT NULL"
+        ).fetchall()
+
+        updates: list[tuple[str, int]] = []
+        unparseable = 0
+        for row in rows:
+            raw = row["published_at"]
+            try:
+                datetime.strptime(raw, UTC_Z_FORMAT)
+                continue  # already canonical
+            except (ValueError, TypeError):
+                pass
+            normalised = normalise_timestamp(raw)
+            if normalised is None:
+                unparseable += 1
+                continue
+            updates.append((normalised, row["id"]))
+
+        if updates:
+            self.conn.executemany("UPDATE articles SET published_at = ? WHERE id = ?", updates)
+            self.conn.commit()
+            logger.info("Migration: normalised %d published_at value(s) to UTC Z", len(updates))
+        if unparseable:
+            logger.warning(
+                "Migration: left %d unparseable published_at value(s) untouched", unparseable
+            )
+        return len(updates)
 
     def close(self) -> None:
         """Close the database connection."""
@@ -147,7 +194,22 @@ class Database:
         full_text: str | None = None,
         content_hash: str | None = None,
     ) -> bool:
-        """Insert an article. Returns True if inserted, False if duplicate."""
+        """Insert an article. Returns True if inserted, False if duplicate.
+
+        published_at is normalised to ISO-8601 UTC 'Z' before storage. Feeds
+        deliver RFC 822 ('Tue, 14 Jul 2026 00:00:00 GMT'), which cannot be
+        ordered against the ISO-8601 fetched_at written below. Normalising at
+        this single choke point is what lets every consumer compare the two.
+        An unparseable value becomes NULL, which the schema already allows and
+        which means the same thing to a reader: no usable publish time.
+        """
+        if published_at is not None:
+            normalised = normalise_timestamp(published_at)
+            if normalised is None:
+                logger.warning(
+                    "Unparseable published_at %r for %s; storing NULL", published_at, url
+                )
+            published_at = normalised
         now = datetime.now(timezone.utc).isoformat()
         self.conn.execute(
             """INSERT INTO articles

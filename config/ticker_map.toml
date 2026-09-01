@@ -1,0 +1,248 @@
+# Maps news entities to atrade's fixed universe.
+# CROSS-REPO: this file must cover EXACTLY the symbols in atrade's config/universe.toml.
+# Changing this file requires updating atrade's config/universe.toml in the same review.
+# See docs/SIGNAL-SCHEMA.md §6.
+#
+# Matching rules:
+#   - Aliases are matched case-insensitively on word boundaries (never raw substrings).
+#   - Stock entries NEVER include the bare ticker symbol as an alias — V, MA, HD, PG etc.
+#     are common English fragments that would fire constantly on unrelated text.
+#   - Multi-word aliases are safer than single words; prefer "Home Depot" over "Depot".
+#   - ETF aliases match the theme the ETF tracks, not the ticker, because news rarely
+#     names an ETF ticker directly in a headline.
+
+schema_version = "1.0.0"
+universe_ref = "atrade/config/universe.toml@82c959e13d5d55f3b3871dbd496b39c023b57230"
+
+# ---------------------------------------------------------------------------
+# ETFs — 12 symbols
+# Aliases match thematic keywords; see note above about not using bare tickers.
+# ---------------------------------------------------------------------------
+
+[[tickers]]
+symbol = "SPY"
+asset_class = "etf"
+aliases = [
+    "S&P 500", "S&P500", "SPDR S&P 500", "Standard & Poor's 500",
+    "S&P index", "broad market rally", "broad market selloff",
+]
+
+[[tickers]]
+symbol = "QQQ"
+asset_class = "etf"
+aliases = [
+    "Nasdaq 100", "Nasdaq-100", "Invesco QQQ",
+    "Nasdaq composite", "Nasdaq rally", "Nasdaq pullback",
+]
+
+[[tickers]]
+symbol = "IWM"
+asset_class = "etf"
+aliases = [
+    "Russell 2000", "iShares Russell 2000",
+    "small-cap index", "small cap stocks",
+]
+
+[[tickers]]
+symbol = "DIA"
+asset_class = "etf"
+aliases = [
+    "Dow Jones Industrial Average", "Dow Jones Industrials",
+    "DJIA", "Dow 30", "SPDR Dow Jones",
+]
+
+[[tickers]]
+symbol = "VTI"
+asset_class = "etf"
+aliases = [
+    "Vanguard Total Stock Market", "total stock market ETF",
+    "Vanguard total market",
+]
+
+[[tickers]]
+symbol = "XLF"
+asset_class = "etf"
+aliases = [
+    "financial sector ETF", "Financial Select Sector",
+    "banking sector ETF", "financial stocks rally",
+]
+
+[[tickers]]
+symbol = "XLK"
+asset_class = "etf"
+aliases = [
+    "technology sector ETF", "Technology Select Sector",
+    "tech sector ETF", "tech stocks rally",
+]
+
+[[tickers]]
+symbol = "XLE"
+asset_class = "etf"
+aliases = [
+    "energy sector ETF", "Energy Select Sector",
+    "oil prices", "OPEC", "crude oil", "oil stocks",
+]
+
+[[tickers]]
+symbol = "XLV"
+asset_class = "etf"
+aliases = [
+    "healthcare sector ETF", "Health Care Select Sector",
+    "health stocks", "healthcare stocks rally",
+]
+
+[[tickers]]
+symbol = "XLI"
+asset_class = "etf"
+aliases = [
+    "industrials sector ETF", "Industrial Select Sector",
+    "industrial stocks", "aerospace defense stocks",
+]
+
+[[tickers]]
+symbol = "XLY"
+asset_class = "etf"
+aliases = [
+    "consumer discretionary ETF", "Consumer Discretionary Select Sector",
+    "retail stocks rally", "consumer spending stocks",
+]
+
+[[tickers]]
+symbol = "XLP"
+asset_class = "etf"
+aliases = [
+    "consumer staples ETF", "Consumer Staples Select Sector",
+    "defensive stocks", "staples sector",
+]
+
+# ---------------------------------------------------------------------------
+# Stocks — 15 symbols
+# NEVER list the bare ticker symbol as an alias.
+# Ambiguous single-letter and common-word tickers (V, MA, HD, PG) are the
+# primary hazard: "V" matches every sentence; "MA" matches "Massachusetts";
+# "HD" matches "HD video"; "PG" matches "PG rating".
+# ---------------------------------------------------------------------------
+
+[[tickers]]
+symbol = "AAPL"
+asset_class = "stock"
+aliases = [
+    "Apple Inc", "Apple's", "iPhone", "iPad", "MacBook",
+    "Tim Cook", "Apple Watch", "App Store", "Apple Silicon",
+    "Apple Vision Pro",
+]
+
+[[tickers]]
+symbol = "MSFT"
+asset_class = "stock"
+aliases = [
+    "Microsoft", "Microsoft Corp", "Windows", "Azure",
+    "Satya Nadella", "Microsoft Teams", "Office 365",
+    "Microsoft 365", "Xbox", "Microsoft Copilot",
+]
+
+[[tickers]]
+symbol = "NVDA"
+asset_class = "stock"
+aliases = [
+    "Nvidia", "NVIDIA", "GeForce", "Jensen Huang",
+    "Nvidia chips", "H100 GPU", "A100 GPU", "CUDA",
+    "Nvidia AI",
+]
+
+[[tickers]]
+symbol = "AMZN"
+asset_class = "stock"
+aliases = [
+    "Amazon", "Amazon.com", "AWS", "Amazon Web Services",
+    "Andy Jassy", "Amazon Prime", "Amazon Alexa",
+    "Amazon Marketplace",
+]
+
+[[tickers]]
+symbol = "GOOGL"
+asset_class = "stock"
+aliases = [
+    "Alphabet", "Google", "Google LLC", "Sundar Pichai",
+    "YouTube", "Google Cloud", "DeepMind", "Google Search",
+    "Google Gemini", "Waymo",
+]
+
+[[tickers]]
+symbol = "META"
+asset_class = "stock"
+aliases = [
+    "Meta Platforms", "Facebook", "Instagram", "WhatsApp",
+    "Mark Zuckerberg", "Threads app", "Oculus", "Meta AI",
+    "Meta Quest",
+]
+
+[[tickers]]
+symbol = "TSLA"
+asset_class = "stock"
+aliases = [
+    "Tesla", "Tesla Inc", "Elon Musk", "Tesla Motors",
+    "Model 3", "Model Y", "Cybertruck", "Tesla Powerwall",
+    "Tesla FSD", "full self-driving",
+]
+
+[[tickers]]
+symbol = "JPM"
+asset_class = "stock"
+aliases = [
+    "JPMorgan Chase", "JPMorgan", "Chase Bank",
+    "Jamie Dimon", "JP Morgan",
+]
+
+[[tickers]]
+symbol = "JNJ"
+asset_class = "stock"
+aliases = [
+    "Johnson & Johnson", "Johnson and Johnson", "J&J",
+    "Janssen",
+]
+
+[[tickers]]
+symbol = "V"
+asset_class = "stock"
+aliases = [
+    "Visa Inc", "Visa card", "Visa network", "Visa payment",
+    "Visa International", "Visa",
+]
+
+[[tickers]]
+symbol = "PG"
+asset_class = "stock"
+aliases = [
+    "Procter & Gamble", "Procter and Gamble", "P&G",
+]
+
+[[tickers]]
+symbol = "UNH"
+asset_class = "stock"
+aliases = [
+    "UnitedHealth", "UnitedHealth Group", "United Healthcare",
+    "UnitedHealthcare",
+]
+
+[[tickers]]
+symbol = "HD"
+asset_class = "stock"
+aliases = [
+    "Home Depot", "The Home Depot",
+]
+
+[[tickers]]
+symbol = "MA"
+asset_class = "stock"
+aliases = [
+    "Mastercard", "Mastercard Inc", "Mastercard payment",
+    "Mastercard network",
+]
+
+[[tickers]]
+symbol = "XOM"
+asset_class = "stock"
+aliases = [
+    "ExxonMobil", "Exxon Mobil", "Exxon", "Mobil",
+]
