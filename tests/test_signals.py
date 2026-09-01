@@ -15,6 +15,7 @@ Covers contract correctness (§3–§7 of docs/SIGNAL-SCHEMA.md):
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -497,3 +498,86 @@ def test_article_count_equals_provenance_length():
 
     sig = signals[0]
     assert sig["article_count"] == len(sig["provenance"])
+
+
+class TestRealWorldTimestampFormats:
+    """knowable_at must be derived from parsed datetimes, never string comparison.
+
+    The articles table holds two mutually incomparable formats: fetched_at is
+    ISO-8601 (datetime.isoformat()), while published_at is stored verbatim from
+    the feed by src/fetchers/rss.py and is usually RFC 822. Sorting those as
+    strings puts every RFC 822 value above every ISO one ('T' > '2'), which
+    silently backdates the signal. 1919 of 2092 rows in the live database carry
+    RFC 822 published_at, so this is the normal case, not an edge case.
+    """
+
+    def _article(self, aid, score, published_at, fetched_at):
+        return {
+            "id": aid,
+            "source": "reuters",
+            "url_hash": f"hash{aid}",
+            "score": score,
+            "published_at": published_at,
+            "fetched_at": fetched_at,
+        }
+
+    def test_rfc822_published_at_does_not_backdate_the_signal(self):
+        """The regression: an RFC 822 date must not win a lexicographic max()."""
+        articles = [
+            self._article(
+                1, 0.9, "Tue, 14 Jul 2026 00:00:00 GMT", "2026-09-01T22:34:25.031038+00:00"
+            ),
+            self._article(2, 0.5, None, "2026-09-01T23:00:00.000000+00:00"),
+        ]
+        sig = build_signals({"AAPL": articles}, "ref")[0]
+        # Article 2's fetched_at is the latest real moment; article 1 is 7 weeks older.
+        assert sig["knowable_at"] == "2026-09-01T23:00:00Z"
+
+    def test_knowable_at_is_always_z_suffixed_iso(self):
+        """Contract §3: ISO-8601 UTC, Z-suffixed — never a raw feed string."""
+        articles = [
+            self._article(1, 0.7, "Tue, 14 Jul 2026 06:12:00 GMT", "2026-09-01T22:00:00+00:00"),
+        ]
+        sig = build_signals({"MSFT": articles}, "ref")[0]
+        assert sig["knowable_at"] == "2026-07-14T06:12:00Z"
+        datetime.strptime(sig["knowable_at"], "%Y-%m-%dT%H:%M:%SZ")
+
+    def test_mixed_formats_pick_the_genuinely_latest(self):
+        """Two RFC 822 dates plus an ISO one: the true maximum must win."""
+        articles = [
+            self._article(1, 0.5, "Mon, 03 Aug 2026 00:00:00 GMT", "2026-09-01T10:00:00+00:00"),
+            self._article(2, 0.5, "Tue, 25 Aug 2026 00:00:00 GMT", "2026-09-01T10:00:00+00:00"),
+            self._article(3, 0.5, "2026-08-10T00:00:00+00:00", "2026-09-01T10:00:00+00:00"),
+        ]
+        sig = build_signals({"NVDA": articles}, "ref")[0]
+        assert sig["knowable_at"] == "2026-08-25T00:00:00Z"
+
+    def test_provenance_published_at_is_normalised_or_null(self):
+        """§7: provenance keeps a usable timestamp, or null to flag the fallback."""
+        articles = [
+            self._article(1, 0.5, "Tue, 14 Jul 2026 00:00:00 GMT", "2026-09-01T22:00:00+00:00"),
+            self._article(2, 0.5, None, "2026-09-01T23:00:00+00:00"),
+        ]
+        sig = build_signals({"TSLA": articles}, "ref")[0]
+        by_id = {p["article_id"]: p["published_at"] for p in sig["provenance"]}
+        assert by_id[1] == "2026-07-14T00:00:00Z"
+        assert by_id[2] is None
+
+    def test_unparseable_published_at_falls_back_to_fetched_at(self):
+        articles = [self._article(1, 0.5, "not a date at all", "2026-09-01T23:00:00+00:00")]
+        sig = build_signals({"JPM": articles}, "ref")[0]
+        assert sig["knowable_at"] == "2026-09-01T23:00:00Z"
+        assert sig["provenance"][0]["published_at"] is None
+
+    def test_future_dated_published_at_is_distrusted(self):
+        """A feed claiming the future must not push knowable_at past emitted_at (§5).
+
+        An article cannot be fetched before it is published, so a published_at
+        later than fetched_at is wrong. Clamping to fetched_at makes the
+        consumer's 'reject knowable_at after emitted_at' case unrepresentable.
+        """
+        articles = [
+            self._article(1, 0.5, "Fri, 01 Jan 2100 00:00:00 GMT", "2026-09-01T23:00:00+00:00")
+        ]
+        sig = build_signals({"SPY": articles}, "ref")[0]
+        assert sig["knowable_at"] == "2026-09-01T23:00:00Z"

@@ -17,6 +17,7 @@ Key correctness rules (do not relax without a contract version bump):
 
 from __future__ import annotations
 
+import email.utils
 import json
 import logging
 import os
@@ -157,13 +158,84 @@ def match_articles_to_tickers(
 # ---------------------------------------------------------------------------
 
 
-def _effective_ts(article: dict[str, Any]) -> str:
-    """Return the best available timestamp for knowable_at derivation.
+def _parse_ts(value: str | None) -> datetime | None:
+    """Parse a timestamp into an aware UTC datetime, or None if unusable.
 
-    Rule (§5): use published_at when present; fall back to fetched_at.
-    Never fall back to now or emitted_at — both are look-ahead leaks.
+    Two formats occur in the articles table and they are NOT comparable as
+    strings:
+      - fetched_at is always ISO-8601 (datetime.isoformat(), '+00:00' offset).
+      - published_at comes verbatim from the feed and is usually RFC 822
+        ('Tue, 14 Jul 2026 00:00:00 GMT'), because src/fetchers/rss.py stores
+        entry['published'] unmodified.
+
+    Lexicographic max() over the two picks the RFC 822 value every time ('T' >
+    '2'), which silently backdates knowable_at. Always compare datetimes.
     """
-    return article.get("published_at") or article["fetched_at"]
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            dt = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _to_z(dt: datetime) -> str:
+    """Format an aware UTC datetime as the Z-suffixed ISO-8601 the contract requires (§3)."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _effective_dt(article: dict[str, Any]) -> datetime:
+    """Return the timestamp at which this article became knowable, as UTC (§5).
+
+    published_at when it is present, parseable, and not later than fetched_at;
+    otherwise fetched_at. Never now or emitted_at — both are look-ahead leaks.
+
+    Distrusting a published_at that postdates fetched_at is what makes a
+    future-dated feed entry harmless: an article cannot have been fetched
+    before it was published, so such a value is wrong, and honouring it would
+    push knowable_at past emitted_at — a record the consumer must reject (§5).
+    Clamping here makes that unrepresentable at the source.
+    """
+    fetched = _parse_ts(article.get("fetched_at"))
+    if fetched is None:
+        raise SignalEmitError(
+            f"Article {article.get('id')!r} has an unparseable fetched_at "
+            f"{article.get('fetched_at')!r}; cannot derive knowable_at."
+        )
+
+    published = _parse_ts(article.get("published_at"))
+    if published is None:
+        if article.get("published_at"):
+            logger.warning(
+                "Article %s has unparseable published_at %r; falling back to fetched_at",
+                article.get("id"),
+                article.get("published_at"),
+            )
+        return fetched
+    if published > fetched:
+        logger.warning(
+            "Article %s published_at %r postdates fetched_at; distrusting it",
+            article.get("id"),
+            article.get("published_at"),
+        )
+        return fetched
+    return published
+
+
+def _provenance_published_at(article: dict[str, Any]) -> str | None:
+    """Normalised published_at for provenance, or None when there is no usable one (§7).
+
+    None is meaningful to an auditor: it marks the articles whose knowable_at
+    came from the fetched_at fallback.
+    """
+    dt = _parse_ts(article.get("published_at"))
+    return _to_z(dt) if dt is not None else None
 
 
 def build_signals(
@@ -174,7 +246,7 @@ def build_signals(
 
     Contract rules applied here:
       §4 — score is the MEAN of contributing article scores, rounded to 4 dp.
-      §5 — knowable_at = max(published_at or fetched_at) across all contributors.
+      §5 — knowable_at = max(published_at or fetched_at) across contributors, as UTC.
       §3 — no free text: articles reach the artifact only as url_hash + score.
       §7 — provenance carries article_id, source (lowercased), url_hash,
            published_at (null retained so auditors can see which used fetched_at).
@@ -193,7 +265,7 @@ def build_signals(
             continue
 
         mean_score = round(sum(s for _, s in scored) / len(scored), 4)
-        knowable_at = max(_effective_ts(a) for a, _ in scored)
+        knowable_at = _to_z(max(_effective_dt(a) for a, _ in scored))
 
         provenance = [
             {
@@ -201,7 +273,7 @@ def build_signals(
                 "source": (a.get("source") or "").lower(),
                 "url_hash": a.get("url_hash") or "",
                 # Retain null so auditors can see which articles used fetched_at (§7).
-                "published_at": a.get("published_at"),
+                "published_at": _provenance_published_at(a),
             }
             for a, _ in scored
         ]
