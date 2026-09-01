@@ -27,7 +27,17 @@ jobs:
       # formatting Python code blocks inside MARKDOWN, which is why this repo
       # broke on docs/GETTING-STARTED.md while siblings with the same explicit
       # `select` did not.
-      - run: pip install ruff==0.16.4 pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
+      #
+      # Dependencies come from requirements.txt, the single source of truth. The
+      # previous form hand-listed all nine packages here, a parallel list that had
+      # to be edited by hand every time a dependency changed -- exactly the drift
+      # that red-failed atrade PR #7 on 2026-09-01, where a test dep declared the
+      # correct way was never installed by CI.
+      #
+      # requirements.txt floats ruff (>=0.8), so the pin is applied AFTER it and
+      # wins. Keep these two steps in this order.
+      - run: pip install -r requirements.txt
+      - run: pip install ruff==0.16.4
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest --tb=short
