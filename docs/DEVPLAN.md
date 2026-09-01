@@ -582,7 +582,7 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 
 **Branch:** `feature/signal-emit`
 **Depends on:** relevance-scoring, atrade `fixed-universe`
-**Status:** Blocked (needs atrade `config/universe.toml` to exist; revert to Not Started once atrade's `fixed-universe` is Merged)
+**Status:** Not Started
 **Requires:** both
 **Contract:** `docs/SIGNAL-SCHEMA.md` — APPROVED 2026-09-01. Build to it exactly; do not redesign it.
 
@@ -597,12 +597,25 @@ signed off 2026-09-01 and is authoritative: artifact path and shape (§2), field
 mean aggregation (§4), the `knowable_at` derivation including the nullable-`published_at`
 fallback (§5), and provenance (§7). Do not re-derive any of it from these acceptance criteria.
 
-**Prerequisite — this feature cannot be built yet.** `config/ticker_map.toml` must cover
-atrade's fixed universe, and `atrade/config/universe.toml` **does not exist yet**; it is
-created by atrade's `fixed-universe` feature. Building the ticker map first would invent a
-universe that then drifts from the real one — precisely the silent-drift failure §10.4 of the
-contract accepts as a `[HUMAN]` review risk. Wait for `fixed-universe` to merge, then read the
-real universe and flip this feature to `Not Started`.
+**Prerequisite — satisfied 2026-09-01.** atrade's `fixed-universe` merged
+(`Psaphon/atrade#11`), so `/home/comp/Projects/atrade/config/universe.toml` now exists and is
+the authority for which symbols exist. **Read it; do not invent tickers.** It holds 27 symbols
+(12 ETFs, 15 mega-cap stocks) in this shape:
+
+```toml
+schema_version = "1.0.0"
+
+[[tickers]]
+symbol = "SPY"
+asset_class = "etf"
+name = "SPDR S&P 500 ETF Trust"
+```
+
+`config/ticker_map.toml` must cover **exactly** those 27 symbols — no extras, none missing. A
+symbol here that is absent from the universe produces signals atrade will reject outright
+(contract §6); a universe symbol missing here silently produces no signals for that ticker,
+with no error. Add a test asserting the two sets are equal, so the drift §10.4 accepts as a
+`[HUMAN]` risk at least fails loudly on this side.
 
 **Build order (contract §11):** atrade `fixed-universe` → morning-brief `signal-emit`
 (producer) → atrade `signal-schema-and-ingest` (consumer).
