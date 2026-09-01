@@ -17,7 +17,6 @@ Key correctness rules (do not relax without a contract version bump):
 
 from __future__ import annotations
 
-import email.utils
 import json
 import logging
 import os
@@ -26,6 +25,8 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from ..timeutil import parse_timestamp, to_utc_z
 
 logger = logging.getLogger(__name__)
 
@@ -158,38 +159,6 @@ def match_articles_to_tickers(
 # ---------------------------------------------------------------------------
 
 
-def _parse_ts(value: str | None) -> datetime | None:
-    """Parse a timestamp into an aware UTC datetime, or None if unusable.
-
-    Two formats occur in the articles table and they are NOT comparable as
-    strings:
-      - fetched_at is always ISO-8601 (datetime.isoformat(), '+00:00' offset).
-      - published_at comes verbatim from the feed and is usually RFC 822
-        ('Tue, 14 Jul 2026 00:00:00 GMT'), because src/fetchers/rss.py stores
-        entry['published'] unmodified.
-
-    Lexicographic max() over the two picks the RFC 822 value every time ('T' >
-    '2'), which silently backdates knowable_at. Always compare datetimes.
-    """
-    if not value:
-        return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        try:
-            dt = email.utils.parsedate_to_datetime(value)
-        except (TypeError, ValueError):
-            return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
-
-
-def _to_z(dt: datetime) -> str:
-    """Format an aware UTC datetime as the Z-suffixed ISO-8601 the contract requires (§3)."""
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def _effective_dt(article: dict[str, Any]) -> datetime:
     """Return the timestamp at which this article became knowable, as UTC (§5).
 
@@ -202,14 +171,14 @@ def _effective_dt(article: dict[str, Any]) -> datetime:
     push knowable_at past emitted_at — a record the consumer must reject (§5).
     Clamping here makes that unrepresentable at the source.
     """
-    fetched = _parse_ts(article.get("fetched_at"))
+    fetched = parse_timestamp(article.get("fetched_at"))
     if fetched is None:
         raise SignalEmitError(
             f"Article {article.get('id')!r} has an unparseable fetched_at "
             f"{article.get('fetched_at')!r}; cannot derive knowable_at."
         )
 
-    published = _parse_ts(article.get("published_at"))
+    published = parse_timestamp(article.get("published_at"))
     if published is None:
         if article.get("published_at"):
             logger.warning(
@@ -234,8 +203,8 @@ def _provenance_published_at(article: dict[str, Any]) -> str | None:
     None is meaningful to an auditor: it marks the articles whose knowable_at
     came from the fetched_at fallback.
     """
-    dt = _parse_ts(article.get("published_at"))
-    return _to_z(dt) if dt is not None else None
+    dt = parse_timestamp(article.get("published_at"))
+    return to_utc_z(dt) if dt is not None else None
 
 
 def build_signals(
@@ -265,7 +234,7 @@ def build_signals(
             continue
 
         mean_score = round(sum(s for _, s in scored) / len(scored), 4)
-        knowable_at = _to_z(max(_effective_dt(a) for a, _ in scored))
+        knowable_at = to_utc_z(max(_effective_dt(a) for a, _ in scored))
 
         provenance = [
             {
