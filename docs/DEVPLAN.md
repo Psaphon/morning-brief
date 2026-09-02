@@ -582,7 +582,7 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 
 **Branch:** `feature/signal-emit`
 **Depends on:** relevance-scoring, atrade `fixed-universe`
-**Status:** Not Started
+**Status:** Merged (#44)
 **Requires:** both
 **Contract:** `docs/SIGNAL-SCHEMA.md` — APPROVED 2026-09-01. Build to it exactly; do not redesign it.
 
@@ -622,15 +622,15 @@ with no error. Add a test asserting the two sets are equal, so the drift §10.4 
 
 ### Acceptance Criteria
 
-- [ ] Maps scored articles to tickers via a committed ticker→keyword/entity map covering atrade's fixed universe (config-driven; unmatched articles contribute to no ticker)
-- [ ] Aggregates matched articles into a per-ticker numeric score (bounded, rank-able — never free text)
-- [ ] Each emitted signal record carries: `schema_version`, `ticker`, `score`, `knowable_at` (the article's publish/ingest time — the point-in-time control), and `provenance` (contributing article IDs + sources)
-- [ ] `knowable_at` is derived from real article timestamps, never "now at emit time" — no look-ahead leakage into the artifact
-- [ ] Writes a versioned artifact to a stable path morning-brief and atrade agree on (e.g. `data/signals/signals-<date>.json`, schema_version pinned); atomic write (temp + rename)
-- [ ] Emitting is optional/gated and never crashes the main pipeline if it fails (one broken stage must not break the brief)
-- [ ] [HUMAN] Coordinate the schema + output path with atrade's `signal-schema-and-ingest` before merge; version it; this feature must land before atrade's strategy layer depends on it
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Maps scored articles to tickers via a committed ticker→keyword/entity map covering atrade's fixed universe (config-driven; unmatched articles contribute to no ticker)
+- [x] Aggregates matched articles into a per-ticker numeric score (bounded, rank-able — never free text)
+- [x] Each emitted signal record carries: `schema_version`, `ticker`, `score`, `knowable_at` (the article's publish/ingest time — the point-in-time control), and `provenance` (contributing article IDs + sources)
+- [x] `knowable_at` is derived from real article timestamps, never "now at emit time" — no look-ahead leakage into the artifact
+- [x] Writes a versioned artifact to a stable path morning-brief and atrade agree on (e.g. `data/signals/signals-<date>.json`, schema_version pinned); atomic write (temp + rename)
+- [x] Emitting is optional/gated and never crashes the main pipeline if it fails (one broken stage must not break the brief)
+- [x] [HUMAN] Coordinate the schema + output path with atrade's `signal-schema-and-ingest` before merge; version it; this feature must land before atrade's strategy layer depends on it
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
