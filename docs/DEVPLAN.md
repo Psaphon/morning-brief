@@ -666,3 +666,35 @@ on `signal-schema-and-ingest`) so the strategy layer has a real, agreed signal f
 **When:** Once personal/local content is added (Manatee County, portfolio data)
 
 Add Cloudflare Access email-based authentication (free, 1 user) to restrict dashboard access. Not needed while content is public news only — URL is obscure and robots.txt blocks indexing.
+
+---
+
+## Feature: failure-alerting
+
+**Branch:** `fix/failure-alerting`
+**Depends on:** signal-emit; hub live with `ntfy-stack-startup` and `data-backup-runtime` deployed (hub #64, #66)
+**Status:** Deferred — start once hub is live (the workflow only picks `Not Started`; switch it back then)
+**Requires:** both
+
+### Goal
+
+A failed morning-brief run must reach the operator's phone. Today it reaches nobody. Found 2026-09-14 while fixing the timer timezone (#47):
+
+- `morning-brief.service` sets `OnFailure=morning-brief-failure@%n.service` inside `[Service]`. systemd only reads `OnFailure=` in `[Unit]`, so it is ignored (`systemd-analyze verify`: "Unknown key 'OnFailure' in section [Service], ignoring").
+- `morning-brief-failure@.service` does not exist anywhere in the repo, so even a correctly placed line would enqueue a missing unit.
+- A late or failed run matters downstream: atrade's cycle at 06:30 Eastern falls back to baseline-only when that day's signal artifact is missing, silently.
+
+Deliberately deferred until hub is running: the alert path is hub's ntfy stack (`/etc/hub/ntfy.env` and `/usr/local/sbin/hub-alert` from hub #64/#66). Building against the dev box would need a second notification design that is thrown away at migration.
+
+### Acceptance Criteria
+
+- [ ] `OnFailure=` lives in `[Unit]` of both `morning-brief.service` and `deploy/morning-brief.service`
+- [ ] A `morning-brief-failure@.service` template exists in the repo and is installed by `deploy/install.sh` next to the main unit
+- [ ] The failure unit sends an alert through hub's publisher (`hub-alert "<title>" "<body>" high`, which reads `/etc/hub/ntfy.env`), naming the failed unit and the `journalctl --user -u morning-brief` command; it never hardcodes an ntfy host
+- [ ] If `hub-alert` or `/etc/hub/ntfy.env` is absent, the failure unit logs an error to the journal and exits non-zero rather than succeeding silently
+- [ ] A test runs `systemd-analyze verify` on every unit under the repo root and `deploy/` and fails on any `Unknown key` line, so a misplaced directive cannot pass again
+- [ ] A test runs the failure unit's command with a stub `hub-alert` on PATH and asserts the title, priority and body it receives
+- [ ] Mutation-checked: moving `OnFailure=` back into `[Service]`, or deleting the failure unit, turns the suite red
+- [ ] [HUMAN] On the live hub, force a failing run (`systemctl --user start morning-brief` with the compose file temporarily broken) and confirm the push reaches the phone
+- [ ] All tests pass
+- [ ] Lint clean
