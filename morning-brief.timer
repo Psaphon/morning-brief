@@ -2,9 +2,10 @@
 Description=Morning Brief daily timer — triggers pipeline at 4:15 AM ET
 
 [Timer]
-# Fire at 04:15 every day in Eastern Time
-OnCalendar=*-*-* 04:15:00
-TimeZone=America/New_York
+# 04:15 US/Eastern every day. The timezone must be part of OnCalendar: systemd has no
+# "TimeZone" key and silently ignores it, which ran this at 04:15 in the host's zone
+# (hub is UTC, so 00:15 ET). atrade's timer is scheduled after this one.
+OnCalendar=*-*-* 04:15:00 America/New_York
 # Re-trigger if the system was off at the scheduled time
 Persistent=true
 
