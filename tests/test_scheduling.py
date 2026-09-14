@@ -5,6 +5,7 @@ without requiring a running systemd daemon.
 """
 
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -67,8 +68,44 @@ class TestTimerUnit:
     def test_fires_at_0415(self):
         assert "04:15:00" in self._content()
 
-    def test_timezone_eastern(self):
-        assert "TimeZone=America/New_York" in self._content()
+    def test_timezone_eastern_is_inside_oncalendar(self):
+        # systemd has no TimeZone= key; it is ignored with only a log warning, and the
+        # timer then fires in the host's zone (hub runs UTC). The zone must be part of
+        # the OnCalendar expression itself.
+        content = self._content()
+        assert "TimeZone=" not in content
+        assert "OnCalendar=*-*-* 04:15:00 America/New_York" in content
+
+    @pytest.mark.skipif(shutil.which("systemd-analyze") is None, reason="needs systemd-analyze")
+    def test_systemd_resolves_0415_eastern(self):
+        """Ask systemd itself, so a key it ignores cannot pass this test."""
+        for timer in (TIMER_FILE, PROJECT_ROOT / "deploy" / "morning-brief.timer"):
+            verify = subprocess.run(
+                ["systemd-analyze", "verify", "--user", str(timer)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            # verify also loads the paired .service; only this timer's own lines count here.
+            ignored = [
+                line
+                for line in verify.stderr.splitlines()
+                if line.startswith(f"{timer}:") and "Unknown key" in line
+            ]
+            assert not ignored, "\n".join(ignored)
+            spec = next(
+                line.split("=", 1)[1]
+                for line in timer.read_text().splitlines()
+                if line.startswith("OnCalendar=")
+            )
+            cal = subprocess.run(
+                ["systemd-analyze", "calendar", spec],
+                capture_output=True,
+                text=True,
+                check=True,
+                env={**os.environ, "TZ": "UTC"},
+            )
+            assert "04:15:00 America/New_York" in cal.stdout, cal.stdout
 
     def test_persistent_enabled(self):
         # Re-fires after missed runs (e.g. system was off)
