@@ -673,7 +673,7 @@ Add Cloudflare Access email-based authentication (free, 1 user) to restrict dash
 
 **Branch:** `fix/failure-alerting`
 **Depends on:** signal-emit; hub live with `ntfy-stack-startup` and `data-backup-runtime` deployed (hub #64, #66)
-**Status:** Not Started
+**Status:** Deferred — start once hub is live (the workflow only picks `Not Started`; switch it back then)
 **Requires:** both
 
 ### Goal
