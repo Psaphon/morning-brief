@@ -81,6 +81,14 @@ class TestDockerCompose:
         svc = compose["services"]["morning-brief"]
         assert any(v.endswith(":/app/data") for v in svc["volumes"])
 
+    def test_data_volume_is_repo_relative(self):
+        # An absolute host path pinned the mount to one machine's home (/home/comp),
+        # so the pipeline wrote nowhere useful on any other host.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        data = [v for v in svc["volumes"] if v.endswith(":/app/data")]
+        assert data == ["./data:/app/data"]
+
     def test_env_file_loaded(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]

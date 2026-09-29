@@ -5,6 +5,7 @@ without requiring a running systemd daemon.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -33,7 +34,14 @@ class TestServiceUnit:
 
     def test_working_directory_uses_home(self):
         # %h expands to the user's home directory in systemd units
-        assert "WorkingDirectory=%h" in self._content()
+        assert "WorkingDirectory=%h/Projects/morning-brief\n" in self._content()
+
+    def test_health_check_lives_in_working_directory(self):
+        # The two paths drifted apart once; the health check must run from the same clone.
+        content = self._content()
+        workdir = re.search(r"^WorkingDirectory=(\S+)$", content, re.M).group(1)
+        post = re.search(r"^ExecStartPost=(\S+)", content, re.M).group(1)
+        assert post == f"{workdir}/scripts/health-check.sh"
 
     def test_timezone_eastern(self):
         assert "TZ=America/New_York" in self._content()

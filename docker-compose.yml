@@ -6,9 +6,10 @@ services:
   morning-brief:
     build: .
     volumes:
-      # Absolute path: ./data in the systemd worktree contains symlinks to
-      # host paths that don't exist inside the container's mount namespace.
-      - /home/comp/Projects/morning-brief/data:/app/data
+      # Relative to this file, so the mount follows the clone to any host.
+      # data/ must be a real directory: symlinks to host paths outside the
+      # repo don't resolve inside the container's mount namespace.
+      - ./data:/app/data
     env_file:
       - .env
     environment:
