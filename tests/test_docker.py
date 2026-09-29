@@ -81,6 +81,14 @@ class TestDockerCompose:
         svc = compose["services"]["morning-brief"]
         assert any(v.endswith(":/app/data") for v in svc["volumes"])
 
+    def test_data_volume_is_repo_relative(self):
+        # An absolute host path pinned the mount to one machine's home (/home/comp),
+        # so the pipeline wrote nowhere useful on any other host.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        data = [v for v in svc["volumes"] if v.endswith(":/app/data")]
+        assert data == ["./data:/app/data"]
+
     def test_env_file_loaded(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
@@ -93,6 +101,14 @@ class TestDockerCompose:
         ollama_vars = [e for e in env_list if "OLLAMA_HOST" in str(e)]
         assert ollama_vars, "OLLAMA_HOST must be set in environment"
         assert "host.docker.internal" in ollama_vars[0]
+
+    def test_ollama_host_overridable_from_env(self):
+        # `environment` wins over `env_file`, so a literal value here would silently
+        # ignore OLLAMA_HOST in .env. It must interpolate with the host as default.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        env_list = svc.get("environment", [])
+        assert "OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}" in env_list
 
     def test_host_gateway_mapping(self):
         compose = _load_compose()
