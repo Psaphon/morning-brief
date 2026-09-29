@@ -5,17 +5,24 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-# The clone lives at ~/Projects/morning-brief (hub and the dev box alike)
-WorkingDirectory=%h/Projects/morning-brief
+# A dedicated clone that only this unit uses, so branch switches in a working
+# clone never change what runs. Set up by scripts/install-user-units.sh.
+WorkingDirectory=%h/.local/share/morning-brief-pipeline
 # Timer fires at 4:15 AM ET; keep TZ consistent with the timer unit
 Environment=TZ=America/New_York
-# Run the full pipeline via docker compose, then validate output
-ExecStart=/usr/bin/docker compose up --abort-on-container-exit --exit-code-from morning-brief
-ExecStartPost=%h/Projects/morning-brief/scripts/health-check.sh
+# Pick up merged fixes first. "-": a failed pull (network) runs yesterday's code
+# rather than skipping the brief.
+ExecStartPre=-/usr/bin/git pull --ff-only
+# Build and run the pipeline container (picks the container user for rootless)
+ExecStart=%h/.local/share/morning-brief-pipeline/scripts/run-pipeline.sh
+# Each ExecStartPost runs only if everything before it succeeded
+ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/health-check.sh
+# Publish from the host: the container has no git checkout or credentials
+ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/deploy-dashboard.sh
+# A normal run takes ~6 min; don't let a hung model call block the next day
+TimeoutStartSec=2h
 StandardOutput=journal
 StandardError=journal
-# Log failures to a persistent file so they survive journal rotation
-OnFailure=morning-brief-failure@%n.service
 
 [Install]
 WantedBy=default.target
