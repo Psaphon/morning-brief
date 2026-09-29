@@ -40,6 +40,11 @@ class TestDockerfile:
         assert "USER app" in content
         assert "useradd" in content
 
+    def test_code_world_readable(self):
+        # Rootless runs as uid 0 with cap_drop ALL; 0600 files from a 077 umask
+        # host (hub) were unreadable and the pipeline died on import.
+        assert "chmod -R a+rX /app" in _read_dockerfile()
+
     def test_healthcheck_defined(self):
         content = _read_dockerfile()
         assert "HEALTHCHECK" in content
@@ -125,6 +130,18 @@ class TestDockerCompose:
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
         assert "no-new-privileges:true" in svc["security_opt"]
+
+    def test_container_user_set_by_run_script(self):
+        # scripts/run-pipeline.sh picks 0:0 under rootless Docker, else the host uid.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        assert svc["user"] == "${MB_UID:-1000}:${MB_GID:-1000}"
+
+    def test_container_never_deploys(self):
+        # The host unit publishes; environment beats env_file, so .env can't re-enable it.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        assert "DEPLOY_ENABLED=false" in svc["environment"]
 
     def test_restart_policy_no(self):
         compose = _load_compose()

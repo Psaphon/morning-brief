@@ -5,6 +5,9 @@ services:
   # host.docker.internal or the OLLAMA_HOST env var from .env.
   morning-brief:
     build: .
+    # Set by scripts/run-pipeline.sh: 0:0 under rootless Docker (= the host
+    # user), else the host user's uid:gid. Either can write the data/ mount.
+    user: "${MB_UID:-1000}:${MB_GID:-1000}"
     volumes:
       # Relative to this file, so the mount follows the clone to any host.
       # data/ must be a real directory: symlinks to host paths outside the
@@ -14,9 +17,11 @@ services:
       - .env
     environment:
       # Default: reach Ollama on the host.  `environment` beats `env_file`, so the
-      # override comes through interpolation: set OLLAMA_HOST in .env (rootless
-      # Docker can't reach host loopback; on hub use its Tailscale IP).
+      # override comes through interpolation: set OLLAMA_HOST in .env.
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # The host publishes the dashboard (morning-brief.service); the container
+      # has no git checkout or credentials, so its own deploy step only fails.
+      - DEPLOY_ENABLED=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:

@@ -34,7 +34,8 @@ class TestServiceUnit:
 
     def test_working_directory_uses_home(self):
         # %h expands to the user's home directory in systemd units
-        assert "WorkingDirectory=%h/Projects/morning-brief\n" in self._content()
+        # A dedicated pipeline clone, not the working clone (see install-user-units.sh)
+        assert "WorkingDirectory=%h/.local/share/morning-brief-pipeline\n" in self._content()
 
     def test_health_check_lives_in_working_directory(self):
         # The two paths drifted apart once; the health check must run from the same clone.
@@ -46,8 +47,19 @@ class TestServiceUnit:
     def test_timezone_eastern(self):
         assert "TZ=America/New_York" in self._content()
 
-    def test_exec_start_docker_compose(self):
-        assert "docker compose up" in self._content()
+    def test_exec_start_runs_pipeline_script(self):
+        content = self._content()
+        workdir = re.search(r"^WorkingDirectory=(\S+)$", content, re.M).group(1)
+        assert f"ExecStart={workdir}/scripts/run-pipeline.sh\n" in content
+
+    def test_dashboard_deployed_from_host_after_health_check(self):
+        # The container can't push (no git checkout, no credentials), so the unit
+        # publishes, and only once the health check has passed.
+        posts = re.findall(r"^ExecStartPost=(\S+)", self._content(), re.M)
+        assert [Path(p).name for p in posts] == ["health-check.sh", "deploy-dashboard.sh"]
+
+    def test_failed_pull_does_not_skip_the_run(self):
+        assert "ExecStartPre=-/usr/bin/git pull --ff-only\n" in self._content()
 
     def test_health_check_called_on_success(self):
         # ExecStartPost runs the health-check after the main command succeeds
