@@ -102,6 +102,14 @@ class TestDockerCompose:
         assert ollama_vars, "OLLAMA_HOST must be set in environment"
         assert "host.docker.internal" in ollama_vars[0]
 
+    def test_ollama_host_overridable_from_env(self):
+        # `environment` wins over `env_file`, so a literal value here would silently
+        # ignore OLLAMA_HOST in .env. It must interpolate with the host as default.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        env_list = svc.get("environment", [])
+        assert "OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}" in env_list
+
     def test_host_gateway_mapping(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]

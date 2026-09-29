@@ -13,8 +13,10 @@ services:
     env_file:
       - .env
     environment:
-      # Default: reach Ollama on the host.  Override in .env if needed.
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      # Default: reach Ollama on the host.  `environment` beats `env_file`, so the
+      # override comes through interpolation: set OLLAMA_HOST in .env (rootless
+      # Docker can't reach host loopback; on hub use its Tailscale IP).
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:
