@@ -690,14 +690,14 @@ The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/e
 
 ### Acceptance Criteria
 
-- [ ] `OnFailure=morning-brief-failure@%n.service` is in `[Unit]` of the repo-root `morning-brief.service`
-- [ ] The run's stdout+stderr go to `%S/morning-brief/last-run.log` (truncated each run; `StateDirectory=morning-brief` creates the directory), so the last run is always readable by hubop without journal access
-- [ ] A `morning-brief-failure@.service` template exists at the repo root and `scripts/install-user-units.sh` links it next to the main unit
-- [ ] The failure unit runs `scripts/notify-failure.sh %i`, which calls hub's publisher by absolute path (`${HUB_ALERT:-/usr/local/sbin/hub-alert} "<title>" "<body>" high`) with a title naming the failed unit, and a body holding the last ~15 lines of `last-run.log` plus the command to read the whole file; it never hardcodes an ntfy host
-- [ ] If the publisher is missing or not executable, or `hub-alert` exits non-zero, `notify-failure.sh` writes an error to stderr and exits non-zero rather than succeeding silently
-- [ ] A test runs `systemd-analyze --user verify` on every `*.service`/`*.timer` at the repo root (template units via an instance name) and fails on any `Unknown key` / `Unknown section` line; it skips only when `systemd-analyze` is absent AND `CI` is unset, so CI can never skip it
-- [ ] A test runs `notify-failure.sh` with `HUB_ALERT` pointing at a recording stub and asserts the title, priority and body it receives; it fails if the stub was never called (a non-executable stub must not fall through to the real publisher)
-- [ ] Mutation-checked: moving `OnFailure=` into `[Service]`, deleting the failure unit, or dropping it from `install-user-units.sh` turns the suite red
+- [x] `OnFailure=morning-brief-failure@%n.service` is in `[Unit]` of the repo-root `morning-brief.service`
+- [x] The run's stdout+stderr go to `%S/morning-brief/last-run.log` (truncated each run; `StateDirectory=morning-brief` creates the directory), so the last run is always readable by hubop without journal access
+- [x] A `morning-brief-failure@.service` template exists at the repo root and `scripts/install-user-units.sh` links it next to the main unit
+- [x] The failure unit runs `scripts/notify-failure.sh %i`, which calls hub's publisher by absolute path (`${HUB_ALERT:-/usr/local/sbin/hub-alert} "<title>" "<body>" high`) with a title naming the failed unit, and a body holding the last ~15 lines of `last-run.log` plus the command to read the whole file; it never hardcodes an ntfy host
+- [x] If the publisher is missing or not executable, or `hub-alert` exits non-zero, `notify-failure.sh` writes an error to stderr and exits non-zero rather than succeeding silently
+- [x] A test runs `systemd-analyze --user verify` on every `*.service`/`*.timer` at the repo root (template units via an instance name) and fails on any `Unknown key` / `Unknown section` line; it skips only when `systemd-analyze` is absent AND `CI` is unset, so CI can never skip it
+- [x] A test runs `notify-failure.sh` with `HUB_ALERT` pointing at a recording stub and asserts the title, priority and body it receives; it fails if the stub was never called (a non-executable stub must not fall through to the real publisher)
+- [x] Mutation-checked: moving `OnFailure=` into `[Service]`, deleting the failure unit, or dropping it from `install-user-units.sh` turns the suite red
 - [ ] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean

@@ -2,8 +2,8 @@
 # scripts/install-user-units.sh — set up the scheduled pipeline for this user
 #
 # Creates the dedicated pipeline clone that morning-brief.service runs from and
-# links the service + timer into the user's systemd. Idempotent. Does NOT enable
-# the timer; it prints that command instead.
+# links the service, timer and failure-alert template into the user's systemd.
+# Idempotent. Does NOT enable the timer; it prints that command instead.
 #
 # Usage:
 #   bash scripts/install-user-units.sh [branch]    # branch defaults to develop
@@ -23,7 +23,8 @@ else
     echo "Pipeline clone exists: ${PIPELINE} ($(git -C "${PIPELINE}" branch --show-current))"
 fi
 
-systemctl --user link "${PIPELINE}/morning-brief.service" "${PIPELINE}/morning-brief.timer"
+systemctl --user link "${PIPELINE}/morning-brief.service" "${PIPELINE}/morning-brief.timer" \
+    "${PIPELINE}/morning-brief-failure@.service"
 systemctl --user daemon-reload
 
 [[ -f "${PIPELINE}/.env" ]] || echo "WARNING: no ${PIPELINE}/.env yet (API keys); the pipeline needs it."
