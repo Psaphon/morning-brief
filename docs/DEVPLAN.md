@@ -698,6 +698,6 @@ The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/e
 - [x] A test runs `systemd-analyze --user verify` on every `*.service`/`*.timer` at the repo root (template units via an instance name) and fails on any `Unknown key` / `Unknown section` line; it skips only when `systemd-analyze` is absent AND `CI` is unset, so CI can never skip it
 - [x] A test runs `notify-failure.sh` with `HUB_ALERT` pointing at a recording stub and asserts the title, priority and body it receives; it fails if the stub was never called (a non-executable stub must not fall through to the real publisher)
 - [x] Mutation-checked: moving `OnFailure=` into `[Service]`, deleting the failure unit, or dropping it from `install-user-units.sh` turns the suite red
-- [ ] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it
+- [x] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it (2026-10-01: alert received; the real 08:15 failure also alerted, which surfaced the 209/STDOUT bug fixed in #54)
 - [x] All tests pass
 - [x] Lint clean
