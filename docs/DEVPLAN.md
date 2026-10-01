@@ -673,28 +673,31 @@ Add Cloudflare Access email-based authentication (free, 1 user) to restrict dash
 
 **Branch:** `fix/failure-alerting`
 **Depends on:** signal-emit; hub live with `ntfy-stack-startup` and `data-backup-runtime` deployed (hub #64, #66)
-**Status:** Deferred — start once hub is live (the workflow only picks `Not Started`; switch it back then)
+**Status:** In Progress
 **Requires:** both
 
 ### Goal
 
-A failed morning-brief run must reach the operator's phone. Today it reaches nobody. Found 2026-09-14 while fixing the timer timezone (#47):
+A failed morning-brief run must reach the operator's phone. Today it reaches nobody. Found 2026-09-14 while fixing the timer timezone (#47), re-scoped 2026-10-01 against the live hub install (#51):
 
-- `morning-brief.service` sets `OnFailure=morning-brief-failure@%n.service` inside `[Service]`. systemd only reads `OnFailure=` in `[Unit]`, so it is ignored (`systemd-analyze verify`: "Unknown key 'OnFailure' in section [Service], ignoring").
-- `morning-brief-failure@.service` does not exist anywhere in the repo, so even a correctly placed line would enqueue a missing unit.
+- The unit that actually runs is the repo-root `morning-brief.service`, linked into hubop's user manager by `scripts/install-user-units.sh` from the pipeline clone `~/.local/share/morning-brief-pipeline`. It has no `OnFailure=` at all. (`deploy/` is the old root `/opt` install, unused on hub; out of scope.)
+- `morning-brief-failure@.service` does not exist anywhere in the repo.
+- hubop **cannot read its own journal** on hub (`journalctl --user` → "insufficient permissions"), and the run's output does not reach `/var/log/syslog`. A failed run today leaves the operator nothing to read. The run's output must also land in a file hubop can read.
+- hubop's user manager PATH has no `/usr/local/sbin`, so a bare `hub-alert` in a user unit is "command not found". Call it by absolute path.
 - A late or failed run matters downstream: atrade's cycle at 06:30 Eastern falls back to baseline-only when that day's signal artifact is missing, silently.
 
-Deliberately deferred until hub is running: the alert path is hub's ntfy stack (`/etc/hub/ntfy.env` and `/usr/local/sbin/hub-alert` from hub #64/#66). Building against the dev box would need a second notification design that is thrown away at migration.
+The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/etc/hub/ntfy.env`; hub #64/#66/#156).
 
 ### Acceptance Criteria
 
-- [ ] `OnFailure=` lives in `[Unit]` of both `morning-brief.service` and `deploy/morning-brief.service`
-- [ ] A `morning-brief-failure@.service` template exists in the repo and is installed by `deploy/install.sh` next to the main unit
-- [ ] The failure unit sends an alert through hub's publisher (`hub-alert "<title>" "<body>" high`, which reads `/etc/hub/ntfy.env`), naming the failed unit and the `journalctl --user -u morning-brief` command; it never hardcodes an ntfy host
-- [ ] If `hub-alert` or `/etc/hub/ntfy.env` is absent, the failure unit logs an error to the journal and exits non-zero rather than succeeding silently
-- [ ] A test runs `systemd-analyze verify` on every unit under the repo root and `deploy/` and fails on any `Unknown key` line, so a misplaced directive cannot pass again
-- [ ] A test runs the failure unit's command with a stub `hub-alert` on PATH and asserts the title, priority and body it receives
-- [ ] Mutation-checked: moving `OnFailure=` back into `[Service]`, or deleting the failure unit, turns the suite red
-- [ ] [HUMAN] On the live hub, force a failing run (`systemctl --user start morning-brief` with the compose file temporarily broken) and confirm the push reaches the phone
+- [ ] `OnFailure=morning-brief-failure@%n.service` is in `[Unit]` of the repo-root `morning-brief.service`
+- [ ] The run's stdout+stderr go to `%S/morning-brief/last-run.log` (truncated each run; `StateDirectory=morning-brief` creates the directory), so the last run is always readable by hubop without journal access
+- [ ] A `morning-brief-failure@.service` template exists at the repo root and `scripts/install-user-units.sh` links it next to the main unit
+- [ ] The failure unit runs `scripts/notify-failure.sh %i`, which calls hub's publisher by absolute path (`${HUB_ALERT:-/usr/local/sbin/hub-alert} "<title>" "<body>" high`) with a title naming the failed unit, and a body holding the last ~15 lines of `last-run.log` plus the command to read the whole file; it never hardcodes an ntfy host
+- [ ] If the publisher is missing or not executable, or `hub-alert` exits non-zero, `notify-failure.sh` writes an error to stderr and exits non-zero rather than succeeding silently
+- [ ] A test runs `systemd-analyze --user verify` on every `*.service`/`*.timer` at the repo root (template units via an instance name) and fails on any `Unknown key` / `Unknown section` line; it skips only when `systemd-analyze` is absent AND `CI` is unset, so CI can never skip it
+- [ ] A test runs `notify-failure.sh` with `HUB_ALERT` pointing at a recording stub and asserts the title, priority and body it receives; it fails if the stub was never called (a non-executable stub must not fall through to the real publisher)
+- [ ] Mutation-checked: moving `OnFailure=` into `[Service]`, deleting the failure unit, or dropping it from `install-user-units.sh` turns the suite red
+- [ ] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it
 - [ ] All tests pass
 - [ ] Lint clean
