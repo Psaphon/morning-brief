@@ -12,6 +12,8 @@ Type=oneshot
 WorkingDirectory=%h/.local/share/morning-brief-pipeline
 # Timer fires at 4:15 AM ET; keep TZ consistent with the timer unit
 Environment=TZ=America/New_York
+# Start each run with an empty log (see the Standard* lines below for why)
+ExecStartPre=/usr/bin/truncate -s 0 %S/morning-brief-last-run.log
 # Pick up merged fixes first. "-": a failed pull (network) runs yesterday's code
 # rather than skipping the brief.
 ExecStartPre=-/usr/bin/git pull --ff-only
@@ -24,11 +26,14 @@ ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/deploy-dashboard.sh
 # A normal run takes ~6 min; don't let a hung model call block the next day
 TimeoutStartSec=2h
 # hubop can't read the journal on hub, so the run's output goes to a file that
-# always holds the last run (truncated each start; %S/morning-brief is created
-# by StateDirectory).
-StateDirectory=morning-brief
-StandardOutput=truncate:%S/morning-brief/last-run.log
-StandardError=truncate:%S/morning-brief/last-run.log
+# holds the last run (emptied by the first ExecStartPre). Two traps, both hit on
+# hub 2026-10-01:
+# - The file sits directly in %S (~/.local/state). systemd opens it before it
+#   creates a StateDirectory=, so a subdirectory fails every run with 209/STDOUT.
+# - append:, not truncate:. systemd reopens it for every Exec* line, so
+#   truncate: would keep only the last command's output.
+StandardOutput=append:%S/morning-brief-last-run.log
+StandardError=append:%S/morning-brief-last-run.log
 
 [Install]
 WantedBy=default.target

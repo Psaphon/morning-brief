@@ -42,9 +42,30 @@ class TestUnits:
 
     def test_output_goes_to_state_file(self):
         service = _sections(SERVICE_FILE.read_text())["Service"]
-        assert "StateDirectory=morning-brief" in service
-        assert "StandardOutput=truncate:%S/morning-brief/last-run.log" in service
-        assert "StandardError=truncate:%S/morning-brief/last-run.log" in service
+        assert "StandardOutput=append:%S/morning-brief-last-run.log" in service
+        assert "StandardError=append:%S/morning-brief-last-run.log" in service
+
+    def test_run_log_needs_no_directory_systemd_creates(self):
+        # systemd opens stdio before it creates StateDirectory=, so a log in a
+        # subdirectory failed every run with 209/STDOUT (hub, 2026-10-01).
+        service = _sections(SERVICE_FILE.read_text())["Service"]
+        for line in service:
+            if line.startswith(("StandardOutput=", "StandardError=")):
+                path = line.split(":", 1)[1]
+                assert path.count("/") == 1 and path.startswith("%S/"), line
+
+    def test_output_is_appended_not_truncated(self):
+        # truncate: reopens per Exec* line, keeping only the last command's output
+        service = _sections(SERVICE_FILE.read_text())["Service"]
+        assert not any("=truncate:" in line for line in service)
+
+    def test_log_emptied_first_each_run(self):
+        service = _sections(SERVICE_FILE.read_text())["Service"]
+        pre = [line for line in service if line.startswith("ExecStartPre=")]
+        assert pre[0] == "ExecStartPre=/usr/bin/truncate -s 0 %S/morning-brief-last-run.log"
+
+    def test_install_script_creates_state_dir(self):
+        assert 'mkdir -p "${XDG_STATE_HOME:-${HOME}/.local/state}"' in INSTALL_SCRIPT.read_text()
 
     def test_failure_unit_exists(self):
         assert FAILURE_FILE.exists(), "morning-brief-failure@.service must exist"
