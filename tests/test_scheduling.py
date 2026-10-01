@@ -66,9 +66,9 @@ class TestServiceUnit:
         assert "ExecStartPost=" in self._content()
         assert "health-check.sh" in self._content()
 
-    def test_output_to_journal(self):
-        assert "StandardOutput=journal" in self._content()
-        assert "StandardError=journal" in self._content()
+    def test_output_to_run_log(self):
+        assert "StandardOutput=truncate:%S/morning-brief/last-run.log" in self._content()
+        assert "StandardError=truncate:%S/morning-brief/last-run.log" in self._content()
 
     def test_install_section_present(self):
         assert "[Install]" in self._content()

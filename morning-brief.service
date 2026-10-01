@@ -2,6 +2,8 @@
 Description=Morning Brief — daily news and intelligence pipeline
 After=network-online.target
 Wants=network-online.target
+# A failed run pushes an alert to the phone (see scripts/notify-failure.sh)
+OnFailure=morning-brief-failure@%n.service
 
 [Service]
 Type=oneshot
@@ -21,8 +23,12 @@ ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/health-check.sh
 ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/deploy-dashboard.sh
 # A normal run takes ~6 min; don't let a hung model call block the next day
 TimeoutStartSec=2h
-StandardOutput=journal
-StandardError=journal
+# hubop can't read the journal on hub, so the run's output goes to a file that
+# always holds the last run (truncated each start; %S/morning-brief is created
+# by StateDirectory).
+StateDirectory=morning-brief
+StandardOutput=truncate:%S/morning-brief/last-run.log
+StandardError=truncate:%S/morning-brief/last-run.log
 
 [Install]
 WantedBy=default.target

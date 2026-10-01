@@ -1,0 +1,8 @@
+[Unit]
+Description=Alert the phone that %i failed
+
+[Service]
+Type=oneshot
+# Started by OnFailure= in morning-brief.service. The script calls hub's
+# publisher by absolute path: the user manager's PATH has no /usr/local/sbin.
+ExecStart=%h/.local/share/morning-brief-pipeline/scripts/notify-failure.sh %i
