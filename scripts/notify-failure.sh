@@ -10,13 +10,13 @@
 #
 # Environment:
 #   HUB_ALERT   publisher (default /usr/local/sbin/hub-alert)
-#   MB_RUN_LOG  run log (default $XDG_STATE_HOME/morning-brief/last-run.log)
+#   MB_RUN_LOG  run log (default $XDG_STATE_HOME/morning-brief-last-run.log)
 
 set -euo pipefail
 
 UNIT="${1:?usage: notify-failure.sh <failed-unit>}"
 HUB_ALERT="${HUB_ALERT:-/usr/local/sbin/hub-alert}"
-LOG="${MB_RUN_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/morning-brief/last-run.log}"
+LOG="${MB_RUN_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/morning-brief-last-run.log}"
 MAX_BYTES=3500 # ntfy message limit is 4096
 
 if [[ ! -x "${HUB_ALERT}" ]]; then

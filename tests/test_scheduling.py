@@ -67,8 +67,8 @@ class TestServiceUnit:
         assert "health-check.sh" in self._content()
 
     def test_output_to_run_log(self):
-        assert "StandardOutput=truncate:%S/morning-brief/last-run.log" in self._content()
-        assert "StandardError=truncate:%S/morning-brief/last-run.log" in self._content()
+        assert "StandardOutput=append:%S/morning-brief-last-run.log" in self._content()
+        assert "StandardError=append:%S/morning-brief-last-run.log" in self._content()
 
     def test_install_section_present(self):
         assert "[Install]" in self._content()

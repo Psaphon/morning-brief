@@ -23,6 +23,9 @@ else
     echo "Pipeline clone exists: ${PIPELINE} ($(git -C "${PIPELINE}" branch --show-current))"
 fi
 
+# The unit's run log lives directly in here, and systemd won't create it
+mkdir -p "${XDG_STATE_HOME:-${HOME}/.local/state}"
+
 systemctl --user link "${PIPELINE}/morning-brief.service" "${PIPELINE}/morning-brief.timer" \
     "${PIPELINE}/morning-brief-failure@.service"
 systemctl --user daemon-reload
