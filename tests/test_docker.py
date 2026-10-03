@@ -153,3 +153,10 @@ def test_signals_enabled_by_default_in_compose():
     # atrade's paper cycle silently falls back to baseline-only without signals
     env = _load_compose()["services"]["morning-brief"]["environment"]
     assert "SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}" in env
+
+
+def test_image_contains_the_ticker_map():
+    # Without it, signal emission fails inside the container and atrade gets no
+    # signals; the pipeline itself still succeeds (hub, 2026-10-03).
+    assert "COPY config/ config/" in (PROJECT_ROOT / "Dockerfile").read_text()
+    assert (PROJECT_ROOT / "config" / "ticker_map.toml").is_file()

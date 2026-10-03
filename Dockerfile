@@ -27,6 +27,8 @@ COPY src/ src/
 COPY templates/ templates/
 COPY scripts/ scripts/
 COPY docs/FEEDS.md docs/FEEDS.md
+# Signal emission reads config/ticker_map.toml at run time
+COPY config/ config/
 
 # Copy test infrastructure so tests can run inside the container
 COPY tests/ tests/
