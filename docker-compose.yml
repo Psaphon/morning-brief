@@ -22,6 +22,9 @@ services:
       # The host publishes the dashboard (morning-brief.service); the container
       # has no git checkout or credentials, so its own deploy step only fails.
       - DEPLOY_ENABLED=false
+      # atrade reads data/signals/signals-<date>.json (docs/SIGNAL-SCHEMA in atrade).
+      # On by default; set SIGNALS_ENABLED=false in .env to turn it off.
+      - SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:

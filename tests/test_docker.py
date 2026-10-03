@@ -147,3 +147,9 @@ class TestDockerCompose:
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
         assert svc["restart"] == "no"
+
+
+def test_signals_enabled_by_default_in_compose():
+    # atrade's paper cycle silently falls back to baseline-only without signals
+    env = _load_compose()["services"]["morning-brief"]["environment"]
+    assert "SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}" in env
