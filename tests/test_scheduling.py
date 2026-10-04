@@ -44,8 +44,12 @@ class TestServiceUnit:
         post = re.search(r"^ExecStartPost=(\S+)", content, re.M).group(1)
         assert post == f"{workdir}/scripts/health-check.sh"
 
-    def test_timezone_eastern(self):
-        assert "TZ=America/New_York" in self._content()
+    def test_timezone_is_utc_with_uncommitted_override(self):
+        content = self._content()
+        assert "Environment=TZ=UTC" in content
+        assert "EnvironmentFile=-%h/.config/morning-brief/tz.env" in content
+        # Repo hygiene: no real time zone (a location signal) in committed units.
+        assert not re.search(r"[A-Z][a-z]+/[A-Z][A-Za-z_]+", content)
 
     def test_exec_start_runs_pipeline_script(self):
         content = self._content()
@@ -85,19 +89,18 @@ class TestTimerUnit:
     def test_timer_file_exists(self):
         assert TIMER_FILE.exists(), "morning-brief.timer must exist"
 
-    def test_fires_at_0415(self):
-        assert "04:15:00" in self._content()
+    def test_fires_at_0815_utc(self):
+        assert "08:15:00" in self._content()
 
-    def test_timezone_eastern_is_inside_oncalendar(self):
-        # systemd has no TimeZone= key; it is ignored with only a log warning, and the
-        # timer then fires in the host's zone (hub runs UTC). The zone must be part of
-        # the OnCalendar expression itself.
+    def test_oncalendar_is_utc(self):
+        # systemd has no TimeZone= key (ignored with only a log warning). Timers are
+        # written in UTC: no location signal, no daylight-saving gap or repeat.
         content = self._content()
         assert "TimeZone=" not in content
-        assert "OnCalendar=*-*-* 04:15:00 America/New_York" in content
+        assert "OnCalendar=*-*-* 08:15:00 UTC" in content
 
     @pytest.mark.skipif(shutil.which("systemd-analyze") is None, reason="needs systemd-analyze")
-    def test_systemd_resolves_0415_eastern(self):
+    def test_systemd_resolves_0815_utc(self):
         """Ask systemd itself, so a key it ignores cannot pass this test."""
         for timer in (TIMER_FILE, PROJECT_ROOT / "deploy" / "morning-brief.timer"):
             verify = subprocess.run(
@@ -125,7 +128,7 @@ class TestTimerUnit:
                 check=True,
                 env={**os.environ, "TZ": "UTC"},
             )
-            assert "04:15:00 America/New_York" in cal.stdout, cal.stdout
+            assert "08:15:00 UTC" in cal.stdout, cal.stdout
 
     def test_persistent_enabled(self):
         # Re-fires after missed runs (e.g. system was off)

@@ -1,6 +1,6 @@
 # Morning Brief — systemd timer
 #
-# Fires the pipeline at 4:15 AM US/Eastern every day.
+# Fires the pipeline at 08:15 UTC every day.
 # Requires systemd v247+ for timezone-aware OnCalendar.
 # On older systems, convert to UTC manually:
 #   EST (winter, UTC-5): 09:15 UTC
@@ -9,11 +9,10 @@
 # Install: see deploy/install.sh
 
 [Unit]
-Description=Run Morning Brief at 4:15 AM ET daily
+Description=Run Morning Brief daily (08:15 UTC)
 [Timer]
-# 04:15 US/Eastern. The timezone must be part of OnCalendar: systemd has no "TimeZone"
-# key and silently ignores it (hub's clock is UTC). atrade's timer is scheduled after this.
-OnCalendar=*-*-* 04:15:00 America/New_York
+# 08:15 UTC, no local zone (repo hygiene; no DST gap/repeat). atrade's timer runs after this.
+OnCalendar=*-*-* 08:15:00 UTC
 
 # If the timer was missed (e.g. machine was off), run immediately on next boot
 Persistent=true
