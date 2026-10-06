@@ -23,8 +23,9 @@ docker-compose.override.yml
 # Wrangler local cache
 .wrangler/
 
-# AI sandbox
-.ai/
+# AI sandbox — tracked, matching hub/loom/atrade. Contains no secrets:
+# config.json holds nulls, notify.py reads TELEGRAM_* from the environment,
+# and the OAuth token lives in the `claude-data` Docker volume, never here.
 
 # Lock files
 *.~lock.*

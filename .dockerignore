@@ -1,0 +1,6 @@
+# Keep keys and history out of the build context; the image copies only what
+# the Dockerfile names, and data/ is bind-mounted at run time.
+.env
+.env.*
+data/
+.git/

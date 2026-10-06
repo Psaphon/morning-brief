@@ -38,6 +38,19 @@ docker compose up --build
 
 Copy `.env.example` to `.env` and fill in your values. See `CLAUDE.md` for full configuration reference.
 
+**On hub** the scheduled pipeline runs from `~/.local/share/morning-brief-pipeline` (set up by
+`scripts/install-user-units.sh`). Its `.env` holds one secret, `DASHBOARD_HMAC_KEY` (a copy lives on
+the SECRETS USB), plus three plain settings to recreate after a rebuild:
+
+| Setting | Value on hub |
+|---|---|
+| `OLLAMA_HOST` | `http://100.124.149.0:11435` (hub-only TCP route to Ollama for containers) |
+| `OLLAMA_MODEL` | the model pulled on hub (see `scripts/pull-model.sh`) |
+| `DEPLOY_ENABLED` | `true` (the unit publishes the dashboard from the host) |
+
+Signals for atrade are on by default (`SIGNALS_ENABLED`, set in `docker-compose.yml`) and land in
+`data/signals/`. The last run's full output is `~/.local/state/morning-brief-last-run.log`.
+
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) — AI context, architecture, conventions

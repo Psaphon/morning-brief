@@ -7,6 +7,10 @@ requires-python = ">=3.11"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# .ai/ is scaffolded sandbox config, versioned for durability but not authored
+# here — it is not held to this project's lint standard. Matches hub and loom,
+# which both track .ai/ and exclude it the same way.
+exclude = [".ai"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

@@ -37,6 +37,8 @@ class Config:
     deploy_enabled: bool = False
     deploy_branch: str = "gh-pages"
     dashboard_hmac_key: str = ""
+    signals_enabled: bool = False
+    signals_dir: Path = Path("data/signals")
 
 
 def load_config() -> Config:
@@ -59,4 +61,6 @@ def load_config() -> Config:
         deploy_enabled=os.environ.get("DEPLOY_ENABLED", "").lower() in ("1", "true", "yes"),
         deploy_branch=os.environ.get("DEPLOY_BRANCH", "gh-pages"),
         dashboard_hmac_key=os.environ.get("DASHBOARD_HMAC_KEY", ""),
+        signals_enabled=os.environ.get("SIGNALS_ENABLED", "").lower() in ("1", "true", "yes"),
+        signals_dir=Path(os.environ.get("SIGNALS_DIR", "data/signals")),
     )

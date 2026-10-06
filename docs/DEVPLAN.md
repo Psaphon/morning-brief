@@ -390,8 +390,8 @@ Cloudflare Worker that proxies Claude API calls for on-demand research. Powers t
 - [x] Response streams back to the dashboard and renders inline below the segment
 - [x] Rate limiting: max 10 requests per hour per user (prevent abuse)
 - [x] Error handling: graceful failure message if API is down or rate limited
-- [ ] [HUMAN] Deploy Worker to Cloudflare (`wrangler deploy`)
-- [ ] [HUMAN] Set `ANTHROPIC_API_KEY` as Cloudflare Worker secret
+- [x] [HUMAN] Deploy Worker to Cloudflare (`wrangler deploy`)
+- [x] [HUMAN] Set `ANTHROPIC_API_KEY` as Cloudflare Worker secret
 - [x] Tests cover request validation and response formatting
 - [x] All tests pass
 - [x] Lint clean
@@ -466,12 +466,12 @@ Close the three credit-drain attack vectors in the research Worker (open CORS, c
 - [ ] Lint clean
 
 **[HUMAN] Cloudflare setup**
-- [ ] [HUMAN] Create Workers KV namespace `RATE_LIMIT` via `wrangler kv:namespace create RATE_LIMIT`, paste the binding ID into `wrangler.toml`
-- [ ] [HUMAN] Set `wrangler secret put DASHBOARD_HMAC_KEY` (generate with `openssl rand -hex 32`); copy the same value into pipeline env as `DASHBOARD_HMAC_KEY`
-- [ ] [HUMAN] Set `wrangler vars` for `DASHBOARD_ORIGIN` to the Pages production URL
-- [ ] [HUMAN] Set `wrangler secret put ANTHROPIC_API_KEY`
-- [ ] [HUMAN] `wrangler deploy`
-- [ ] [HUMAN] Smoke-test from the live dashboard; check `wrangler tail` for any 401/400 noise
+- [x] [HUMAN] Create Workers KV namespace `RATE_LIMIT` via `wrangler kv:namespace create RATE_LIMIT`, paste the binding ID into `wrangler.toml`
+- [x] [HUMAN] Set `wrangler secret put DASHBOARD_HMAC_KEY` (generate with `openssl rand -hex 32`); copy the same value into pipeline env as `DASHBOARD_HMAC_KEY`
+- [x] [HUMAN] Set `wrangler vars` for `DASHBOARD_ORIGIN` to the Pages production URL
+- [x] [HUMAN] Set `wrangler secret put ANTHROPIC_API_KEY`
+- [x] [HUMAN] `wrangler deploy`
+- [x] [HUMAN] Smoke-test from the live dashboard; check `wrangler tail` for any 401/400 noise
 
 ### Files to Create or Modify
 
@@ -578,6 +578,86 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 
 ---
 
+## Feature: signal-emit
+
+**Branch:** `feature/signal-emit`
+**Depends on:** relevance-scoring, atrade `fixed-universe`
+**Status:** Merged (#44)
+**Requires:** both
+**Contract:** `docs/SIGNAL-SCHEMA.md` — APPROVED 2026-09-01. Build to it exactly; do not redesign it.
+
+### Goal
+
+Emit a point-in-time, per-ticker signal artifact for the **atrade** project to consume. This is the *producer* side of a versioned contract shared with atrade (`/home/comp/Projects/atrade`). morning-brief already scores *articles* for relevance; this feature maps that news flow onto a fixed ticker universe, aggregates a per-ticker score, stamps each with the timestamp it was actually knowable, records provenance, and writes a stable, versioned artifact atrade reads.
+
+This is a **shared contract** — the schema is defined once and versioned. It must match atrade's consumer (`docs/SIGNAL-SCHEMA.md` in atrade, feature `signal-schema-and-ingest`). Coordinate both sides before either merges.
+
+**The contract is settled — read `docs/SIGNAL-SCHEMA.md` before writing any code here.** It was
+signed off 2026-09-01 and is authoritative: artifact path and shape (§2), field rules (§3),
+mean aggregation (§4), the `knowable_at` derivation including the nullable-`published_at`
+fallback (§5), and provenance (§7). Do not re-derive any of it from these acceptance criteria.
+
+**Prerequisite — satisfied 2026-09-01.** atrade's `fixed-universe` merged
+(`Psaphon/atrade#11`), so `/home/comp/Projects/atrade/config/universe.toml` now exists and is
+the authority for which symbols exist. **Read it; do not invent tickers.** It holds 27 symbols
+(12 ETFs, 15 mega-cap stocks) in this shape:
+
+```toml
+schema_version = "1.0.0"
+
+[[tickers]]
+symbol = "SPY"
+asset_class = "etf"
+name = "SPDR S&P 500 ETF Trust"
+```
+
+`config/ticker_map.toml` must cover **exactly** those 27 symbols — no extras, none missing. A
+symbol here that is absent from the universe produces signals atrade will reject outright
+(contract §6); a universe symbol missing here silently produces no signals for that ticker,
+with no error. Add a test asserting the two sets are equal, so the drift §10.4 accepts as a
+`[HUMAN]` risk at least fails loudly on this side.
+
+**Build order (contract §11):** atrade `fixed-universe` → morning-brief `signal-emit`
+(producer) → atrade `signal-schema-and-ingest` (consumer).
+
+### Acceptance Criteria
+
+- [x] Maps scored articles to tickers via a committed ticker→keyword/entity map covering atrade's fixed universe (config-driven; unmatched articles contribute to no ticker)
+- [x] Aggregates matched articles into a per-ticker numeric score (bounded, rank-able — never free text)
+- [x] Each emitted signal record carries: `schema_version`, `ticker`, `score`, `knowable_at` (the article's publish/ingest time — the point-in-time control), and `provenance` (contributing article IDs + sources)
+- [x] `knowable_at` is derived from real article timestamps, never "now at emit time" — no look-ahead leakage into the artifact
+- [x] Writes a versioned artifact to a stable path morning-brief and atrade agree on (e.g. `data/signals/signals-<date>.json`, schema_version pinned); atomic write (temp + rename)
+- [x] Emitting is optional/gated and never crashes the main pipeline if it fails (one broken stage must not break the brief)
+- [x] [HUMAN] Coordinate the schema + output path with atrade's `signal-schema-and-ingest` before merge; version it; this feature must land before atrade's strategy layer depends on it
+- [x] All tests pass
+- [x] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/publishers/signals.py` | Create | Map articles→tickers, aggregate, write versioned artifact |
+| `config/ticker_map.toml` | Create | Ticker → keyword/entity map over atrade's fixed universe |
+| `src/main.py` | Modify | Call the signal emitter after scoring (gated, non-fatal) |
+| `src/config.py` | Modify | Config for emit toggle + output path |
+| `tests/test_signals.py` | Create | Aggregation, knowable_at correctness, no-look-ahead, atomic write |
+
+### Key Decisions
+
+- **Score is bounded and auditable**, never free text — mitigates prompt-injection from poisoned news sources (atrade treats it as non-dispositive anyway).
+- **`knowable_at` comes from the article, not emit time** — the single most important correctness property; it is the look-ahead-bias control the whole atrade backtest rests on.
+- **Versioned artifact, atomic write** — atrade may read while morning-brief writes; never expose a partial file.
+- Ticker universe is owned by atrade (`config/universe.toml`); morning-brief's ticker_map references the same symbols. Keep them in sync.
+
+### Cross-Repo Note
+
+This is the morning-brief half of a two-repo contract flagged by the PM:
+`signal-emit` (this, producer) ↔ atrade `signal-schema-and-ingest` (consumer).
+Build/coordinate this **before** atrade's `strategy-and-risk-gate` (which depends
+on `signal-schema-and-ingest`) so the strategy layer has a real, agreed signal feed.
+
+---
+
 ## Nice-to-Have
 
 ### Cloudflare Access
@@ -586,3 +666,38 @@ Optional upgrade: when `ANTHROPIC_API_KEY` is set, use Claude instead of Ollama 
 **When:** Once personal/local content is added (Manatee County, portfolio data)
 
 Add Cloudflare Access email-based authentication (free, 1 user) to restrict dashboard access. Not needed while content is public news only — URL is obscure and robots.txt blocks indexing.
+
+---
+
+## Feature: failure-alerting
+
+**Branch:** `fix/failure-alerting`
+**Depends on:** signal-emit; hub live with `ntfy-stack-startup` and `data-backup-runtime` deployed (hub #64, #66)
+**Status:** Merged (#52)
+**Requires:** both
+
+### Goal
+
+A failed morning-brief run must reach the operator's phone. Today it reaches nobody. Found 2026-09-14 while fixing the timer timezone (#47), re-scoped 2026-10-01 against the live hub install (#51):
+
+- The unit that actually runs is the repo-root `morning-brief.service`, linked into hubop's user manager by `scripts/install-user-units.sh` from the pipeline clone `~/.local/share/morning-brief-pipeline`. It has no `OnFailure=` at all. (`deploy/` is the old root `/opt` install, unused on hub; out of scope.)
+- `morning-brief-failure@.service` does not exist anywhere in the repo.
+- hubop **cannot read its own journal** on hub (`journalctl --user` → "insufficient permissions"), and the run's output does not reach `/var/log/syslog`. A failed run today leaves the operator nothing to read. The run's output must also land in a file hubop can read.
+- hubop's user manager PATH has no `/usr/local/sbin`, so a bare `hub-alert` in a user unit is "command not found". Call it by absolute path.
+- A late or failed run matters downstream: atrade's cycle at 06:30 Eastern falls back to baseline-only when that day's signal artifact is missing, silently.
+
+The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/etc/hub/ntfy.env`; hub #64/#66/#156).
+
+### Acceptance Criteria
+
+- [x] `OnFailure=morning-brief-failure@%n.service` is in `[Unit]` of the repo-root `morning-brief.service`
+- [x] The run's stdout+stderr go to `%S/morning-brief-last-run.log` (`append:`, emptied by the first `ExecStartPre`), so the last run is always readable by hubop without journal access. Not in a `StateDirectory=` subdirectory: systemd opens stdio before creating it (209/STDOUT on hub, 2026-10-01, fixed in a follow-up PR)
+- [x] A `morning-brief-failure@.service` template exists at the repo root and `scripts/install-user-units.sh` links it next to the main unit
+- [x] The failure unit runs `scripts/notify-failure.sh %i`, which calls hub's publisher by absolute path (`${HUB_ALERT:-/usr/local/sbin/hub-alert} "<title>" "<body>" high`) with a title naming the failed unit, and a body holding the last ~15 lines of `last-run.log` plus the command to read the whole file; it never hardcodes an ntfy host
+- [x] If the publisher is missing or not executable, or `hub-alert` exits non-zero, `notify-failure.sh` writes an error to stderr and exits non-zero rather than succeeding silently
+- [x] A test runs `systemd-analyze --user verify` on every `*.service`/`*.timer` at the repo root (template units via an instance name) and fails on any `Unknown key` / `Unknown section` line; it skips only when `systemd-analyze` is absent AND `CI` is unset, so CI can never skip it
+- [x] A test runs `notify-failure.sh` with `HUB_ALERT` pointing at a recording stub and asserts the title, priority and body it receives; it fails if the stub was never called (a non-executable stub must not fall through to the real publisher)
+- [x] Mutation-checked: moving `OnFailure=` into `[Service]`, deleting the failure unit, or dropping it from `install-user-units.sh` turns the suite red
+- [x] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it (2026-10-01: alert received; the real 08:15 failure also alerted, which surfaced the 209/STDOUT bug fixed in #54)
+- [x] All tests pass
+- [x] Lint clean

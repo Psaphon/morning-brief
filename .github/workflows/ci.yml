@@ -17,7 +17,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff pytest pytest-asyncio feedparser httpx trafilatura jinja2 rich click pyyaml
+      # Ruff is PINNED deliberately. An unpinned install lets any upstream
+      # release turn CI red with no change on our side — which is exactly what
+      # happened on 2026-08-26, when 0.16.4 changed formatter output and
+      # blocked an open PR that touched no Python at all.
+      # Bump this deliberately, in its own PR, with the reformat it requires.
+      #
+      # 0.15.7 -> 0.16.4 done that way. Note what 0.16 changed here: it began
+      # formatting Python code blocks inside MARKDOWN, which is why this repo
+      # broke on docs/GETTING-STARTED.md while siblings with the same explicit
+      # `select` did not.
+      #
+      # Dependencies come from requirements.txt, the single source of truth. The
+      # previous form hand-listed all nine packages here, a parallel list that had
+      # to be edited by hand every time a dependency changed -- exactly the drift
+      # that red-failed atrade PR #7 on 2026-09-01, where a test dep declared the
+      # correct way was never installed by CI.
+      #
+      # requirements.txt floats ruff (>=0.8), so the pin is applied AFTER it and
+      # wins. Keep these two steps in this order.
+      - run: pip install -r requirements.txt
+      - run: pip install ruff==0.16.4
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest --tb=short
@@ -32,3 +52,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # Single required check for the branch rulesets (devtools templates/rulesets).
+  # Requires every job to SUCCEED: "skipped" fails too, so a mis-scoped job can't
+  # let a PR merge untested. List every other job of this workflow in `needs`.
+  ci-ok:
+    runs-on: ubuntu-latest
+    needs: [lint-and-test, security-scan]
+    if: always()
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: ${RESULTS}"
+          for r in ${RESULTS}; do
+            [[ "${r}" == "success" ]] || { echo "::error::a required job ended '${r}'"; exit 1; }
+          done

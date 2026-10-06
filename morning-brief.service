@@ -2,20 +2,41 @@
 Description=Morning Brief — daily news and intelligence pipeline
 After=network-online.target
 Wants=network-online.target
+# A failed run pushes an alert to the phone (see scripts/notify-failure.sh)
+OnFailure=morning-brief-failure@%n.service
 
 [Service]
 Type=oneshot
-# Resolve the project directory relative to the user home
-WorkingDirectory=%h/morning-brief
-# Timer fires at 4:15 AM ET; keep TZ consistent with the timer unit
-Environment=TZ=America/New_York
-# Run the full pipeline via docker compose, then validate output
-ExecStart=/usr/bin/docker compose up --abort-on-container-exit --exit-code-from morning-brief
-ExecStartPost=%h/morning-brief/scripts/health-check.sh
-StandardOutput=journal
-StandardError=journal
-# Log failures to a persistent file so they survive journal rotation
-OnFailure=morning-brief-failure@%n.service
+# A dedicated clone that only this unit uses, so branch switches in a working
+# clone never change what runs. Set up by scripts/install-user-units.sh.
+WorkingDirectory=%h/.local/share/morning-brief-pipeline
+# Display time zone for the brief. UTC by default; the operator's local zone lives in an
+# uncommitted file on the host (repo hygiene: no location in git), e.g. TZ=<area-city>.
+# EnvironmentFile= is applied after Environment=, so the file wins when present.
+Environment=TZ=UTC
+EnvironmentFile=-%h/.config/morning-brief/tz.env
+# Start each run with an empty log (see the Standard* lines below for why)
+ExecStartPre=/usr/bin/truncate -s 0 %S/morning-brief-last-run.log
+# Pick up merged fixes first. "-": a failed pull (network) runs yesterday's code
+# rather than skipping the brief.
+ExecStartPre=-/usr/bin/git pull --ff-only
+# Build and run the pipeline container (picks the container user for rootless)
+ExecStart=%h/.local/share/morning-brief-pipeline/scripts/run-pipeline.sh
+# Each ExecStartPost runs only if everything before it succeeded
+ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/health-check.sh
+# Publish from the host: the container has no git checkout or credentials
+ExecStartPost=%h/.local/share/morning-brief-pipeline/scripts/deploy-dashboard.sh
+# A normal run takes ~6 min; don't let a hung model call block the next day
+TimeoutStartSec=2h
+# hubop can't read the journal on hub, so the run's output goes to a file that
+# holds the last run (emptied by the first ExecStartPre). Two traps, both hit on
+# hub 2026-10-01:
+# - The file sits directly in %S (~/.local/state). systemd opens it before it
+#   creates a StateDirectory=, so a subdirectory fails every run with 209/STDOUT.
+# - append:, not truncate:. systemd reopens it for every Exec* line, so
+#   truncate: would keep only the last command's output.
+StandardOutput=append:%S/morning-brief-last-run.log
+StandardError=append:%S/morning-brief-last-run.log
 
 [Install]
 WantedBy=default.target

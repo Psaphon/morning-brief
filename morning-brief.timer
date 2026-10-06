@@ -1,10 +1,12 @@
 [Unit]
-Description=Morning Brief daily timer — triggers pipeline at 4:15 AM ET
+Description=Morning Brief daily timer (08:15 UTC)
 
 [Timer]
-# Fire at 04:15 every day in Eastern Time
-OnCalendar=*-*-* 04:15:00
-TimeZone=America/New_York
+# 08:15 UTC every day. Timers are written in UTC with no zone (repo hygiene: no
+# location signals; and UTC has no daylight-saving gap or repeat). systemd has no
+# "TimeZone" key; a zone could only go inside OnCalendar, which is exactly what we avoid.
+# atrade's timer is scheduled after this one.
+OnCalendar=*-*-* 08:15:00 UTC
 # Re-trigger if the system was off at the scheduled time
 Persistent=true
 

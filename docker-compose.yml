@@ -5,15 +5,26 @@ services:
   # host.docker.internal or the OLLAMA_HOST env var from .env.
   morning-brief:
     build: .
+    # Set by scripts/run-pipeline.sh: 0:0 under rootless Docker (= the host
+    # user), else the host user's uid:gid. Either can write the data/ mount.
+    user: "${MB_UID:-1000}:${MB_GID:-1000}"
     volumes:
-      # Absolute path: ./data in the systemd worktree contains symlinks to
-      # host paths that don't exist inside the container's mount namespace.
-      - /home/comp/Projects/morning-brief/data:/app/data
+      # Relative to this file, so the mount follows the clone to any host.
+      # data/ must be a real directory: symlinks to host paths outside the
+      # repo don't resolve inside the container's mount namespace.
+      - ./data:/app/data
     env_file:
       - .env
     environment:
-      # Default: reach Ollama on the host.  Override in .env if needed.
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      # Default: reach Ollama on the host.  `environment` beats `env_file`, so the
+      # override comes through interpolation: set OLLAMA_HOST in .env.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # The host publishes the dashboard (morning-brief.service); the container
+      # has no git checkout or credentials, so its own deploy step only fails.
+      - DEPLOY_ENABLED=false
+      # atrade reads data/signals/signals-<date>.json (docs/SIGNAL-SCHEMA in atrade).
+      # On by default; set SIGNALS_ENABLED=false in .env to turn it off.
+      - SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:

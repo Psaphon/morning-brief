@@ -27,6 +27,8 @@ COPY src/ src/
 COPY templates/ templates/
 COPY scripts/ scripts/
 COPY docs/FEEDS.md docs/FEEDS.md
+# Signal emission reads config/ticker_map.toml at run time
+COPY config/ config/
 
 # Copy test infrastructure so tests can run inside the container
 COPY tests/ tests/
@@ -35,8 +37,10 @@ COPY pyproject.toml .
 # Create data directories for SQLite, output, and logs
 RUN mkdir -p data/output data/logs
 
-# Run as non-root
-RUN useradd -m -s /bin/bash app && chown -R app:app /app
+# Run as non-root. World-readable code: COPY keeps the host's file modes (0600
+# under a 077 umask, as on hub), and under rootless Docker the container runs
+# as uid 0 with cap_drop ALL, which can't read files it doesn't own.
+RUN useradd -m -s /bin/bash app && chown -R app:app /app && chmod -R a+rX /app
 USER app
 
 # Health check: dashboard.html must exist and be less than 25 hours old

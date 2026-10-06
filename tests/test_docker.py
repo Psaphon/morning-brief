@@ -40,6 +40,11 @@ class TestDockerfile:
         assert "USER app" in content
         assert "useradd" in content
 
+    def test_code_world_readable(self):
+        # Rootless runs as uid 0 with cap_drop ALL; 0600 files from a 077 umask
+        # host (hub) were unreadable and the pipeline died on import.
+        assert "chmod -R a+rX /app" in _read_dockerfile()
+
     def test_healthcheck_defined(self):
         content = _read_dockerfile()
         assert "HEALTHCHECK" in content
@@ -81,6 +86,14 @@ class TestDockerCompose:
         svc = compose["services"]["morning-brief"]
         assert any(v.endswith(":/app/data") for v in svc["volumes"])
 
+    def test_data_volume_is_repo_relative(self):
+        # An absolute host path pinned the mount to one machine's home (/home/comp),
+        # so the pipeline wrote nowhere useful on any other host.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        data = [v for v in svc["volumes"] if v.endswith(":/app/data")]
+        assert data == ["./data:/app/data"]
+
     def test_env_file_loaded(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
@@ -93,6 +106,14 @@ class TestDockerCompose:
         ollama_vars = [e for e in env_list if "OLLAMA_HOST" in str(e)]
         assert ollama_vars, "OLLAMA_HOST must be set in environment"
         assert "host.docker.internal" in ollama_vars[0]
+
+    def test_ollama_host_overridable_from_env(self):
+        # `environment` wins over `env_file`, so a literal value here would silently
+        # ignore OLLAMA_HOST in .env. It must interpolate with the host as default.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        env_list = svc.get("environment", [])
+        assert "OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}" in env_list
 
     def test_host_gateway_mapping(self):
         compose = _load_compose()
@@ -110,7 +131,32 @@ class TestDockerCompose:
         svc = compose["services"]["morning-brief"]
         assert "no-new-privileges:true" in svc["security_opt"]
 
+    def test_container_user_set_by_run_script(self):
+        # scripts/run-pipeline.sh picks 0:0 under rootless Docker, else the host uid.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        assert svc["user"] == "${MB_UID:-1000}:${MB_GID:-1000}"
+
+    def test_container_never_deploys(self):
+        # The host unit publishes; environment beats env_file, so .env can't re-enable it.
+        compose = _load_compose()
+        svc = compose["services"]["morning-brief"]
+        assert "DEPLOY_ENABLED=false" in svc["environment"]
+
     def test_restart_policy_no(self):
         compose = _load_compose()
         svc = compose["services"]["morning-brief"]
         assert svc["restart"] == "no"
+
+
+def test_signals_enabled_by_default_in_compose():
+    # atrade's paper cycle silently falls back to baseline-only without signals
+    env = _load_compose()["services"]["morning-brief"]["environment"]
+    assert "SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}" in env
+
+
+def test_image_contains_the_ticker_map():
+    # Without it, signal emission fails inside the container and atrade gets no
+    # signals; the pipeline itself still succeeds (hub, 2026-10-03).
+    assert "COPY config/ config/" in (PROJECT_ROOT / "Dockerfile").read_text()
+    assert (PROJECT_ROOT / "config" / "ticker_map.toml").is_file()

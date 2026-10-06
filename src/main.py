@@ -161,12 +161,31 @@ async def run_pipeline() -> None:
         scored = score_articles(todays)
         for sa in scored:
             db.update_score(sa.article["id"], sa.score)
+            sa.article["score"] = sa.score  # keep in-memory dicts in sync
         top = select_top_articles(scored)
         logger.info(
             "Scored %d articles, selected top %d for summarization",
             len(scored),
             len(top),
         )
+
+        # Stage 2.6: Emit per-ticker signals for atrade (optional, non-fatal — §2)
+        if config.signals_enabled:
+            try:
+                from .publishers.signals import emit_signals, load_ticker_map
+
+                _ticker_map_path = Path("config/ticker_map.toml")
+                _ticker_map = load_ticker_map(_ticker_map_path)
+                emit_signals(
+                    articles=todays,
+                    ticker_map=_ticker_map,
+                    signals_dir=config.signals_dir,
+                    universe_ref=_ticker_map.universe_ref,
+                )
+            except Exception:
+                logger.exception("Signal emission failed; pipeline continues")
+        else:
+            logger.debug("Signal emission disabled (set SIGNALS_ENABLED=true to enable)")
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")

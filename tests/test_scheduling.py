@@ -5,6 +5,8 @@ without requiring a running systemd daemon.
 """
 
 import os
+import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -32,22 +34,45 @@ class TestServiceUnit:
 
     def test_working_directory_uses_home(self):
         # %h expands to the user's home directory in systemd units
-        assert "WorkingDirectory=%h" in self._content()
+        # A dedicated pipeline clone, not the working clone (see install-user-units.sh)
+        assert "WorkingDirectory=%h/.local/share/morning-brief-pipeline\n" in self._content()
 
-    def test_timezone_eastern(self):
-        assert "TZ=America/New_York" in self._content()
+    def test_health_check_lives_in_working_directory(self):
+        # The two paths drifted apart once; the health check must run from the same clone.
+        content = self._content()
+        workdir = re.search(r"^WorkingDirectory=(\S+)$", content, re.M).group(1)
+        post = re.search(r"^ExecStartPost=(\S+)", content, re.M).group(1)
+        assert post == f"{workdir}/scripts/health-check.sh"
 
-    def test_exec_start_docker_compose(self):
-        assert "docker compose up" in self._content()
+    def test_timezone_is_utc_with_uncommitted_override(self):
+        content = self._content()
+        assert "Environment=TZ=UTC" in content
+        assert "EnvironmentFile=-%h/.config/morning-brief/tz.env" in content
+        # Repo hygiene: no real time zone (a location signal) in committed units.
+        assert not re.search(r"[A-Z][a-z]+/[A-Z][A-Za-z_]+", content)
+
+    def test_exec_start_runs_pipeline_script(self):
+        content = self._content()
+        workdir = re.search(r"^WorkingDirectory=(\S+)$", content, re.M).group(1)
+        assert f"ExecStart={workdir}/scripts/run-pipeline.sh\n" in content
+
+    def test_dashboard_deployed_from_host_after_health_check(self):
+        # The container can't push (no git checkout, no credentials), so the unit
+        # publishes, and only once the health check has passed.
+        posts = re.findall(r"^ExecStartPost=(\S+)", self._content(), re.M)
+        assert [Path(p).name for p in posts] == ["health-check.sh", "deploy-dashboard.sh"]
+
+    def test_failed_pull_does_not_skip_the_run(self):
+        assert "ExecStartPre=-/usr/bin/git pull --ff-only\n" in self._content()
 
     def test_health_check_called_on_success(self):
         # ExecStartPost runs the health-check after the main command succeeds
         assert "ExecStartPost=" in self._content()
         assert "health-check.sh" in self._content()
 
-    def test_output_to_journal(self):
-        assert "StandardOutput=journal" in self._content()
-        assert "StandardError=journal" in self._content()
+    def test_output_to_run_log(self):
+        assert "StandardOutput=append:%S/morning-brief-last-run.log" in self._content()
+        assert "StandardError=append:%S/morning-brief-last-run.log" in self._content()
 
     def test_install_section_present(self):
         assert "[Install]" in self._content()
@@ -64,11 +89,46 @@ class TestTimerUnit:
     def test_timer_file_exists(self):
         assert TIMER_FILE.exists(), "morning-brief.timer must exist"
 
-    def test_fires_at_0415(self):
-        assert "04:15:00" in self._content()
+    def test_fires_at_0815_utc(self):
+        assert "08:15:00" in self._content()
 
-    def test_timezone_eastern(self):
-        assert "TimeZone=America/New_York" in self._content()
+    def test_oncalendar_is_utc(self):
+        # systemd has no TimeZone= key (ignored with only a log warning). Timers are
+        # written in UTC: no location signal, no daylight-saving gap or repeat.
+        content = self._content()
+        assert "TimeZone=" not in content
+        assert "OnCalendar=*-*-* 08:15:00 UTC" in content
+
+    @pytest.mark.skipif(shutil.which("systemd-analyze") is None, reason="needs systemd-analyze")
+    def test_systemd_resolves_0815_utc(self):
+        """Ask systemd itself, so a key it ignores cannot pass this test."""
+        for timer in (TIMER_FILE, PROJECT_ROOT / "deploy" / "morning-brief.timer"):
+            verify = subprocess.run(
+                ["systemd-analyze", "verify", "--user", str(timer)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            # verify also loads the paired .service; only this timer's own lines count here.
+            ignored = [
+                line
+                for line in verify.stderr.splitlines()
+                if line.startswith(f"{timer}:") and "Unknown key" in line
+            ]
+            assert not ignored, "\n".join(ignored)
+            spec = next(
+                line.split("=", 1)[1]
+                for line in timer.read_text().splitlines()
+                if line.startswith("OnCalendar=")
+            )
+            cal = subprocess.run(
+                ["systemd-analyze", "calendar", spec],
+                capture_output=True,
+                text=True,
+                check=True,
+                env={**os.environ, "TZ": "UTC"},
+            )
+            assert "08:15:00 UTC" in cal.stdout, cal.stdout
 
     def test_persistent_enabled(self):
         # Re-fires after missed runs (e.g. system was off)
