@@ -6,14 +6,14 @@
 # Idempotent. Does NOT enable the timer; it prints that command instead.
 #
 # Usage:
-#   bash scripts/install-user-units.sh [branch]    # branch defaults to develop
+#   bash scripts/install-user-units.sh [branch]    # branch defaults to main (released code)
 #
 # One-time, by hand: put the keys file (.env) and any existing data/ history
 # into the pipeline clone. Neither goes through git.
 
 set -euo pipefail
 
-BRANCH="${1:-develop}"
+BRANCH="${1:-main}"
 PIPELINE="${HOME}/.local/share/morning-brief-pipeline"
 REPO_URL="$(git -C "$(dirname "$0")/.." config --get remote.origin.url)"
 
