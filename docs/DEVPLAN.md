@@ -701,3 +701,327 @@ The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/e
 - [x] [HUMAN] On the live hub, force a failing run and confirm the push reaches the phone with the log tail in it (2026-10-01: alert received; the real 08:15 failure also alerted, which surfaced the 209/STDOUT bug fixed in #54)
 - [x] All tests pass
 - [x] Lint clean
+
+---
+
+## Feature: signals-golden-test
+
+**Branch:** `feature/signals-golden-test`
+**Depends on:** none
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+Pin today's signals output with an end-to-end test. Every later feature then has to prove it leaves atrade's input unchanged.
+
+### Acceptance Criteria
+
+- [ ] `tests/fixtures/brief_fixture/articles.json` holds at least 12 synthetic articles across at least 3 categories with fixed published times (UTC). At least 4 of them match ticker aliases from the real alias map. Two of them are a same-story pair (the same sale, the same distinctive figure in both titles), for `briefing-dedupe` to use later.
+- [ ] `tests/test_signals_golden.py` runs the real CLI run command end-to-end against the fixture, using a temp data dir and DB. Ollama is replaced by the stub in `tests/stub_ollama.py`, which serves canned responses over HTTP and records every request. The test asserts that `data/signals-<date>.json` equals `signals.golden.json`, ignoring only `emitted_at`.
+- [ ] A second test changes one fixture article's text so it no longer matches its ticker alias, and asserts the output now **differs** from the golden file. This proves the test is live.
+- [ ] A separate test, `test_generate_call_count`, asserts the stub received exactly `articles + 1` generate calls (current behaviour). Later features update only this test.
+- [ ] `python scripts/regen_golden.py` regenerates the golden file and exits 0. A failing run exits non-zero.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `tests/fixtures/brief_fixture/articles.json` | Create | Synthetic articles |
+| `tests/fixtures/brief_fixture/signals.golden.json` | Create | Pinned signals output |
+| `tests/stub_ollama.py` | Create | HTTP-level Ollama stub that records requests |
+| `tests/test_signals_golden.py` | Create | Golden, liveness and call-count tests |
+| `scripts/regen_golden.py` | Create | Regenerates the golden file explicitly |
+
+### Key Decisions
+
+- Stub at the HTTP layer so the real summarizer code runs: mocking functions would skip the boundary.
+- The golden file is regenerated only by the script, and only in PRs that change the signal contract.
+
+## Feature: article-extraction
+
+**Branch:** `feature/article-extraction`
+**Depends on:** signals-golden-test
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Change the per-article step from free prose to validated JSON facts. Use the article's own title as the headline, and flag roundup articles.
+
+### Acceptance Criteria
+
+- [ ] `summarize_single` calls Ollama with a structured-output JSON schema (`format`). Each request the stub records includes the schema, `num_ctx`, temperature and seed from config, and the article's published date.
+- [ ] Schema fields:
+  - `what_happened`: at most 2 sentences and `EXTRACT_MAX_WORDS` words (default 50).
+  - `entities`: names copied exactly from the article.
+  - `numbers`: figures copied exactly.
+  - `event_date`: `YYYY-MM-DD` or null, resolved against the published date.
+  - `status`: `happened`, `scheduled` or `ongoing`.
+  - `is_roundup`: bool.
+- [ ] With the stub returning valid JSON, the fixture run stores one row per article in a new `extractions` table (`article_id` PK, `json`, `model`, `created_at`). The existing `summary` column holds `what_happened`, so the page keeps working.
+- [ ] With the stub returning malformed JSON twice for one article, that article is marked `extraction_failed` and left out of the briefing. The run exits 0 and logs the article id.
+- [ ] A `what_happened` over the word limit is cut at the last sentence boundary within the limit (unit test).
+- [ ] Articles with `is_roundup: true` are left out of the briefing input but still appear in the signals output.
+- [ ] The signals golden test passes unchanged.
+- [ ] [HUMAN] On hub, the PM runs extraction live over one day's articles, reports the JSON-valid rate (target 95% or higher), and pastes 5 sample extractions into the PR.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/summarizers/local.py` | Modify | New extraction prompt and call |
+| `src/summarizers/schema.py` | Create | JSON schema, parsing, word-limit trim |
+| `src/config.py` | Modify | `OLLAMA_NUM_CTX`, `EXTRACT_TEMPERATURE`, `EXTRACT_SEED`, `EXTRACT_MAX_WORDS`, `EXTRACT_NUM_PREDICT`, `CHARS_PER_TOKEN` |
+| `src/db.py` *(confirm)* | Modify | `extractions` table and `extraction_failed` flag |
+| `tests/stub_ollama.py` | Modify | Canned JSON responses |
+| `tests/test_extraction.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **The headline is the article's title, not generated text.** Titles are accurate and cost nothing.
+- **No "significance" or "key actors" fields.** Those sections were the main source of filler, and their label text was leaking into the output.
+- **Retry once, then exclude.** Never fall back to raw article text.
+- Prompt rules: facts only (who did what, figures, when); copy names, tokens and companies exactly as written; no evaluation or impact language.
+
+### Notes
+
+The briefing step will only ever see these extractions, never the full text, which matches the current design. One article per extraction rules out mixing up facts across articles, the failure behind "Modigliani at Christie's".
+
+## Feature: output-validator
+
+**Branch:** `feature/output-validator`
+**Depends on:** article-extraction
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+Before anything is rendered, check every generated sentence in code and drop the ones that aren't grounded in their source or that contain filler.
+
+### Acceptance Criteria
+
+- [ ] **Number check:** each digit group in a sentence (commas stripped) must appear in its source text. Unit cases: "$44.6 million" against a source containing "$44.6M" passes; "$45.6 million" fails.
+- [ ] **Name check:** each capitalized token that isn't sentence-initial, is at least 3 characters, and isn't in `config/name_allowlist.txt` must match the source case-insensitively on its first `max(4, len-2)` characters. Unit cases: "Democrats" against "Democratic" passes; "Christie's" against a source without it fails.
+- [ ] **Banned-phrase check:** case-insensitive match against `config/banned_phrases.txt`, plus the overlay at `$MORNING_BRIEF_BANNED_OVERLAY` if that file exists. Unit case: "This highlights the volatility" fails. With the overlay file missing, there is no error.
+- [ ] The source for `what_happened` is the article's title plus its text (the same 12,000-character cut). The source for a section lede is that section's bullets.
+- [ ] With `VALIDATOR_MODE=enforce`, the fixture run with one ungrounded sentence from the stub renders without it, and the run metadata reports `dropped: {number: 1}`. With `warn`, the sentence is kept and a warning is logged.
+- [ ] If every sentence of an extraction is dropped, the article is left out of the briefing.
+- [ ] Each run writes sentences checked and sentences dropped by reason to the run metadata.
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/validators/__init__.py` | Create | Package |
+| `src/validators/grounding.py` | Create | Number, name and banned-phrase checks |
+| `config/banned_phrases.txt` | Create | Seed list (see Notes) |
+| `config/name_allowlist.txt` | Create | Common capitalized words: months, weekdays, "The", acronyms |
+| `src/config.py` | Modify | `VALIDATOR_MODE`, overlay path |
+| `src/pipeline.py` *(confirm)* | Modify | Run the validator after extraction and after the briefing |
+| `tests/test_validator.py` | Create | The criteria above |
+
+### Key Decisions
+
+- Drop the whole sentence rather than rewrite it. A 7B rewrite would introduce new errors.
+- The validator is a backstop. It can't catch a name that appears in the source in a different role. The main defence is structural: one article per bullet.
+
+### Notes
+
+Seed `banned_phrases.txt` (one per line): `highlights`, `underscores`, `key actors`, `key players`, `landscape`, `it is worth noting`, `plays a crucial role`, `significant shifts`, `these developments`, `will be closely monitored`, `shape the future`, `pave the way`, `ever-evolving`, `navigating`, `the importance of`, `a testament to`, `sheds light`, `delve`, `in today's`, `robust`.
+
+## Feature: briefing-dedupe
+
+**Branch:** `feature/briefing-dedupe`
+**Depends on:** signals-golden-test
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+When several articles cover the same story, show one of them in the briefing and list the others as "also covered by".
+
+### Acceptance Criteria
+
+- [ ] Two articles in the same category, published within `DEDUPE_WINDOW_HOURS` (default 48) of each other, count as duplicates if their titles share a distinctive number token (one with a decimal point, or 3 or more digits, ignoring `$`, `%` and the M/B suffixes) **and** at least one capitalized non-allowlisted word. The fixture's same-story pair is detected; two unrelated same-category articles are not.
+- [ ] The longer article is kept. The other gets `duplicate_of` set, and its URL shows as "also covered by" under the kept bullet.
+- [ ] The freed slot is refilled from the category's next article, so each category still gets up to 8.
+- [ ] The DB row count is the same before and after the run (dedupe never deletes rows).
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/processors/dedupe.py` | Create | Duplicate detection |
+| `src/processors/selection.py` *(confirm: where `select_balanced_articles` lives)* | Modify | Dedupe before selecting, then refill |
+| `src/db.py` *(confirm)* | Modify | `duplicate_of` column |
+| `tests/test_dedupe.py` | Create | The criteria above |
+
+### Key Decisions
+
+- Match on titles only, before summarizing, so duplicates never use up an LLM call.
+- Plain word overlap (Jaccard) missed the real case: two Christie's titles scored about 0.2. The shared-figure rule catches it.
+
+## Feature: interest-filter
+
+**Branch:** `feature/interest-filter`
+**Depends on:** signals-golden-test
+**Status:** Not Started
+**Requires:** both
+
+### Goal
+
+Rank briefing articles by the operator's interests, and stop high-volume feeds such as arXiv from filling sections with off-topic papers.
+
+### Acceptance Criteria
+
+- [ ] The interests TOML is read from `$MORNING_BRIEF_INTERESTS` (default `~/.config/morning-brief/interests.toml`, uncommitted). It has a `[keywords]` table (`term = weight`, 1–5) and `[feeds."<feed id>"] min_interest = N`. `config/interests.example.toml` is committed with generic placeholders.
+- [ ] An article's interest score is the sum of the weights of keywords found in its title plus first 2,000 characters (case-insensitive, matched on word boundaries).
+- [ ] Within a category, articles are ordered by interest score, then by current order. Articles from a feed with `min_interest` that score below it are not summarized. Fixture: a feed item with no matching keyword is excluded, and one with a match is included.
+- [ ] `$MORNING_BRIEF_INTERESTS` accepts several paths separated by `:`. Keywords are merged across files, and when the same keyword appears in more than one file, the highest weight wins. Fixture: two files sharing a keyword at weights 2 and 4 score it as 4.
+- [ ] A file may set a top-level `label = "<text>"`. Bullets whose article matches any keyword from that file show the label (several labels are de-duplicated). Fixture: a file labelled `On radar` tags only the matching bullets in the rendered page JSON.
+- [ ] Listed files that are missing are skipped with one INFO line each. With no files present at all, selection is identical to before (a test compares the outputs).
+- [ ] The signals golden test passes unchanged.
+- [ ] [HUMAN] The operator writes the interests file on hub.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/processors/interest.py` | Create | Load the file and score articles |
+| `config/interests.example.toml` | Create | Generic example |
+| `src/processors/selection.py` *(confirm)* | Modify | Order and filter |
+| `src/config.py` | Modify | Interests path |
+| `tests/test_interest.py` | Create | The criteria above |
+
+### Key Decisions
+
+- Keyword weights, not an LLM relevance call: free, predictable, and easy to tune.
+- **PM: confirm that `signals.py` reads all stored articles, not only summarized ones.** If it reads only summarized ones, this filter changes atrade's input, and the golden test will catch it.
+
+## Feature: category-briefing
+
+**Branch:** `feature/category-briefing`
+**Depends on:** article-extraction, output-validator
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Replace the single briefing call with one small call per category. The model only ranks the validated bullets and writes an optional lede. Every item shown carries its own source.
+
+### Acceptance Criteria
+
+- [ ] Each category call receives at most 8 lines of the form `[id] title — what_happened` and returns JSON: `{lede: string (≤ LEDE_MAX_WORDS, default 25, or ""), ranked_ids: [3–5 ids from the input]}`.
+- [ ] The stub records exactly one generate call per non-empty category. `test_generate_call_count` is updated to `articles + categories`.
+- [ ] With `num_ctx` set very small, the lowest-interest articles are dropped from that call, a warning is logged, and no recorded request exceeds the budget.
+- [ ] Ids not in the input are ignored. If no valid ids come back, the section falls back to the top 3 by interest score with no lede.
+- [ ] Section titles come from configured category display names, with no LLM involved. Sections are ordered by their highest interest score.
+- [ ] The lede goes through the validator with the section's bullets as its source.
+- [ ] A test walks the rendered page JSON. Every bullet has a source URL belonging to its own article, every source appears exactly once, and no text field exists without a source id (the lede is the only exception).
+- [ ] `_build_briefing_prompt` is removed.
+- [ ] The signals golden test passes unchanged.
+- [ ] [HUMAN] The PM runs one live day on hub, and the operator reviews the page on the phone.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/summarizers/briefing.py` | Create | Per-category ranking and lede call, token guard |
+| `src/summarizers/local.py` | Modify | Remove the old briefing prompt |
+| `src/config.py` | Modify | `LEDE_ENABLED`, `LEDE_MAX_WORDS`, category display names |
+| `templates/` *(confirm)* | Modify | Section: title, lede, bullets (linked title, `what_happened`, source, also-covered) |
+| page publisher *(confirm)* | Modify | New page JSON shape |
+| `tests/test_briefing.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Bullets are the extractions themselves, not rewritten.** The model never paraphrases across articles, so it can't merge two stories into one.
+- **Titles come from config.** Model-written titles were the source of the false "Upcoming Events and Trends" framing.
+- **Per-category calls fix the silent truncation risk.** The worst case was about 12k tokens in a single call.
+
+## Feature: dates-ahead
+
+**Branch:** `feature/dates-ahead`
+**Depends on:** category-briefing
+**Status:** Not Started
+**Requires:** ai
+
+### Goal
+
+Build a "Dates ahead" list in code from extracted scheduled events, replacing the model-written "upcoming" section.
+
+### Acceptance Criteria
+
+- [ ] Includes extractions with `status: scheduled` and an `event_date` from the run date (UTC) through `DATES_AHEAD_DAYS` (default 30) days later. Each entry renders as `Mon DD — title`, linked to its source, sorted by date.
+- [ ] Fixture: an event 5 days ahead is included. Past dates, dates beyond the window, and malformed dates are excluded (a malformed date logs a warning).
+- [ ] With no qualifying items, the section is hidden.
+- [ ] This feature makes no generate calls (the stub's call count is unchanged).
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/processors/dates_ahead.py` | Create | Filter and sort |
+| `src/config.py` | Modify | `DATES_AHEAD_DAYS` |
+| `templates/` *(confirm)* | Modify | Dates-ahead block |
+| `tests/test_dates_ahead.py` | Create | The criteria above |
+
+## Feature: signal-direction
+
+**Branch:** `feature/signal-direction`
+**Depends on:** article-extraction; atrade `signal-direction-reader` merged
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Add an optional per-ticker news `direction` to the signals file for atrade's shadow arm. `score` is not changed.
+
+### Acceptance Criteria
+
+- [ ] For articles that match ticker aliases (using the existing alias code, run before the LLM call), the extraction request includes those tickers. The response may contain `ticker_sentiment: {TICKER: -1|0|1}`. Tickers that weren't requested, and values that aren't one of those three, are discarded. Articles with no matches get no ticker list (checked with the stub).
+- [ ] Each signal record gains `direction` (a float in [-1, 1], the mean over contributing articles, rounded to 2 places, or null) and `direction_n` (an int). Fixture: a ticker with sentiments +1 and −1 gets `0.0` and `2`. With the stub returning `"bullish"`, the result is `null` and `0`.
+- [ ] `score`, `knowable_at`, `article_count` and provenance are byte-identical to the previous golden file. A test checks this field by field. The golden file is regenerated in this PR, with only the two new fields added.
+- [ ] `docs/SIGNAL-SCHEMA.md` gets a version bump and documents the fields, following its own versioning rules. The same bump lands in atrade the same day. The output validates against the schema's JSON schema, or a test-local schema if there isn't one.
+- [ ] The signal file contains no string values outside enumerated fields (a test walks the file).
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/summarizers/schema.py` | Modify | `ticker_sentiment` field |
+| `src/summarizers/local.py` | Modify | Pass matched tickers into the extraction call |
+| `src/publishers/signals.py` | Modify | `direction`, `direction_n` |
+| `docs/SIGNAL-SCHEMA.md` | Modify | Version bump and field docs |
+| `tests/fixtures/brief_fixture/signals.golden.json` | Modify | New fields only |
+| `tests/test_signal_direction.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **No extra LLM call.** Sentiment rides on the existing extraction call.
+- **Per ticker, not per article.** An article about one company often mentions others in passing.
+- **Ship order:** contract bump in both repos, then atrade's reader merged, then this feature emits.
+
+### Notes
+
+Sentiment comes from a model reading untrusted article text, so a crafted article can push it. It is bounded, numeric and paper-only, and the shadow arm is there to measure whether it helps at all. Scores bunching between 0.44 and 0.61 is a scorer issue and is out of scope; it goes to the backlog.
