@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/pull-model.sh — pull the Qwen model into the Ollama container
+# scripts/pull-model.sh — pull the local model into the Ollama container
 #
 # Run this once after first bringing up docker compose:
 #   docker compose up -d ollama
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-MODEL="${OLLAMA_MODEL:-qwen2.5:7b-instruct-q4_K_M}"
+MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
 
 echo "==> Waiting for Ollama to be ready..."
 until docker compose exec ollama curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do
