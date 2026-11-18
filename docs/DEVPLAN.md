@@ -777,7 +777,7 @@ Change the per-article step from free prose to validated JSON facts. Use the art
 | `src/summarizers/local.py` | Modify | New extraction prompt and call |
 | `src/summarizers/schema.py` | Create | JSON schema, parsing, word-limit trim |
 | `src/config.py` | Modify | `OLLAMA_NUM_CTX`, `EXTRACT_TEMPERATURE`, `EXTRACT_SEED`, `EXTRACT_MAX_WORDS`, `EXTRACT_NUM_PREDICT`, `CHARS_PER_TOKEN` |
-| `src/db.py` *(confirm)* | Modify | `extractions` table and `extraction_failed` flag |
+| `src/db.py` | Modify | `extractions` table and `extraction_failed` flag |
 | `tests/stub_ollama.py` | Modify | Canned JSON responses |
 | `tests/test_extraction.py` | Create | The criteria above |
 
@@ -796,7 +796,7 @@ The briefing step will only ever see these extractions, never the full text, whi
 
 **Branch:** `feature/output-validator`
 **Depends on:** article-extraction
-**Status:** Not Started
+**Status:** Held (deps)
 **Requires:** ai
 
 ### Goal
@@ -825,7 +825,7 @@ Before anything is rendered, check every generated sentence in code and drop the
 | `config/banned_phrases.txt` | Create | Seed list (see Notes) |
 | `config/name_allowlist.txt` | Create | Common capitalized words: months, weekdays, "The", acronyms |
 | `src/config.py` | Modify | `VALIDATOR_MODE`, overlay path |
-| `src/pipeline.py` *(confirm)* | Modify | Run the validator after extraction and after the briefing |
+| `src/main.py` (`run_pipeline`) | Modify | Run the validator after extraction and after the briefing |
 | `tests/test_validator.py` | Create | The criteria above |
 
 ### Key Decisions
@@ -864,7 +864,7 @@ When several articles cover the same story, show one of them in the briefing and
 |------|--------|---------|
 | `src/processors/dedupe.py` | Create | Duplicate detection |
 | `src/processors/selection.py` *(confirm: where `select_balanced_articles` lives)* | Modify | Dedupe before selecting, then refill |
-| `src/db.py` *(confirm)* | Modify | `duplicate_of` column |
+| `src/db.py` | Modify | `duplicate_of` column |
 | `tests/test_dedupe.py` | Create | The criteria above |
 
 ### Key Decisions
@@ -885,7 +885,7 @@ Rank briefing articles by the operator's interests, and stop high-volume feeds s
 
 ### Acceptance Criteria
 
-- [ ] The interests TOML is read from `$MORNING_BRIEF_INTERESTS` (default `~/.config/morning-brief/interests.toml`, uncommitted). It has a `[keywords]` table (`term = weight`, 1–5) and `[feeds."<feed id>"] min_interest = N`. `config/interests.example.toml` is committed with generic placeholders.
+- [ ] The interests TOML is read from `$MORNING_BRIEF_INTERESTS` (default `~/.config/morning-brief/interests.toml`, uncommitted). It has a `[keywords]` table (`term = weight`, 1–5) and `[feeds."<source>"] min_interest = N`, where `<source>` is the article's stored `source` value. `config/interests.example.toml` is committed with generic placeholders.
 - [ ] An article's interest score is the sum of the weights of keywords found in its title plus first 2,000 characters (case-insensitive, matched on word boundaries).
 - [ ] Within a category, articles are ordered by interest score, then by current order. Articles from a feed with `min_interest` that score below it are not summarized. Fixture: a feed item with no matching keyword is excluded, and one with a match is included.
 - [ ] `$MORNING_BRIEF_INTERESTS` accepts several paths separated by `:`. Keywords are merged across files, and when the same keyword appears in more than one file, the highest weight wins. Fixture: two files sharing a keyword at weights 2 and 4 score it as 4.
@@ -902,14 +902,14 @@ Rank briefing articles by the operator's interests, and stop high-volume feeds s
 |------|--------|---------|
 | `src/processors/interest.py` | Create | Load the file and score articles |
 | `config/interests.example.toml` | Create | Generic example |
-| `src/processors/selection.py` *(confirm)* | Modify | Order and filter |
+| `src/summarizers/local.py` | Modify | Order and filter in `select_balanced_articles` |
 | `src/config.py` | Modify | Interests path |
 | `tests/test_interest.py` | Create | The criteria above |
 
 ### Key Decisions
 
 - Keyword weights, not an LLM relevance call: free, predictable, and easy to tune.
-- **PM: confirm that `signals.py` reads all stored articles, not only summarized ones.** If it reads only summarized ones, this filter changes atrade's input, and the golden test will catch it.
+- Confirmed by the PM: signals are built from `db.get_todays_articles()` (every stored article) and emitted before summarization selection in `src/main.py`, so this filter cannot change atrade's input. The golden test still guards it.
 
 ## Feature: category-briefing
 
@@ -944,8 +944,8 @@ Replace the single briefing call with one small call per category. The model onl
 | `src/summarizers/briefing.py` | Create | Per-category ranking and lede call, token guard |
 | `src/summarizers/local.py` | Modify | Remove the old briefing prompt |
 | `src/config.py` | Modify | `LEDE_ENABLED`, `LEDE_MAX_WORDS`, category display names |
-| `templates/` *(confirm)* | Modify | Section: title, lede, bullets (linked title, `what_happened`, source, also-covered) |
-| page publisher *(confirm)* | Modify | New page JSON shape |
+| `templates/` | Modify | Section: title, lede, bullets (linked title, `what_happened`, source, also-covered) |
+| `src/publishers/html.py` | Modify | New page JSON shape |
 | `tests/test_briefing.py` | Create | The criteria above |
 
 ### Key Decisions
@@ -958,7 +958,7 @@ Replace the single briefing call with one small call per category. The model onl
 
 **Branch:** `feature/dates-ahead`
 **Depends on:** category-briefing
-**Status:** Not Started
+**Status:** Held (deps)
 **Requires:** ai
 
 ### Goal
@@ -981,7 +981,7 @@ Build a "Dates ahead" list in code from extracted scheduled events, replacing th
 |------|--------|---------|
 | `src/processors/dates_ahead.py` | Create | Filter and sort |
 | `src/config.py` | Modify | `DATES_AHEAD_DAYS` |
-| `templates/` *(confirm)* | Modify | Dates-ahead block |
+| `templates/` | Modify | Dates-ahead block |
 | `tests/test_dates_ahead.py` | Create | The criteria above |
 
 ## Feature: signal-direction
