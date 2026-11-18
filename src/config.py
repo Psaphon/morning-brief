@@ -14,7 +14,7 @@ from pathlib import Path
 @dataclass
 class OllamaConfig:
     host: str = "http://localhost:11434"
-    model: str = "qwen2.5:7b-instruct-q4_K_M"
+    model: str = "gemma4:e4b"
 
 
 @dataclass
@@ -46,7 +46,7 @@ def load_config() -> Config:
     return Config(
         ollama=OllamaConfig(
             host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
-            model=os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct-q4_K_M"),
+            model=os.environ.get("OLLAMA_MODEL", "gemma4:e4b"),
         ),
         api_keys=APIKeys(
             finnhub=os.environ.get("FINNHUB_API_KEY", ""),

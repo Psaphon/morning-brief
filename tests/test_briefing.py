@@ -311,6 +311,7 @@ async def test_generate_briefing_success_structured(db_with_summaries, ollama_co
         result = await generate_daily_briefing(db_with_summaries, ollama_config)
 
     assert result == "Big things happened.\n\nWatch this space."
+    assert mock_client.post.call_args.kwargs["json"]["think"] is False
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     record = db_with_summaries.get_briefing(today)

@@ -1,4 +1,4 @@
-"""Local LLM summarizer — Qwen via Ollama.
+"""Local LLM summarizer — Ollama (default model in config.py).
 
 Sends unsummarized articles to an Ollama instance, gets back concise
 2-3 sentence summaries, and stores them in the database.
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Approximate token limit for input text. Qwen 2.5 7B handles ~8K context
+# Approximate token limit for input text. The server context is ~8K tokens
 # but we keep it conservative to leave room for the prompt template and output.
 MAX_INPUT_CHARS = 12_000  # ~3000 tokens at ~4 chars/token
 
@@ -202,6 +202,9 @@ async def summarize_single(
                     "model": config.model,
                     "prompt": prompt,
                     "stream": False,
+                    # Thinking models (gemma4) reason before answering unless told not to:
+                    # slower, and it eats num_predict. Older models ignore the flag.
+                    "think": False,
                     "options": {
                         "temperature": 0.3,
                         "top_p": 0.9,
@@ -546,6 +549,9 @@ async def generate_daily_briefing(
                     "model": config.model,
                     "prompt": prompt,
                     "stream": False,
+                    # Thinking models (gemma4) reason before answering unless told not to:
+                    # slower, and it eats num_predict. Older models ignore the flag.
+                    "think": False,
                     "options": {
                         "temperature": 0.5,
                         "top_p": 0.9,
