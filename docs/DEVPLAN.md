@@ -984,6 +984,66 @@ Build a "Dates ahead" list in code from extracted scheduled events, replacing th
 | `templates/` | Modify | Dates-ahead block |
 | `tests/test_dates_ahead.py` | Create | The criteria above |
 
+## Feature: stack-feeds
+
+**Branch:** `feature/stack-feeds`
+**Depends on:** signals-golden-test
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Fetch sources relevant to the tools this fleet runs, and show them in the brief, without touching atrade's input.
+
+### Acceptance Criteria
+
+- [ ] `docs/FEEDS.md` tables gain an optional `Signals` column (`yes`/`no`, default `yes` when the column or cell is absent). `parse_feeds_md` returns it, and existing tables parse unchanged.
+- [ ] Articles from `Signals = no` feeds are stored, summarized and shown, but excluded from the scorer's and `emit_signals`' input.
+- [ ] Golden test: a `Signals = no` fixture article that matches a ticker alias leaves the signals output byte-identical. The same article on a `Signals = yes` feed changes it (liveness check).
+- [ ] A new `FEEDS.md` section, "For the stack", becomes category `stack` with display name "For the stack". Its seed feeds all have `Signals = no`: GitHub release Atom feeds for ollama/ollama, anthropics/claude-code, tailscale/tailscale, binwiederhier/ntfy, astral-sh/ruff and comfyanonymous/ComfyUI; the Cloudflare blog; the Ollama blog; the Hacker News front page (with a high `min_interest` once `interest-filter` exists).
+- [ ] The signals golden test passes unchanged, apart from the new liveness fixture.
+- [ ] [HUMAN] The PM verifies each feed URL on hub and confirms the first run fetches them.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `docs/FEEDS.md` | Modify | `Signals` column, "For the stack" section |
+| `src/fetchers/rss.py` | Modify | Parse `Signals` |
+| `src/main.py` | Modify | Keep `Signals = no` articles out of scoring and signals |
+| `tests/` | Modify | Parser, golden test, liveness fixture |
+
+### Key Decisions
+
+- atrade boundary exception: this adds feeds, but the signals output must stay byte-identical for them; the golden test proves it.
+
+## Feature: radar-flags
+
+**Branch:** `feature/radar-flags`
+**Depends on:** interest-filter, output-validator
+**Status:** Held (deps)
+**Requires:** ai
+
+### Goal
+
+Write stack-relevant articles to a flag outbox that a downstream triage tool ingests. The local model only casts a cheap keyword net; judging happens downstream.
+
+### Acceptance Criteria
+
+- [ ] An interests file may set `action = "flag"` and `min_score` (default 3). Articles scoring at or above it on a flag file are appended to `$MORNING_BRIEF_FLAG_OUTBOX/YYYY-MM-DD.jsonl`. With the env var unset, the feature is off and nothing is written.
+- [ ] Record fields only: `url`, `title`, `source`, `published` (UTC), `matched_keywords`, `score`, `what_happened` (only if it passed the validator, otherwise null). Never full text. Title capped at 200 characters, `what_happened` at 60 words, control characters stripped. A test walks the file.
+- [ ] At most `FLAGS_PER_RUN` (config, default 5) per run, highest score first. URLs flagged in the last 30 days are skipped (state file). Writes are atomic (temp file plus rename).
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Key Decisions
+
+- Flag records come from web articles and are read by an agent with privileges downstream, so they are treated as untrusted data: fixed fields, capped lengths, no full text.
+- The interests file with `action = "flag"` lives outside the repo; the committed example stays generic.
+
 ## Feature: signal-direction
 
 **Branch:** `feature/signal-direction`
