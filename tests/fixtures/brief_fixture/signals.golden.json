@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0.0",
+  "emitted_at": "2026-11-19T02:04:46Z",
+  "universe_ref": "atrade/config/universe.toml@82c959e13d5d55f3b3871dbd496b39c023b57230",
+  "signals": [
+    {
+      "ticker": "JPM",
+      "score": 0.34,
+      "knowable_at": "2026-01-12T13:15:00Z",
+      "article_count": 1,
+      "provenance": [
+        {
+          "article_id": 7,
+          "source": "fixture crypto",
+          "url_hash": "656368dc7dbdebe9",
+          "published_at": "2026-01-12T13:15:00Z"
+        }
+      ]
+    },
+    {
+      "ticker": "MSFT",
+      "score": 0.32,
+      "knowable_at": "2026-01-12T09:45:00Z",
+      "article_count": 1,
+      "provenance": [
+        {
+          "article_id": 3,
+          "source": "fixture tech",
+          "url_hash": "75e09a0b22e19868",
+          "published_at": "2026-01-12T09:45:00Z"
+        }
+      ]
+    },
+    {
+      "ticker": "TSLA",
+      "score": 0.32,
+      "knowable_at": "2026-01-12T16:30:00Z",
+      "article_count": 1,
+      "provenance": [
+        {
+          "article_id": 2,
+          "source": "fixture tech",
+          "url_hash": "dc1ef56f450810a7",
+          "published_at": "2026-01-12T16:30:00Z"
+        }
+      ]
+    },
+    {
+      "ticker": "NVDA",
+      "score": 0.32,
+      "knowable_at": "2026-01-12T14:05:00Z",
+      "article_count": 1,
+      "provenance": [
+        {
+          "article_id": 1,
+          "source": "fixture tech",
+          "url_hash": "708b5225f5ac28b5",
+          "published_at": "2026-01-12T14:05:00Z"
+        }
+      ]
+    },
+    {
+      "ticker": "AMZN",
+      "score": 0.36,
+      "knowable_at": "2026-01-11T07:30:00Z",
+      "article_count": 1,
+      "provenance": [
+        {
+          "article_id": 13,
+          "source": "fixture world",
+          "url_hash": "2287b516a4882ad2",
+          "published_at": "2026-01-11T07:30:00Z"
+        }
+      ]
+    }
+  ]
+}

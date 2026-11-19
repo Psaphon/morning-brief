@@ -125,6 +125,8 @@ def _stub(tmp_path: Path, exit_code: int = 0) -> tuple[Path, Path]:
         '#!/usr/bin/env bash\nprintf \'%s\\0\' "$@" > "' + str(record) + f'"\nexit {exit_code}\n'
     )
     stub.chmod(0o755)
+    if not os.access(stub, os.X_OK):
+        pytest.skip("tmp_path is on a noexec mount; cannot run a stub publisher here")
     return stub, record
 
 
