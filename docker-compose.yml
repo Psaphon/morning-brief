@@ -13,6 +13,9 @@ services:
       # data/ must be a real directory: symlinks to host paths outside the
       # repo don't resolve inside the container's mount namespace.
       - ./data:/app/data
+      # Operator interests (interest-filter). The host file lives outside the repo;
+      # a missing file just means no interests (selection unchanged).
+      - ${HOME}/.config/morning-brief:/app/interests:ro
     env_file:
       - .env
     environment:
@@ -25,6 +28,7 @@ services:
       # atrade reads data/signals/signals-<date>.json (docs/SIGNAL-SCHEMA in atrade).
       # On by default; set SIGNALS_ENABLED=false in .env to turn it off.
       - SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}
+      - MORNING_BRIEF_INTERESTS=/app/interests/interests.toml
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:
