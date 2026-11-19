@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS articles (
     content_hash TEXT,
     score REAL,
     last_seen_at TEXT,
+    duplicate_of INTEGER,
     UNIQUE(url_hash)
 );
 
@@ -103,6 +104,7 @@ class Database:
         migrations = [
             ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
             ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
+            ("ALTER TABLE articles ADD COLUMN duplicate_of INTEGER", "duplicate_of"),
             (
                 "ALTER TABLE daily_briefings ADD COLUMN segment_map TEXT",
                 "daily_briefings.segment_map",
@@ -299,15 +301,26 @@ class Database:
         """
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         rows = self.conn.execute(
-            """SELECT id, url, title, source, category, full_text, score
+            """SELECT id, url, title, source, category, full_text, score, published_at
                FROM articles
                WHERE summary IS NULL
+                 AND duplicate_of IS NULL
                  AND full_text IS NOT NULL
                  AND fetched_at >= ?
                ORDER BY COALESCE(score, 0) DESC""",
             (today,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def mark_duplicates(self, duplicates: dict[int, int]) -> None:
+        """Record ``duplicate_of`` for each {duplicate_id: kept_id}. Never deletes rows."""
+        if not duplicates:
+            return
+        self.conn.executemany(
+            "UPDATE articles SET duplicate_of = ? WHERE id = ?",
+            [(kept, dup) for dup, kept in duplicates.items()],
+        )
+        self.conn.commit()
 
     def update_summary(self, article_id: int, summary: str, model: str) -> None:
         """Update an article with its summary."""
