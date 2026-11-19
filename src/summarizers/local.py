@@ -125,7 +125,12 @@ def select_balanced_articles(
     for cat_articles in by_category.values():
         selected.extend(cat_articles[:per_category])
 
-    selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
+    if interests:
+        # Interest first, so the total cap never cuts an interest match for a
+        # higher-scored article the operator didn't ask for.
+        selected.sort(key=lambda a: (interest_of[id(a)], a.get("score") or 0), reverse=True)
+    else:
+        selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
     return selected[:total]
 
 

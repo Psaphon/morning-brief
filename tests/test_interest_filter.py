@@ -150,3 +150,33 @@ def test_labels_only_tag_matching_bullets_in_page_json(tmp_path):
 def test_render_without_interests_has_no_labels():
     html = render_dashboard([_art(1, "Rust")], [], [], template_dir=TEMPLATES)
     assert '<span class="interest-label">' not in html
+
+
+def test_total_cap_keeps_interest_matches(tmp_path, monkeypatch):
+    # PM review: the 50-article cap must not drop an interest match in favour of
+    # higher-scored articles the operator never asked for.
+    from src.processors.interest import load_interests
+    from src.summarizers.local import select_balanced_articles
+
+    f = tmp_path / "i.toml"
+    f.write_text("[keywords]\nkubernetes = 3\n", encoding="utf-8")
+    interests = load_interests(str(f))
+    articles = [
+        {"id": i, "title": f"Story {i}", "category": f"c{i % 5}", "score": 100 - i, "full_text": ""}
+        for i in range(60)
+    ]
+    articles.append(
+        {"id": 999, "title": "Kubernetes release", "category": "c0", "score": 0.0, "full_text": ""}
+    )
+    chosen = select_balanced_articles(articles, per_category=20, total=10, interests=interests)
+    assert 999 in [a["id"] for a in chosen]
+
+
+def test_compose_mounts_interests_for_the_container():
+    # PM review: the pipeline runs in a container, so the host file must be
+    # mounted and the env var must point at the mount, or the feature is inert.
+    from pathlib import Path
+
+    compose = (Path(__file__).parent.parent / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "${HOME}/.config/morning-brief:/app/interests:ro" in compose
+    assert "MORNING_BRIEF_INTERESTS=/app/interests/interests.toml" in compose
