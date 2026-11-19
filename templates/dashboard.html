@@ -90,6 +90,7 @@
             text-decoration: none;
         }
         .article h3 a:hover { color: var(--accent); }
+        .article .also-covered { font-size: 0.8em; opacity: 0.7; margin-top: 4px; word-break: break-all; }
         .article .summary {
             font-size: 0.85rem;
             color: var(--muted);
@@ -408,6 +409,11 @@
             <h3><a href="{{ article.url }}">{{ article.title }}</a></h3>
             {% if article.summary %}
             <div class="summary">{{ article.summary }}</div>
+            {% endif %}
+            {% if article.also_covered_by %}
+            <div class="also-covered">Also covered by:
+                {% for u in article.also_covered_by %}<a href="{{ u }}">{{ u }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
             {% endif %}
         </div>
         {% endfor %}

@@ -276,6 +276,9 @@ def test_golden_is_live() -> None:
 
 
 def test_generate_call_count(baseline: tuple[dict, StubOllama]) -> None:
-    """One summary call per article plus one briefing call (current behaviour)."""
+    """One summary call per non-duplicate article plus one briefing call.
+
+    The fixture's same-story pair costs a single summary call (briefing-dedupe).
+    """
     _, stub = baseline
-    assert len(stub.generate_calls) == len(load_fixture_articles()) + 1
+    assert len(stub.generate_calls) == len(load_fixture_articles()) - 1 + 1

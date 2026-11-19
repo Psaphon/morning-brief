@@ -133,6 +133,22 @@ def _format_market_data(market_data: list[dict[str, Any]]) -> list[dict[str, Any
     return formatted
 
 
+def _collapse_duplicates(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Hide articles flagged ``duplicate_of``; list their URLs under the kept one."""
+    also: dict[Any, list[str]] = {}
+    for a in articles:
+        if a.get("duplicate_of") is not None and a.get("url"):
+            also.setdefault(a["duplicate_of"], []).append(a["url"])
+    kept_ids = {a.get("id") for a in articles if a.get("duplicate_of") is None}
+    visible = []
+    for a in articles:
+        if a.get("duplicate_of") is None:
+            visible.append({**a, "also_covered_by": also.get(a.get("id"), [])})
+        elif a["duplicate_of"] not in kept_ids:
+            visible.append(a)  # kept article missing: don't lose the story
+    return visible
+
+
 def render_dashboard(
     articles: list[dict[str, Any]],
     market_data: list[dict[str, Any]],
@@ -167,7 +183,7 @@ def render_dashboard(
     template = env.get_template("dashboard.html")
 
     now = datetime.now(timezone.utc)
-    categories = _group_articles_by_category(articles)
+    categories = _group_articles_by_category(_collapse_duplicates(articles))
     formatted_market = _format_market_data(market_data)
 
     # Build articles_by_id — include per-article HMAC sigs when key is present
