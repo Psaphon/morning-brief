@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from ..config import OllamaConfig
+from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -90,6 +91,7 @@ def select_balanced_articles(
     articles: list[dict],
     per_category: int = 8,
     total: int = 50,
+    interests: Interests | None = None,
 ) -> list[dict]:
     """Select articles for summarization using category-balanced round-robin.
 
@@ -101,10 +103,19 @@ def select_balanced_articles(
         articles: Candidate articles, pre-sorted by score descending.
         per_category: Maximum articles to take from any single category.
         total: Hard cap on the total number of articles returned.
+        interests: Operator interests. When non-empty, articles from feeds with
+            ``min_interest`` that score below it are dropped, and each category is
+            ordered by interest score, then by the existing order. When None or
+            empty, selection is unchanged.
 
     Returns:
         Balanced list of articles, sorted by score descending, length <= total.
     """
+    if interests:
+        articles = filter_by_feed_minimum(articles, interests)
+        interest_of = {id(a): interest_score(a, interests) for a in articles}
+        articles = sorted(articles, key=lambda a: interest_of[id(a)], reverse=True)
+
     by_category: dict[str, list[dict]] = {}
     for article in articles:
         cat = article.get("category", "")

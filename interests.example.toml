@@ -1,0 +1,20 @@
+# Example interests file for Morning Brief. Copy to
+# ~/.config/morning-brief/interests.toml (or point $MORNING_BRIEF_INTERESTS at one or
+# more files separated by ":"). Do not commit your real file.
+
+# Optional: bullets whose article matches any keyword below show this label.
+label = "On radar"
+
+# term = weight (1-5). Case-insensitive, matched on word boundaries in the title plus
+# the first 2,000 characters of the article. Scores are summed. If a keyword appears
+# in several files, the highest weight wins.
+[keywords]
+kubernetes = 3
+"open source" = 2
+sqlite = 1
+"data pipeline" = 4
+
+# Per-feed gate: articles from this source (the stored `source` value) that score
+# below min_interest are not summarized. Useful for high-volume feeds.
+[feeds."Example Preprint Feed"]
+min_interest = 2
