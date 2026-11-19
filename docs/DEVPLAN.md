@@ -708,7 +708,7 @@ The alert path is hub's ntfy stack (`/usr/local/sbin/hub-alert`, which reads `/e
 
 **Branch:** `feature/signals-golden-test`
 **Depends on:** none
-**Status:** In Progress
+**Status:** Merged (#67)
 **Requires:** ai
 
 ### Goal
