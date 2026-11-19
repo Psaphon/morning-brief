@@ -6,10 +6,15 @@ other, are duplicates when their titles share:
 
 * a distinctive number token (has a decimal point, or 3+ digits; ``$``, ``%``
   and M/B suffixes are ignored), **and**
-* at least one capitalized word that is not on the allowlist.
+* at least one capitalized word that is not on the allowlist, **and**
+* enough significant words (4+ letters, not stopwords): 2 when a shared number is
+  a money or percent figure (``$85.8M``, ``20.5%``), otherwise 3.
 
 Plain word overlap (Jaccard) scored ~0.2 on a real pair of Christie's titles;
-the shared-figure rule catches it.
+the shared-figure rule catches it. The word-overlap floor was added in PM review
+(2026-11-19): on 14 days of real titles the first two rules alone merged distinct
+stories that only shared a version number ("Nova 5.2 ...") or a year plus one
+name, which would have dropped them from the briefing.
 """
 
 from __future__ import annotations
@@ -39,6 +44,18 @@ CAPITALIZED_ALLOWLIST = frozenset(
 # A number, optionally with thousands separators / decimals, then an optional M/B suffix.
 _NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?(?:[MmBb]\b)?")
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
+# A figure marked as money or a share: currency before it, or %/M/B after it.
+_FIGURE_RE = re.compile(r"[$€£]\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s?(?:%|[MmBb]\b)")
+_SIG_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'’]+")
+_STOPWORDS = frozenset(
+    "about after again also been before being between both could does doing down during each "
+    "from further have having here into just more most much only other over said says same "
+    "should some such than that their them then there these they this those through under "
+    "until very were what when where which while will with would your".split()
+)
+# Significant shared words needed: fewer when the shared number is a money/percent figure.
+SIG_WORDS_WITH_FIGURE = 2
+SIG_WORDS_OTHERWISE = 3
 
 
 def distinctive_numbers(title: str) -> set[str]:
@@ -67,11 +84,36 @@ def capitalized_words(title: str) -> set[str]:
     return words
 
 
+def figures(title: str) -> set[str]:
+    """Return normalized money/percent figures (``$85.8M`` -> ``85.8``)."""
+    found: set[str] = set()
+    for before, after in _FIGURE_RE.findall(title):
+        token = (before or after).replace(",", "").rstrip(".")
+        if token:
+            found.add(token)
+    return found
+
+
+def significant_words(title: str) -> set[str]:
+    """Return lowercase words of 4+ letters, minus possessives and stopwords."""
+    words: set[str] = set()
+    for raw in _SIG_WORD_RE.findall(title):
+        word = re.sub(r"['’]s$", "", raw).strip("'’").lower()
+        if len(word) >= 4 and word not in _STOPWORDS:
+            words.add(word)
+    return words
+
+
 def titles_match(title_a: str, title_b: str) -> bool:
-    """True if two titles share a distinctive number and a capitalized word."""
-    if not (distinctive_numbers(title_a) & distinctive_numbers(title_b)):
+    """True if two titles share a distinctive number, a name and enough words."""
+    shared_numbers = distinctive_numbers(title_a) & distinctive_numbers(title_b)
+    if not shared_numbers:
         return False
-    return bool(capitalized_words(title_a) & capitalized_words(title_b))
+    if not capitalized_words(title_a) & capitalized_words(title_b):
+        return False
+    shared_figure = shared_numbers & figures(title_a) & figures(title_b)
+    needed = SIG_WORDS_WITH_FIGURE if shared_figure else SIG_WORDS_OTHERWISE
+    return len(significant_words(title_a) & significant_words(title_b)) >= needed
 
 
 def _parse_ts(value: Any) -> datetime | None:

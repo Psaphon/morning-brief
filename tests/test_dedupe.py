@@ -50,6 +50,55 @@ def test_titles_need_both_number_and_name():
     assert not titles_match("the firm raises $500M", "the bank raises $500M")
 
 
+def test_real_same_story_pairs_match():
+    # Real title pairs from the 2026-11-19 PM review (14 days of live articles).
+    pairs = [
+        (
+            "$85.8M Kandinsky, $82.3M Klimt Propel Mixed $626.6M Christie\u2019s Sale",
+            "Kandinsky Painting Sells for $85.8M at Christie\u2019s, a New Auction Record",
+        ),
+        (
+            "Florida pastor found guilty over 2021 assassination of Haitian president",
+            "Miami court convicts US-Haitian pastor over 2021 assassination of president",
+        ),
+        (
+            "Germany's 2027 budget: A record \u20ac561 billion and a mountain of debt",
+            "Germany news: Parliament agrees on debt-laden 2027 budget",
+        ),
+        (
+            "Bitcoin Holds Near $64,800 After 20.5% Four-Week Drop",
+            "Bitcoin Holds Near $64,800 as ETF Outflow Streak Ends",
+        ),
+    ]
+    for a, b in pairs:
+        assert titles_match(a, b), (a, b)
+
+
+def test_shared_version_number_or_year_alone_is_not_a_duplicate():
+    # Shapes of the false positives seen in review: different stories about one
+    # product version, or that share only a year/code and a name.
+    pairs = [
+        (
+            "Acme Nova 5.2 vs. Zeta 3: Same scores at 4x the cost",
+            "Acme Nova 5.2 vs. Nova 5.1: Fewer refusals",
+        ),
+        (
+            "Acme Widens Nova for Law Access With Nova-5.2 Update",
+            "Why early testers love Nova 5.2 from Acme",
+        ),
+        (
+            "Proceedings of the 2026 XCSP3 Competition",
+            "The 7th Neural Network Verification Competition (2026)",
+        ),
+        (
+            "Acme Cobalt 200 chips go GA for AI agents",
+            "200 OK is dead as an AI agent health signal",
+        ),
+    ]
+    for a, b in pairs:
+        assert not titles_match(a, b), (a, b)
+
+
 def test_fixture_same_story_pair_detected_and_longer_kept():
     articles = _fixture()
     dupes = find_duplicates(articles)
