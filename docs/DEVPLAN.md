@@ -876,7 +876,7 @@ When several articles cover the same story, show one of them in the briefing and
 
 **Branch:** `feature/interest-filter`
 **Depends on:** signals-golden-test
-**Status:** Not Started
+**Status:** Merged (#70)
 **Requires:** both
 
 ### Goal
@@ -885,16 +885,16 @@ Rank briefing articles by the operator's interests, and stop high-volume feeds s
 
 ### Acceptance Criteria
 
-- [ ] The interests TOML is read from `$MORNING_BRIEF_INTERESTS` (default `~/.config/morning-brief/interests.toml`, uncommitted). It has a `[keywords]` table (`term = weight`, 1–5) and `[feeds."<source>"] min_interest = N`, where `<source>` is the article's stored `source` value. `config/interests.example.toml` is committed with generic placeholders.
-- [ ] An article's interest score is the sum of the weights of keywords found in its title plus first 2,000 characters (case-insensitive, matched on word boundaries).
-- [ ] Within a category, articles are ordered by interest score, then by current order. Articles from a feed with `min_interest` that score below it are not summarized. Fixture: a feed item with no matching keyword is excluded, and one with a match is included.
-- [ ] `$MORNING_BRIEF_INTERESTS` accepts several paths separated by `:`. Keywords are merged across files, and when the same keyword appears in more than one file, the highest weight wins. Fixture: two files sharing a keyword at weights 2 and 4 score it as 4.
-- [ ] A file may set a top-level `label = "<text>"`. Bullets whose article matches any keyword from that file show the label (several labels are de-duplicated). Fixture: a file labelled `On radar` tags only the matching bullets in the rendered page JSON.
-- [ ] Listed files that are missing are skipped with one INFO line each. With no files present at all, selection is identical to before (a test compares the outputs).
-- [ ] The signals golden test passes unchanged.
+- [x] The interests TOML is read from `$MORNING_BRIEF_INTERESTS` (default `~/.config/morning-brief/interests.toml`, uncommitted). It has a `[keywords]` table (`term = weight`, 1–5) and `[feeds."<source>"] min_interest = N`, where `<source>` is the article's stored `source` value. `config/interests.example.toml` is committed with generic placeholders.
+- [x] An article's interest score is the sum of the weights of keywords found in its title plus first 2,000 characters (case-insensitive, matched on word boundaries).
+- [x] Within a category, articles are ordered by interest score, then by current order. Articles from a feed with `min_interest` that score below it are not summarized. Fixture: a feed item with no matching keyword is excluded, and one with a match is included.
+- [x] `$MORNING_BRIEF_INTERESTS` accepts several paths separated by `:`. Keywords are merged across files, and when the same keyword appears in more than one file, the highest weight wins. Fixture: two files sharing a keyword at weights 2 and 4 score it as 4.
+- [x] A file may set a top-level `label = "<text>"`. Bullets whose article matches any keyword from that file show the label (several labels are de-duplicated). Fixture: a file labelled `On radar` tags only the matching bullets in the rendered page JSON.
+- [x] Listed files that are missing are skipped with one INFO line each. With no files present at all, selection is identical to before (a test compares the outputs).
+- [x] The signals golden test passes unchanged.
 - [ ] [HUMAN] The operator writes the interests file on hub.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
