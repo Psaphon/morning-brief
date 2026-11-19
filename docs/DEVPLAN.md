@@ -876,7 +876,7 @@ When several articles cover the same story, show one of them in the briefing and
 
 **Branch:** `feature/interest-filter`
 **Depends on:** signals-golden-test
-**Status:** Not Started
+**Status:** Merged (#70)
 **Requires:** both
 
 ### Goal
