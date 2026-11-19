@@ -841,7 +841,7 @@ Seed `banned_phrases.txt` (one per line): `highlights`, `underscores`, `key acto
 
 **Branch:** `feature/briefing-dedupe`
 **Depends on:** signals-golden-test
-**Status:** Not Started
+**Status:** Merged (#68)
 **Requires:** ai
 
 ### Goal

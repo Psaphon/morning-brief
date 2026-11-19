@@ -39,6 +39,7 @@ class Config:
     dashboard_hmac_key: str = ""
     signals_enabled: bool = False
     signals_dir: Path = Path("data/signals")
+    dedupe_window_hours: int = 48
 
 
 def load_config() -> Config:
@@ -63,4 +64,5 @@ def load_config() -> Config:
         dashboard_hmac_key=os.environ.get("DASHBOARD_HMAC_KEY", ""),
         signals_enabled=os.environ.get("SIGNALS_ENABLED", "").lower() in ("1", "true", "yes"),
         signals_dir=Path(os.environ.get("SIGNALS_DIR", "data/signals")),
+        dedupe_window_hours=int(os.environ.get("DEDUPE_WINDOW_HOURS", "48")),
     )
