@@ -38,6 +38,29 @@ REQUEST_TIMEOUT = 120.0
 # Longer timeout for briefing — one call with larger context
 BRIEFING_TIMEOUT = 300.0
 
+# JSON schema passed as Ollama's ``format``: the model's output is constrained to
+# it, so a quote inside a segment's text is always escaped. Without it, gemma4
+# wrote "atmospheric river," unescaped mid-string and the 2026-11-19 briefing
+# fell back to plain text with no segments.
+BRIEFING_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "segments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string"},
+                    "text": {"type": "string"},
+                    "source_article_ids": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["topic", "text", "source_article_ids"],
+            },
+        },
+    },
+    "required": ["segments"],
+}
+
 # Retry config
 MAX_RETRIES = 2
 RETRY_DELAY = 3.0
@@ -552,6 +575,7 @@ async def generate_daily_briefing(
                     # Thinking models (gemma4) reason before answering unless told not to:
                     # slower, and it eats num_predict. Older models ignore the flag.
                     "think": False,
+                    "format": BRIEFING_SCHEMA,
                     "options": {
                         "temperature": 0.5,
                         "top_p": 0.9,
