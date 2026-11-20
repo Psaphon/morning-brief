@@ -1163,7 +1163,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 **Branch:** `feature/reader-coverage`
 **Depends on:** feed-lanes
-**Status:** Not Started
+**Status:** Held (deps)
 **Requires:** both
 
 ### Goal
@@ -1268,7 +1268,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 **Branch:** `feature/social-feeds`
 **Depends on:** feed-lanes
-**Status:** Not Started
+**Status:** Held (deps)
 **Requires:** ai
 
 ### Goal
@@ -1304,7 +1304,7 @@ The specific journalists and accounts go in the uncommitted feeds overlay, not t
 
 **Branch:** `feature/summary-bakeoff`
 **Depends on:** claude-section-writer
-**Status:** Not Started
+**Status:** Held (deps)
 **Requires:** ai
 
 ### Goal
