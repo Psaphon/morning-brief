@@ -26,7 +26,9 @@ from .fetchers.crypto import fetch_all_crypto
 from .fetchers.financial import fetch_all_financial
 from .fetchers.rss import fetch_all_feeds
 from .processors.dedup import deduplicate
+from .processors.dedupe import find_duplicates
 from .processors.extractor import extract_articles
+from .processors.interest import filter_by_feed_minimum, load_interests
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
 from .summarizers.cloud import generate_daily_briefing_claude
@@ -189,7 +191,15 @@ async def run_pipeline() -> None:
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
-        unsummarized = select_balanced_articles(db.get_unsummarized_articles())
+        candidates = db.get_unsummarized_articles()
+        # Dedupe before selecting so duplicates never use an LLM call and the
+        # freed slot is refilled from the category's next article.
+        interests = load_interests()
+        candidates = filter_by_feed_minimum(candidates, interests)
+        duplicates = find_duplicates(candidates, config.dedupe_window_hours)
+        db.mark_duplicates(duplicates)
+        candidates = [a for a in candidates if a["id"] not in duplicates]
+        unsummarized = select_balanced_articles(candidates, interests=interests)
         logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
         if unsummarized:
@@ -251,6 +261,7 @@ async def run_pipeline() -> None:
             artworks=daily_art,
             briefing=briefing,
             briefing_segments=briefing_segments,
+            interests=interests,
             output_path=output_path,
             hmac_key=config.dashboard_hmac_key,
             brief_id=today_brief_id,

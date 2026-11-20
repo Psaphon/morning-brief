@@ -90,6 +90,9 @@
             text-decoration: none;
         }
         .article h3 a:hover { color: var(--accent); }
+        .article .interest-labels { margin-top: 4px; }
+        .interest-label { display: inline-block; font-size: 0.75em; padding: 1px 8px; margin-right: 4px; border: 1px solid var(--border, currentColor); border-radius: 999px; opacity: 0.8; }
+        .article .also-covered { font-size: 0.8em; opacity: 0.7; margin-top: 4px; word-break: break-all; }
         .article .summary {
             font-size: 0.85rem;
             color: var(--muted);
@@ -409,6 +412,14 @@
             {% if article.summary %}
             <div class="summary">{{ article.summary }}</div>
             {% endif %}
+            {% if article.interest_labels %}
+            <div class="interest-labels">{% for l in article.interest_labels %}<span class="interest-label">{{ l }}</span>{% endfor %}</div>
+            {% endif %}
+            {% if article.also_covered_by %}
+            <div class="also-covered">Also covered by:
+                {% for u in article.also_covered_by %}<a href="{{ u }}">{{ u }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -484,6 +495,18 @@
 
                 div.appendChild(attrEl);
                 div.appendChild(titleEl);
+
+                if (art.labels && art.labels.length) {
+                    var labelsEl = document.createElement('div');
+                    labelsEl.className = 'interest-labels';
+                    art.labels.forEach(function (l) {
+                        var span = document.createElement('span');
+                        span.className = 'interest-label';
+                        span.textContent = l;
+                        labelsEl.appendChild(span);
+                    });
+                    div.appendChild(labelsEl);
+                }
 
                 if (art.summary) {
                     var summaryEl = document.createElement('div');

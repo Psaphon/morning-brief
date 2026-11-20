@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Automated daily news and intelligence dashboard. Runs a batch job at 4:15 AM ET, pulls news from RSS feeds and free APIs, summarizes with a local LLM (Qwen via Ollama), and publishes a mobile-friendly HTML dashboard to Cloudflare Pages.
+Automated daily news and intelligence dashboard. Runs a batch job at 4:15 AM ET, pulls news from RSS feeds and free APIs, summarizes with a local LLM (gemma4:e4b via Ollama), and publishes a mobile-friendly HTML dashboard to Cloudflare Pages.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Automated daily news and intelligence dashboard. Runs a batch job at 4:15 AM ET,
              ── Store in SQLite
         │
         ▼
-[3. Summarize] ── Qwen 2.5 7B via Ollama (local, per-article)
+[3. Summarize] ── gemma4:e4b via Ollama (local, per-article)
         │
         ▼
 [4. Publish] ── Render HTML dashboard (Jinja2)
@@ -36,7 +36,7 @@ Automated daily news and intelligence dashboard. Runs a batch job at 4:15 AM ET,
 | RSS parsing | feedparser | Standard, reliable |
 | Article extraction | trafilatura | Best open-source full-text extraction |
 | Database | SQLite | Single-user, once-daily pipeline |
-| Local LLM | Qwen 2.5 7B (Q4_K_M) via Ollama | Free, local, fits RTX 2060 6GB |
+| Local LLM | gemma4:e4b via Ollama (thinking off) | Free, local |
 | HTTP client | httpx | Async-capable |
 | Templating | Jinja2 | Standard Python templating |
 | Terminal UI | Rich | Tables, panels, color |
@@ -68,7 +68,7 @@ morning-brief/
 │   │   ├── extractor.py    ← trafilatura full-text extraction
 │   │   └── dedup.py        ← deduplication logic
 │   ├── summarizers/
-│   │   ├── local.py        ← Qwen via Ollama
+│   │   ├── local.py        ← local model via Ollama
 │   │   └── cloud.py        ← Claude API synthesis (future)
 │   └── publishers/
 │       ├── html.py         ← Jinja2 HTML rendering
@@ -127,7 +127,7 @@ morning-brief/
 
 1. **RSS over news APIs** — free, unlimited, keyless
 2. **SQLite over Postgres** — single-user, once-daily
-3. **Qwen for summarization, Claude for synthesis** — local for volume, cloud for reasoning
+3. **Local model for summarization, Claude for synthesis** — local for volume, cloud for reasoning
 4. **Cloudflare Pages over self-hosting** — no server to maintain, free tier
 5. **Once-daily batch, not real-time** — pipeline runs at 4:15 AM ET
 6. **Docker for deployment** — develop locally, ship in container
@@ -136,7 +136,7 @@ morning-brief/
 
 Required:
 - `OLLAMA_HOST` — Ollama server URL (default: `http://localhost:11434`)
-- `OLLAMA_MODEL` — model name (default: `qwen2.5:7b-instruct-q4_K_M`)
+- `OLLAMA_MODEL` — model name (default: `gemma4:e4b`)
 
 Optional:
 - `FINNHUB_API_KEY`, `FRED_API_KEY` — market data

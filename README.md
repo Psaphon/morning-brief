@@ -6,7 +6,7 @@ Automated morning news and intelligence dashboard. Pulls news from RSS feeds and
 
 - **News aggregation** — RSS feeds across 7 categories (US politics, Florida, world, crypto, dev/AI, art)
 - **Market data** — Stock indices, treasury yields, VIX, crypto prices, DeFi TVL
-- **LLM summarization** — Per-article summaries via Qwen 2.5 (local, via Ollama)
+- **LLM summarization** — Per-article summaries via a local model (gemma4:e4b by default, via Ollama)
 - **Endpoint monitoring** — Health checks for your deployed projects
 - **Daily artwork** — Random artwork from the Met Museum API
 - **Multiple outputs** — Mobile-friendly HTML dashboard, Rich terminal UI, email (future)

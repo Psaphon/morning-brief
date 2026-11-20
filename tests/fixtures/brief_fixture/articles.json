@@ -1,0 +1,114 @@
+[
+  {
+    "id": "tech-nvda",
+    "category": "Tech",
+    "source": "Fixture Wire",
+    "published_at": "2026-01-12T14:05:00Z",
+    "title": "Nvidia unveils next-generation data center accelerator",
+    "text": "Nvidia said on Monday that its newest data center accelerator doubles inference throughput over the previous generation, with volume shipments planned for the second quarter."
+  },
+  {
+    "id": "tech-tsla",
+    "category": "Tech",
+    "source": "Fixture Wire",
+    "published_at": "2026-01-12T16:30:00Z",
+    "title": "Tesla expands driver-assistance pilot to three more states",
+    "text": "Tesla is widening a pilot of its driver-assistance software to three additional states, according to regulatory filings reviewed this week by reporters."
+  },
+  {
+    "id": "tech-msft",
+    "category": "Tech",
+    "source": "Fixture Digest",
+    "published_at": "2026-01-12T09:45:00Z",
+    "title": "Microsoft adds regional capacity for Azure customers",
+    "text": "Microsoft announced new Azure regions in two countries to meet demand for cloud and AI workloads, saying the buildout will take roughly eighteen months."
+  },
+  {
+    "id": "tech-chip",
+    "category": "Tech",
+    "source": "Fixture Digest",
+    "published_at": "2026-01-11T21:10:00Z",
+    "title": "Chipmakers warn of tight supply for legacy nodes",
+    "text": "Several semiconductor makers warned that supply of older process nodes will stay constrained through the year, as automotive demand outpaces new capacity."
+  },
+  {
+    "id": "tech-oss",
+    "category": "Tech",
+    "source": "Fixture Wire",
+    "published_at": "2026-01-11T18:00:00Z",
+    "title": "Open source maintainers back new funding scheme",
+    "text": "A coalition of open source maintainers endorsed a shared funding scheme that would pay for security audits of widely used libraries over the next three years."
+  },
+  {
+    "id": "tech-bat",
+    "category": "Tech",
+    "source": "Fixture Digest",
+    "published_at": "2026-01-10T12:20:00Z",
+    "title": "Battery startup claims faster charging in lab tests",
+    "text": "A university spin-out reported that its prototype cells reach eighty percent charge in under ten minutes in lab conditions, though independent results are pending."
+  },
+  {
+    "id": "crypto-jpm",
+    "category": "Crypto",
+    "source": "Ledger Daily",
+    "published_at": "2026-01-12T13:15:00Z",
+    "title": "JPMorgan tests tokenized deposits on a public ledger",
+    "text": "JPMorgan said it is trialling tokenized deposits settled on a public blockchain with a small group of institutional clients, calling the pilot limited in scope."
+  },
+  {
+    "id": "crypto-etf",
+    "category": "Crypto",
+    "source": "Ledger Daily",
+    "published_at": "2026-01-12T11:00:00Z",
+    "title": "Spot crypto funds record third straight week of inflows",
+    "text": "Exchange-traded crypto funds drew net inflows for a third consecutive week, according to fund tracking data compiled on Sunday evening."
+  },
+  {
+    "id": "crypto-l2",
+    "category": "Crypto",
+    "source": "Ledger Daily",
+    "published_at": "2026-01-11T15:40:00Z",
+    "title": "Layer-two networks cut fees after protocol upgrade",
+    "text": "Fees on several layer-two networks fell sharply after an upgrade to the base protocol that expanded data capacity for rollups, developers said."
+  },
+  {
+    "id": "crypto-reg",
+    "category": "Crypto",
+    "source": "Chain Review",
+    "published_at": "2026-01-10T19:25:00Z",
+    "title": "Regulator opens consultation on stablecoin reserves",
+    "text": "A financial regulator opened a consultation on reserve requirements for stablecoin issuers, inviting comments from industry groups until the end of March."
+  },
+  {
+    "id": "world-sale-1",
+    "category": "World",
+    "source": "Global Fixture",
+    "published_at": "2026-01-12T08:00:00Z",
+    "title": "Brightwater Capital prices $3,847,000,000 bond sale",
+    "text": "Brightwater Capital priced a bond sale of $3,847,000,000 on Monday, the largest corporate debt offering of the year so far, according to people familiar with the deal."
+  },
+  {
+    "id": "world-sale-2",
+    "category": "World",
+    "source": "Fixture Times",
+    "published_at": "2026-01-12T10:30:00Z",
+    "title": "Investors snap up Brightwater's $3,847,000,000 bond sale",
+    "text": "Demand for Brightwater's $3,847,000,000 bond sale was several times the amount offered, bankers said, as investors sought yield ahead of expected rate cuts."
+  },
+  {
+    "id": "world-amzn",
+    "category": "World",
+    "source": "Global Fixture",
+    "published_at": "2026-01-11T07:30:00Z",
+    "title": "Amazon to open fulfilment hub near northern port",
+    "text": "Amazon plans to open a large fulfilment hub near a northern port city, a move local officials expect to create about two thousand jobs by next year."
+  },
+  {
+    "id": "world-flood",
+    "category": "World",
+    "source": "Fixture Times",
+    "published_at": "2026-01-10T06:15:00Z",
+    "title": "River authorities lift flood warning after crest passes",
+    "text": "River authorities lifted a flood warning on Saturday after the crest passed downstream communities, though some roads remain closed for inspection."
+  }
+]

@@ -243,6 +243,7 @@ async def test_summarize_single_success(ollama_config):
     assert result.summary == "This is a concise summary of the article."
     assert result.model == ollama_config.model
     assert result.elapsed_seconds >= 0
+    assert mock_client.post.call_args.kwargs["json"]["think"] is False
 
 
 @pytest.mark.asyncio
@@ -466,3 +467,12 @@ async def test_batch_metrics_articles_per_minute(ollama_config):
 
     assert metrics.total_seconds == pytest.approx(30.0)
     assert metrics.articles_per_minute == pytest.approx(6.0)  # 3 / 30s * 60
+
+
+def test_default_model_is_gemma4(monkeypatch):
+    """With OLLAMA_MODEL unset, the pipeline runs gemma4:e4b."""
+    from src.config import OllamaConfig, load_config
+
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    assert load_config().ollama.model == "gemma4:e4b"
+    assert OllamaConfig().model == "gemma4:e4b"

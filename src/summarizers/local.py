@@ -1,4 +1,4 @@
-"""Local LLM summarizer — Qwen via Ollama.
+"""Local LLM summarizer — Ollama (default model in config.py).
 
 Sends unsummarized articles to an Ollama instance, gets back concise
 2-3 sentence summaries, and stores them in the database.
@@ -18,13 +18,14 @@ from typing import TYPE_CHECKING
 import httpx
 
 from ..config import OllamaConfig
+from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
 
 if TYPE_CHECKING:
     from ..db import Database
 
 logger = logging.getLogger(__name__)
 
-# Approximate token limit for input text. Qwen 2.5 7B handles ~8K context
+# Approximate token limit for input text. The server context is ~8K tokens
 # but we keep it conservative to leave room for the prompt template and output.
 MAX_INPUT_CHARS = 12_000  # ~3000 tokens at ~4 chars/token
 
@@ -37,6 +38,29 @@ REQUEST_TIMEOUT = 120.0
 
 # Longer timeout for briefing — one call with larger context
 BRIEFING_TIMEOUT = 300.0
+
+# JSON schema passed as Ollama's ``format``: the model's output is constrained to
+# it, so a quote inside a segment's text is always escaped. Without it, gemma4
+# wrote "atmospheric river," unescaped mid-string and the 2026-11-19 briefing
+# fell back to plain text with no segments.
+BRIEFING_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "segments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string"},
+                    "text": {"type": "string"},
+                    "source_article_ids": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["topic", "text", "source_article_ids"],
+            },
+        },
+    },
+    "required": ["segments"],
+}
 
 # Retry config
 MAX_RETRIES = 2
@@ -90,6 +114,7 @@ def select_balanced_articles(
     articles: list[dict],
     per_category: int = 8,
     total: int = 50,
+    interests: Interests | None = None,
 ) -> list[dict]:
     """Select articles for summarization using category-balanced round-robin.
 
@@ -101,10 +126,19 @@ def select_balanced_articles(
         articles: Candidate articles, pre-sorted by score descending.
         per_category: Maximum articles to take from any single category.
         total: Hard cap on the total number of articles returned.
+        interests: Operator interests. When non-empty, articles from feeds with
+            ``min_interest`` that score below it are dropped, and each category is
+            ordered by interest score, then by the existing order. When None or
+            empty, selection is unchanged.
 
     Returns:
         Balanced list of articles, sorted by score descending, length <= total.
     """
+    if interests:
+        articles = filter_by_feed_minimum(articles, interests)
+        interest_of = {id(a): interest_score(a, interests) for a in articles}
+        articles = sorted(articles, key=lambda a: interest_of[id(a)], reverse=True)
+
     by_category: dict[str, list[dict]] = {}
     for article in articles:
         cat = article.get("category", "")
@@ -114,7 +148,12 @@ def select_balanced_articles(
     for cat_articles in by_category.values():
         selected.extend(cat_articles[:per_category])
 
-    selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
+    if interests:
+        # Interest first, so the total cap never cuts an interest match for a
+        # higher-scored article the operator didn't ask for.
+        selected.sort(key=lambda a: (interest_of[id(a)], a.get("score") or 0), reverse=True)
+    else:
+        selected.sort(key=lambda a: a.get("score") or 0, reverse=True)
     return selected[:total]
 
 
@@ -202,6 +241,9 @@ async def summarize_single(
                     "model": config.model,
                     "prompt": prompt,
                     "stream": False,
+                    # Thinking models (gemma4) reason before answering unless told not to:
+                    # slower, and it eats num_predict. Older models ignore the flag.
+                    "think": False,
                     "options": {
                         "temperature": 0.3,
                         "top_p": 0.9,
@@ -546,6 +588,10 @@ async def generate_daily_briefing(
                     "model": config.model,
                     "prompt": prompt,
                     "stream": False,
+                    # Thinking models (gemma4) reason before answering unless told not to:
+                    # slower, and it eats num_predict. Older models ignore the flag.
+                    "think": False,
+                    "format": BRIEFING_SCHEMA,
                     "options": {
                         "temperature": 0.5,
                         "top_p": 0.9,
