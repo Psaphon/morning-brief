@@ -1,0 +1,16 @@
+# Phrases (case-insensitive) that indicate a paywall or login wall.
+# One per line; blank lines and lines starting with # are ignored.
+subscribe to continue
+subscribe to read
+subscribe now to read
+sign in to read
+sign in to continue reading
+log in to continue reading
+log in to read
+create a free account to continue
+this article is for subscribers
+subscribers only
+already a subscriber
+become a member to read
+continue reading with a subscription
+unlock this article
