@@ -1268,7 +1268,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 **Branch:** `feature/social-feeds`
 **Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
-**Status:** In Progress
+**Status:** Merged (#80)
 **Requires:** ai
 
 ### Goal
@@ -1277,15 +1277,15 @@ Support journalist-direct sources: Bluesky and Mastodon profile feeds, plus Subs
 
 ### Acceptance Criteria
 
-- [ ] Feed config accepts `kind`: `article` (default), `post` or `newsletter`.
+- [x] Feed config accepts `kind`: `article` (default), `post` or `newsletter`.
   - `post` items (Bluesky and Mastodon RSS) skip page fetching and the extraction call. Their post text is used directly as `what_happened`, capped at 120 words, and validated against itself. The stub records no generate call for them.
   - `newsletter` behaves like `article`. If the item's own content field already holds at least `AUDIT_MIN_WORDS` words, that text is used instead of fetching the page.
-- [ ] Posts from one author within `POST_GROUP_HOURS` (default 12) are grouped into one source entry, so a thread isn't counted as many sources.
-- [ ] Fixtures (synthetic) cover a Bluesky-style RSS profile, a Mastodon-style RSS profile and a newsletter feed with full content.
-- [ ] `source-audit` reports `post` feeds with verdict `ok-post` (short by design).
-- [ ] The signals golden test passes unchanged (`post` feeds default to the `reader` lane only).
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Posts from one author within `POST_GROUP_HOURS` (default 12) are grouped into one source entry, so a thread isn't counted as many sources.
+- [x] Fixtures (synthetic) cover a Bluesky-style RSS profile, a Mastodon-style RSS profile and a newsletter feed with full content.
+- [x] `source-audit` reports `post` feeds with verdict `ok-post` (short by design).
+- [x] The signals golden test passes unchanged (`post` feeds default to the `reader` lane only).
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
