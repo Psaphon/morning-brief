@@ -34,15 +34,15 @@ from .processors.lanes import ReaderLaneDB, filter_lane, load_lanes_for_run
 from .processors.posts import group_posts
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
-from .summarizers.cloud import generate_daily_briefing_claude
+from .summarizers.claude_writer import WriterRun
 from .summarizers.local import (
     extract_post,
     extraction_max_chars,
-    generate_daily_briefing,
     select_balanced_articles,
     summarize_articles,
     truncate_text,
 )
+from .summarizers.writer import write_sections
 from .validators.grounding import ValidatorRun
 
 logging.basicConfig(
@@ -325,27 +325,17 @@ async def run_pipeline() -> None:
 
         timer.lap("summarize")
 
-        # Generate daily briefing (after summarization, before publish)
-        # Try Claude first if API key is configured, fall back to Ollama.
+        # Generate daily briefing (after summarization, before publish).
+        # SUMMARY_WRITER=local (default) is the single local briefing; claude writes
+        # per section and falls back to local (see summarizers/writer.py).
         logger.info("Generating daily briefing...")
         reader_db = ReaderLaneDB(db, lanes)  # briefing reads reader-lane articles only
-        briefing = None
-        if config.api_keys.anthropic:
-            logger.info("ANTHROPIC_API_KEY set — attempting Claude synthesis")
-            briefing = await generate_daily_briefing_claude(
-                reader_db, config.api_keys.anthropic, validator
-            )
-            if briefing:
-                logger.info("Claude briefing ready (%d chars)", len(briefing))
-            else:
-                logger.info("Claude synthesis failed or skipped — falling back to Ollama")
-
-        if briefing is None:
-            briefing = await generate_daily_briefing(reader_db, config.ollama, validator)
-            if briefing:
-                logger.info("Daily briefing ready (%d chars)", len(briefing))
-            else:
-                logger.info("No briefing generated (Ollama unavailable or no summaries)")
+        writer_run = WriterRun()
+        briefing = await write_sections(reader_db, config, validator, writer_run)
+        if briefing:
+            logger.info("Daily briefing ready (%d chars)", len(briefing))
+        else:
+            logger.info("No briefing generated (writer unavailable or no summaries)")
 
         # Retrieve structured segment map for interactive HTML
         briefing_segments = None
@@ -422,6 +412,13 @@ async def run_pipeline() -> None:
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
 
+        # Only claude runs add writer metadata, so the default status file is unchanged.
+        writer_status = {}
+        if config.writer.mode == "claude":
+            writer_status["writer"] = writer_run.metadata()
+        if writer_run.alerts:
+            writer_status["alerts"] = writer_run.alerts
+
         _write_status(
             data_dir,
             status="ok",
@@ -430,6 +427,7 @@ async def run_pipeline() -> None:
             elapsed_seconds=round(elapsed, 1),
             validator=validator.metadata(),
             timing=timing,
+            **writer_status,
         )
 
     except Exception as exc:

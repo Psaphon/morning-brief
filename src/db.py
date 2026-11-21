@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS daily_briefings (
     briefing_metadata TEXT
 );
 
+CREATE TABLE IF NOT EXISTS api_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    model TEXT NOT NULL,
+    tokens_in INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    cost_usd REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -486,6 +500,36 @@ class Database:
             (date, content, model, now, segment_map, metadata_json),
         )
         self.conn.commit()
+
+    def record_api_usage(
+        self, model: str, tokens_in: int, tokens_out: int, cost_usd: float, ts: str | None = None
+    ) -> None:
+        """Record one paid API call (the spend guard sums these per UTC month)."""
+        ts = ts or datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            "INSERT INTO api_usage (ts, model, tokens_in, tokens_out, cost_usd) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (ts, model, tokens_in, tokens_out, cost_usd),
+        )
+        self.conn.commit()
+
+    def month_to_date_cost(self, now: datetime | None = None) -> float:
+        """Total ``cost_usd`` recorded in the UTC month of *now* (default: the current one)."""
+        month = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m")
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM api_usage WHERE substr(ts, 1, 7) = ?",
+            (month,),
+        ).fetchone()
+        return float(row[0])
+
+    def claim_marker(self, key: str) -> bool:
+        """Set the meta marker *key*; True only for the call that set it (first time)."""
+        cur = self.conn.execute(
+            "INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)",
+            (key, datetime.now(timezone.utc).isoformat()),
+        )
+        self.conn.commit()
+        return cur.rowcount == 1
 
     def get_briefing(self, date: str) -> dict[str, Any] | None:
         """Return the daily briefing for a given date, or None if not found.

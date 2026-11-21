@@ -1194,7 +1194,7 @@ Cover more articles, with richer extracted facts, so section summaries can run 2
 
 **Branch:** `feature/claude-section-writer`
 **Depends on:** reader-coverage
-**Status:** Ready (supervised)
+**Status:** Merged (#83) — off by default; [HUMAN] key + live run open
 **Requires:** both
 
 ### Goal
@@ -1203,18 +1203,18 @@ Have the Claude API write each reader section as a long, readable summary with r
 
 ### Acceptance Criteria
 
-- [ ] With `SUMMARY_WRITER=claude`, each reader section gets one API call. Input: section name, plus for each article its id, title, source, `what_happened` and `details`. Output: prose paragraphs where each chunk drawn from a source ends with `[[id]]`, or `[[id1,id2]]` when it combines sources. Target length comes from config.
-- [ ] Code splits the output into chunks at citation markers. Each chunk is validated against the union of its cited articles' text. Chunks that fail, cite unknown ids, or have no citation are dropped and counted in the run metadata.
-- [ ] If a section loses more than `WRITER_MAX_DROP_SHARE` of its chunks (default 0.3), or the API errors or times out, that section falls back to the local writer, and the page marks it "local fallback".
-- [ ] Spend guard: each call's token usage is recorded in SQLite, priced from config. When the month-to-date estimate reaches the cap, the writer switches to local until the month rolls over, logs once, and sends one `hub-alert`.
-- [ ] The API key comes from `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential=`). With the credential missing, the writer falls back to local and logs that clearly, with no traceback containing secrets.
-- [ ] Tests use a stub HTTP server for the API. They cover valid output, an uncited chunk, an unknown id, a wrong number in a chunk, an API 500, and the cap being reached.
-- [ ] A test walks the request bodies the stub recorded and finds no article full text.
-- [ ] `SUMMARY_WRITER=local` uses the existing local path unchanged.
+- [x] With `SUMMARY_WRITER=claude`, each reader section gets one API call. Input: section name, plus for each article its id, title, source, `what_happened` and `details`. Output: prose paragraphs where each chunk drawn from a source ends with `[[id]]`, or `[[id1,id2]]` when it combines sources. Target length comes from config.
+- [x] Code splits the output into chunks at citation markers. Each chunk is validated against the union of its cited articles' text. Chunks that fail, cite unknown ids, or have no citation are dropped and counted in the run metadata.
+- [x] If a section loses more than `WRITER_MAX_DROP_SHARE` of its chunks (default 0.3), or the API errors or times out, that section falls back to the local writer, and the page marks it "local fallback".
+- [x] Spend guard: each call's token usage is recorded in SQLite, priced from config. When the month-to-date estimate reaches the cap, the writer switches to local until the month rolls over, logs once, and sends one `hub-alert`.
+- [x] The API key comes from `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential=`). With the credential missing, the writer falls back to local and logs that clearly, with no traceback containing secrets.
+- [x] Tests use a stub HTTP server for the API. They cover valid output, an uncited chunk, an unknown id, a wrong number in a chunk, an API 500, and the cap being reached.
+- [x] A test walks the request bodies the stub recorded and finds no article full text.
+- [x] `SUMMARY_WRITER=local` uses the existing local path unchanged.
 - [ ] [HUMAN] Operator: API key on the SECRETS USB. PM: one live run on hub, posting the drop counts and token spend.
-- [ ] The signals golden test passes unchanged.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] The signals golden test passes unchanged.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1304,7 +1304,7 @@ The specific journalists and accounts go in the uncommitted feeds overlay, not t
 
 **Branch:** `feature/summary-bakeoff`
 **Depends on:** claude-section-writer
-**Status:** Held (deps)
+**Status:** Ready (supervised)
 **Requires:** ai
 
 ### Goal
