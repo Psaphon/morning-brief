@@ -34,6 +34,13 @@ CREATE TABLE IF NOT EXISTS articles (
     UNIQUE(url_hash)
 );
 
+CREATE TABLE IF NOT EXISTS extractions (
+    article_id INTEGER PRIMARY KEY REFERENCES articles(id),
+    json TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS market_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
@@ -105,6 +112,14 @@ class Database:
             ("ALTER TABLE articles ADD COLUMN score REAL", "score"),
             ("ALTER TABLE articles ADD COLUMN last_seen_at TEXT", "last_seen_at"),
             ("ALTER TABLE articles ADD COLUMN duplicate_of INTEGER", "duplicate_of"),
+            (
+                "ALTER TABLE articles ADD COLUMN extraction_failed INTEGER NOT NULL DEFAULT 0",
+                "extraction_failed",
+            ),
+            (
+                "ALTER TABLE articles ADD COLUMN is_roundup INTEGER NOT NULL DEFAULT 0",
+                "is_roundup",
+            ),
             (
                 "ALTER TABLE daily_briefings ADD COLUMN segment_map TEXT",
                 "daily_briefings.segment_map",
@@ -301,9 +316,11 @@ class Database:
         """
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         rows = self.conn.execute(
-            """SELECT id, url, title, source, category, full_text, score, published_at
+            """SELECT id, url, title, source, category, full_text, score,
+                      published_at, fetched_at
                FROM articles
                WHERE summary IS NULL
+                 AND extraction_failed = 0
                  AND duplicate_of IS NULL
                  AND full_text IS NOT NULL
                  AND fetched_at >= ?
@@ -327,6 +344,37 @@ class Database:
         self.conn.execute(
             "UPDATE articles SET summary = ?, summary_model = ? WHERE id = ?",
             (summary, model, article_id),
+        )
+        self.conn.commit()
+
+    def save_extraction(self, article_id: int, extraction: dict[str, Any], model: str) -> None:
+        """Store an article's validated extraction and mirror it onto the article row.
+
+        ``summary`` holds ``what_happened`` so everything that reads summaries keeps working.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        self.conn.execute(
+            """INSERT INTO extractions (article_id, json, model, created_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(article_id) DO UPDATE SET
+                   json = excluded.json,
+                   model = excluded.model,
+                   created_at = excluded.created_at""",
+            (article_id, json.dumps(extraction), model, now),
+        )
+        self.conn.execute(
+            """UPDATE articles
+               SET summary = ?, summary_model = ?, is_roundup = ?, extraction_failed = 0
+               WHERE id = ?""",
+            (extraction["what_happened"], model, int(extraction["is_roundup"]), article_id),
+        )
+        self.conn.commit()
+
+    def mark_extraction_failed(self, article_id: int) -> None:
+        """Flag an article whose extraction failed validation twice, so it is not retried."""
+        self.conn.execute(
+            "UPDATE articles SET extraction_failed = 1 WHERE id = ?",
+            (article_id,),
         )
         self.conn.commit()
 

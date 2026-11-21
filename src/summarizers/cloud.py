@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from .local import _build_briefing_prompt, _parse_briefing_response
+from .local import _briefing_summaries, _build_briefing_prompt, _parse_briefing_response
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -64,12 +64,7 @@ async def generate_daily_briefing_claude(
         return existing["content"]
 
     articles = db.get_todays_articles()
-    summaries_by_category: dict[str, list[tuple[int, str]]] = {}
-    for article in articles:
-        if not article.get("summary"):
-            continue
-        cat = article.get("category", "General")
-        summaries_by_category.setdefault(cat, []).append((article["id"], article["summary"]))
+    summaries_by_category = _briefing_summaries(articles)
 
     if not summaries_by_category:
         logger.info("No summaries available for Claude briefing")

@@ -744,7 +744,7 @@ Pin today's signals output with an end-to-end test. Every later feature then has
 
 **Branch:** `feature/article-extraction`
 **Depends on:** signals-golden-test
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** both
 
 ### Goal

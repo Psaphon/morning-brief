@@ -15,6 +15,13 @@ from pathlib import Path
 class OllamaConfig:
     host: str = "http://localhost:11434"
     model: str = "gemma4:e4b"
+    # Per-article extraction (structured output)
+    num_ctx: int = 8192
+    extract_temperature: float = 0.1
+    extract_seed: int = 42
+    extract_max_words: int = 50
+    extract_num_predict: int = 400
+    chars_per_token: int = 4
 
 
 @dataclass
@@ -49,6 +56,12 @@ def load_config() -> Config:
         ollama=OllamaConfig(
             host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
             model=os.environ.get("OLLAMA_MODEL", "gemma4:e4b"),
+            num_ctx=int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
+            extract_temperature=float(os.environ.get("EXTRACT_TEMPERATURE", "0.1")),
+            extract_seed=int(os.environ.get("EXTRACT_SEED", "42")),
+            extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "50")),
+            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "400")),
+            chars_per_token=int(os.environ.get("CHARS_PER_TOKEN", "4")),
         ),
         api_keys=APIKeys(
             finnhub=os.environ.get("FINNHUB_API_KEY", ""),
