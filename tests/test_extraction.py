@@ -177,11 +177,11 @@ def test_config_defaults(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     o = load_config().ollama
     assert (o.num_ctx, o.extract_temperature, o.extract_seed) == (8192, 0.1, 42)
-    assert (o.extract_max_words, o.extract_num_predict, o.chars_per_token) == (50, 400, 4)
+    assert (o.extract_max_words, o.extract_num_predict, o.chars_per_token) == (50, 600, 4)
 
 
 def test_max_chars_fits_context():
-    assert extraction_max_chars(OllamaConfig()) == (8192 - 400 - 600) * 4
+    assert extraction_max_chars(OllamaConfig()) == (8192 - 600 - 600) * 4
     small = OllamaConfig(num_ctx=4096, extract_num_predict=500, chars_per_token=3)
     assert extraction_max_chars(small) == (4096 - 500 - 600) * 3
 
@@ -443,3 +443,20 @@ def test_save_extraction_upserts(tmp_path):
         assert (art["summary_model"], art["is_roundup"], art["extraction_failed"]) == ("m2", 1, 0)
     finally:
         db.close()
+
+
+def test_lists_are_capped_so_replies_fit_num_predict():
+    """Uncapped lists ran past num_predict on long articles (7/100 cut off on hub)."""
+    from src.summarizers.schema import EXTRACTION_SCHEMA, MAX_LIST_ITEMS
+
+    props = EXTRACTION_SCHEMA["properties"]
+    assert props["entities"]["maxItems"] == MAX_LIST_ITEMS
+    assert props["numbers"]["maxItems"] == MAX_LIST_ITEMS
+
+
+def test_roundup_rule_defaults_to_false():
+    """A false roundup drops a real story from the briefing; the prompt must lean false."""
+    from src.summarizers.local import EXTRACTION_PROMPT
+
+    assert "ONLY if" in EXTRACTION_PROMPT
+    assert "When unsure, use false" in EXTRACTION_PROMPT

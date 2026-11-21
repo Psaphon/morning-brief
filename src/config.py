@@ -20,7 +20,7 @@ class OllamaConfig:
     extract_temperature: float = 0.1
     extract_seed: int = 42
     extract_max_words: int = 50
-    extract_num_predict: int = 400
+    extract_num_predict: int = 600
     chars_per_token: int = 4
 
 
@@ -60,7 +60,7 @@ def load_config() -> Config:
             extract_temperature=float(os.environ.get("EXTRACT_TEMPERATURE", "0.1")),
             extract_seed=int(os.environ.get("EXTRACT_SEED", "42")),
             extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "50")),
-            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "400")),
+            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "600")),
             chars_per_token=int(os.environ.get("CHARS_PER_TOKEN", "4")),
         ),
         api_keys=APIKeys(

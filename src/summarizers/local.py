@@ -81,11 +81,15 @@ Rules:
 - Facts only: who did what, the figures, and when. No evaluation, opinion, or impact language.
 - Copy names, tokens and companies exactly as written in the article.
 - Copy figures exactly as written, with their units.
+- entities and numbers: at most 10 each, the ones what_happened depends on first. No repeats.
 - what_happened: at most 2 sentences.
 - event_date: the date of the event as YYYY-MM-DD, or null if the article gives none. \
 Resolve relative dates ("yesterday", "next Friday") against the published date.
 - status: "happened", "scheduled" (still to come) or "ongoing".
-- is_roundup: true if the article is a digest or roundup covering several unrelated stories.
+- is_roundup: true ONLY if the article is a list of separate, unrelated news items under one \
+headline, such as "Morning briefing", "5 things to know today" or "Theme park news: A, B and C". \
+One story told with background, several people, places, figures or reactions is NOT a roundup: \
+use false. When unsure, use false.
 
 Article title: {title}
 Source: {source}

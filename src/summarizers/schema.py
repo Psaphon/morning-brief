@@ -13,14 +13,19 @@ import re
 from datetime import datetime
 from typing import Any
 
+# Long articles otherwise list every name and figure, and the reply runs past
+# num_predict mid-string (seen on hub: 7 of 100 replies cut off). Ten each keeps
+# the useful ones; the prompt asks for the most important first.
+MAX_LIST_ITEMS = 10
+
 STATUSES = ("happened", "scheduled", "ongoing")
 
 EXTRACTION_SCHEMA: dict = {
     "type": "object",
     "properties": {
         "what_happened": {"type": "string"},
-        "entities": {"type": "array", "items": {"type": "string"}},
-        "numbers": {"type": "array", "items": {"type": "string"}},
+        "entities": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_LIST_ITEMS},
+        "numbers": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_LIST_ITEMS},
         "event_date": {"type": ["string", "null"]},
         "status": {"type": "string", "enum": list(STATUSES)},
         "is_roundup": {"type": "boolean"},
