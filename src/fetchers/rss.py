@@ -43,6 +43,16 @@ _BLOCK_TAG_RE = re.compile(r"</?(?:p|div|br|li|ul|ol|h[1-6]|blockquote|tr)\b[^>]
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
+def _title_from_text(value: str | None, limit: int = 100) -> str:
+    """A title for an untitled entry: its text's first line, cut to *limit* characters.
+
+    Bluesky and Mastodon profile feeds carry no <title> on posts, only the post text.
+    """
+    text = html_to_text(value).strip()
+    first = text.splitlines()[0].strip() if text else ""
+    return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
+
+
 def html_to_text(value: str | None) -> str:
     """Strip tags from feed HTML; block tags become line breaks, entities are decoded."""
     if not value:
@@ -139,7 +149,7 @@ async def fetch_feed(
     articles: list[RawArticle] = []
     for entry in parsed.entries:
         link = entry.get("link", "")
-        title = entry.get("title", "")
+        title = entry.get("title", "") or _title_from_text(entry.get("summary"))
         if not link or not title:
             continue
 

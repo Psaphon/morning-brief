@@ -337,3 +337,41 @@ async def test_audit_post_feed_that_fails_is_still_failing():
     async with client:
         (audit,) = await audit_feeds(feeds, days=7, client=client)
     assert audit.verdict == "failing"
+
+
+def test_audit_cli_passes_feed_kinds(tmp_path, monkeypatch):
+    """audit-sources must stamp each feed's kind, or post feeds never get ok-post."""
+    from click.testing import CliRunner
+
+    import src.cli as cli_mod
+    import src.processors.source_audit as audit_mod
+
+    overlay = tmp_path / "feeds-overlay.toml"
+    overlay.write_text(
+        '[feeds."Fixture Reporter Posts"]\n'
+        'url = "https://posts.example/rss"\ncategory = "World News"\nkind = "post"\n'
+    )
+    monkeypatch.setenv("MORNING_BRIEF_FEEDS_OVERLAY", str(overlay))
+    seen = {}
+
+    async def fake_audit(feeds, days, min_words, markers):
+        seen.update({f["source"]: f.get("kind") for f in feeds})
+        return []
+
+    monkeypatch.setattr(audit_mod, "audit_feeds", fake_audit)
+    monkeypatch.setattr(audit_mod, "write_report", lambda *a, **k: tmp_path / "report.json")
+    result = CliRunner().invoke(cli_mod.cli, ["audit-sources", "--days", "1"])
+    assert result.exit_code == 0, result.output
+    assert seen.get("Fixture Reporter Posts") == "post"
+    assert seen.get("ArXiv CS.AI") == "article"
+
+
+def test_untitled_post_entries_get_a_title_from_their_text():
+    """Real Bluesky/Mastodon profile RSS items have no <title>; they must not be skipped."""
+    from src.fetchers.rss import _title_from_text
+
+    title = _title_from_text("<p>Port traffic is up.</p><p>More.</p>")
+    assert title.startswith("Port traffic is up.")
+    long = "<p>" + "word " * 60 + "</p>"
+    assert len(_title_from_text(long)) <= 100
+    assert _title_from_text(None) == ""
