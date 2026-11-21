@@ -1335,3 +1335,340 @@ Make the "go back to local-only" decision measurable: score any local model's se
 ### Key Decisions
 
 - The switch back to local is a config flip (`SUMMARY_WRITER=local`), made when a bakeoff shows parity. The radar entry carries the trigger.
+
+## Feature: fetch-contact
+
+**Branch:** `feature/fetch-contact`
+**Depends on:** none
+**Status:** Not Started
+**Requires:** both
+
+### Goal
+
+Every outbound fetch identifies the tool and a way to reach the operator, and the public page shows the same contact.
+
+### Acceptance Criteria
+
+- [ ] All HTTP requests (feeds, article extraction, and later EDGAR and wires) go through one client that sends a single User-Agent built from config: tool name, version, and `CONTACT_EMAIL` or `CONTACT_URL`. A stub server records the header on every request type.
+- [ ] With `CONTACT_EMAIL` unset, feed fetches still run with a contact-less User-Agent and log one WARNING.
+- [ ] The page build adds a small "Contact" footer line from `CONTACT_EMAIL` when set, and leaves it out when unset. A test builds the page both ways.
+- [ ] The address never reaches git or logs: a test scans tracked files and captured logs for the configured value.
+- [ ] [HUMAN] The operator creates the alias. The PM sets `CONTACT_EMAIL` on hub, sends a test email to the alias, and confirms it arrived with a phone notification.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/http.py` *(confirm; reuse an existing client if there is one)* | Create | Shared client and User-Agent |
+| `src/config.py` | Modify | `CONTACT_EMAIL`, `CONTACT_URL` |
+| page template *(confirm path)* | Modify | Contact footer |
+| `tests/test_fetch_contact.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **An alias, not a real mailbox.** It forwards to an inbox the operator watches, doesn't reveal the real address, and can be switched off and replaced if it attracts spam.
+- **The address is injected at build time.** It appears on the deployed page but never in the public repo.
+
+## Feature: filings-contract
+
+**Branch:** `feature/filings-contract`
+**Depends on:** feed-lanes
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Define the filings-lane file and the backfill history file in SIGNAL-SCHEMA, and add a CIK to every stock in the alias map, without changing any existing signal.
+
+### Acceptance Criteria
+
+- [ ] `docs/SIGNAL-SCHEMA.md` gets the next minor version and a new section for `signals-filings.json` and `filings-history.jsonl`, following §8's rules. The section covers:
+  - every field and its type
+  - the enums: `lane` = `filings`; `event` = `earnings`, `guidance`, `acquisition`, `agreement`, `exec_change`; `origin` = `edgar`, `wire`, `both`
+  - the `direction` range [-1, 1], or null
+  - `direction_n`, the count of verified components
+  - the component fields: `eps_yoy`, `rev_yoy`, `rev_accel`, `guidance_change`
+  - `in_model_window` (bool)
+  - the `knowable_at` rule from Constraints
+- [ ] A JSON schema file for both new files is committed. A test validates the synthetic fixtures against it.
+- [ ] `config/ticker_map.toml` gains `cik` for every stock symbol and none for ETFs. A test loads the real file and fails if any stock lacks a 10-digit CIK or any ETF has one.
+- [ ] The signals golden test passes unchanged: adding `cik` does not alter matching.
+- [ ] The same SIGNAL-SCHEMA text lands in atrade (companion `filings-reader`) the same day.
+- [ ] [HUMAN] The PM checks each CIK against EDGAR's company search on hub.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `docs/SIGNAL-SCHEMA.md` | Modify | Version bump, new section |
+| `docs/schemas/signals-filings.schema.json` | Create | Machine-checkable schema |
+| `config/ticker_map.toml` | Modify | `cik` per stock |
+| `tests/fixtures/filings/` | Create | Synthetic files for both formats |
+| `tests/test_filings_contract.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Separate file, not new records in the existing file.** atrade's current reader ignores unknown fields. If filings records arrived in the existing file, they would silently mix into the news shadow arm. A separate file makes that impossible.
+- `direction` is defined here independently of `signal-direction`'s field, so this plan doesn't wait on it. The two may be unified later.
+
+## Feature: edgar-fetcher
+
+**Branch:** `feature/edgar-fetcher`
+**Depends on:** filings-contract, fetch-contact
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Each run, fetch new 8-K filings for the universe's stocks from EDGAR, with their exhibit press releases and exact acceptance times.
+
+### Acceptance Criteria
+
+- [ ] `morning-brief filings fetch` reads the CIKs from the alias map and gets each company's recent filings from EDGAR's JSON submissions API *(PM verifies the endpoint)*. For each new 8-K it stores:
+  - accession number
+  - CIK and ticker
+  - acceptance time (UTC)
+  - item numbers
+  - the primary document's and Exhibit 99.x's text
+  - `origin = edgar`
+  - fetch time
+- [ ] Only items listed in `FILINGS_ITEMS` are stored (default `2.02,7.01,8.01,1.01,2.01,5.02`). Re-running is idempotent: accession numbers are unique.
+- [ ] Acceptance-time conversion is tested on fixtures on both sides of a daylight-saving change.
+- [ ] [HUMAN] The PM confirms which zone the API's acceptance time is really in, by comparing one known filing with its EDGAR index page, and records the answer in a code comment and the test.
+- [ ] With `CONTACT_EMAIL` unset, the command exits 0, logs one WARNING and stores nothing. A stub HTTP server records that no request was made.
+- [ ] Against the stub server:
+  - every request carries the User-Agent
+  - no more than `SEC_MAX_RPS` requests are sent in any one-second window
+  - a 429 triggers backoff
+  - repeated 403s stop the run for that day with an ERROR
+  - the contact address is absent from captured logs
+- [ ] The daily `morning-brief` run calls the fetch step when the `filings` lane is enabled. A fetch failure is logged and never fails the brief.
+- [ ] The signals golden test passes unchanged.
+- [ ] [HUMAN] With `CONTACT_EMAIL` already set by `fetch-contact`, the PM confirms one real run stores the latest earnings 8-K for at least one stock.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/fetchers/edgar.py` | Create | Client, rate limiter, parsing |
+| `src/storage/filings.py` *(confirm)* | Create | `filings` table |
+| `src/cli.py` *(confirm)* | Modify | `filings fetch` |
+| `src/config.py` | Modify | `SEC_MAX_RPS`, `FILINGS_ITEMS`, lane toggle |
+| `tests/fixtures/edgar/` | Create | Synthetic submissions JSON and filings |
+| `tests/test_edgar_fetcher.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Per-company polling of the submissions API**, not the all-filers "latest filings" feed. The universe is small, the volume is a handful of requests per run, and it gives item numbers and acceptance times in one place.
+- **Earnings releases are 8-K Item 2.02** with the press release attached as Exhibit 99.1, so EDGAR alone covers both the filing and the release.
+
+## Feature: wire-feeds
+
+**Branch:** `feature/wire-feeds`
+**Depends on:** edgar-fetcher
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Add press-release wire feeds to the `filings` lane, matched to universe stocks only by exchange-ticker tags, and merged with the EDGAR copy of the same release.
+
+### Acceptance Criteria
+
+- [ ] Feeds with `lanes = ["filings"]` and `kind = "wire"` are fetched by the shared feed fetcher. They never appear in the reader or signals lanes (a fixture proves both).
+- [ ] An item matches a stock only through an exchange tag, such as `(NYSE: XYZ)` or `(Nasdaq: XYZ)`, for a universe stock. Alias text is never used. Fixtures:
+  - an item that mentions the company name without a tag is not matched
+  - a tag for a non-universe ticker is not matched
+  - ETFs are never matched
+- [ ] Matched items are stored in `filings` with `origin = wire` and their publish time.
+- [ ] A wire item and an EDGAR filing for the same ticker are merged into one event (`origin = both`) when both hold:
+  - they fall within `MERGE_WINDOW_HOURS` (default 24)
+  - their normalized opening text is similar enough (`MERGE_SIMILARITY`, default 0.8)
+
+  The merged event keeps the earlier timestamp as `knowable_at`, and extraction uses the EDGAR text. A fixture pair proves it.
+- [ ] The signals golden test passes unchanged.
+- [ ] [HUMAN] The PM checks which wire each universe stock uses (from its latest earnings release), adds only verified free, full-text feeds to config, and confirms a real run fetches them.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| feed config *(confirm path)* | Modify | Wire feeds, `filings` lane |
+| `src/fetchers/wire.py` | Create | Ticker-tag matching |
+| `src/processors/filings_merge.py` | Create | Wire and EDGAR merge |
+| `tests/fixtures/wire/` | Create | Synthetic feeds |
+| `tests/test_wire_feeds.py` | Create | The criteria above |
+
+### Key Decisions
+
+- Exchange tags are precise. The existing alias-in-text matching is noisy, and this lane must not inherit that.
+
+### Notes
+
+GlobeNewswire publishes public RSS feeds, including site-wide, public-company, subject and industry feeds. PR Newswire publishes RSS and full-text feeds. The PM verifies the current URLs.
+
+## Feature: filing-facts
+
+**Branch:** `feature/filing-facts`
+**Depends on:** edgar-fetcher
+**Status:** Ready (supervised)
+**Requires:** both
+
+### Goal
+
+Extract earnings and guidance numbers from each earnings release, verify them against the text, and compute a bounded direction in code.
+
+### Acceptance Criteria
+
+- [ ] For each stored `2.02` event (or wire earnings release), one local-model call returns JSON matching a strict schema:
+  - diluted EPS, current and prior-year period
+  - revenue, current and prior-year period
+  - the guidance range for the next period or year, if given (low, high, metric, period)
+  - each value as written plus its scale ("in millions")
+
+  Invalid JSON is retried once, then stored as failed.
+- [ ] Every extracted number is checked against the source text after normalization: commas, currency symbols, parentheses for negatives, and "billion"/"million". An unverified value is set to null and counted. Fixtures:
+  - a release whose numbers are all present verifies fully
+  - an altered number is nulled
+- [ ] Code computes the components:
+  - `eps_yoy` and `rev_yoy`, as % change between the current and prior-year values from the same release, so the scale cancels
+  - `rev_accel`: this quarter's `rev_yoy` minus the same company's previous quarter's, from stored history
+  - `guidance_change`: +1, 0 or -1, comparing this release's guidance midpoint with the same metric and period's midpoint from the company's previous release in the table, beyond `GUIDANCE_TOLERANCE`
+- [ ] `direction` = `clip(Σ wᵢ·tanh(componentᵢ / kᵢ), -1, 1)`, over verified components only, with weights renormalized. Weights and `k` come from config. `direction_n` is the number of components used; with none, direction is null.
+- [ ] A test with a stub model shows:
+  - the prompt contains no instruction to judge good or bad news
+  - the model's output can't set `direction` directly (an injected `"direction": 1` in the output is ignored)
+- [ ] The call sends `num_ctx` and the deterministic temperature and seed from config, and trims long releases to the financial tables and highlights *(implementation decides how)* within the context budget.
+- [ ] [HUMAN] The PM runs it on hub on the last four earnings releases of three universe stocks and posts each extracted value next to the release text in a PR comment.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/processors/filing_facts.py` | Create | Extraction call, verification |
+| `src/processors/filing_direction.py` | Create | Components and direction |
+| `src/summarizers/schema.py` *(confirm)* | Modify | Extraction schema |
+| `src/config.py` | Modify | Weights, `k`, tolerance |
+| `tests/test_filing_facts.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Year-over-year growth is a stand-in for "surprise".** Analyst consensus isn't freely available. Acceleration and guidance changes are kept as separate components so the event study can test each one.
+- **Direction is code, not model judgement**, for injection resistance and to limit the model recalling outcomes.
+
+## Feature: filings-signals
+
+**Branch:** `feature/filings-signals`
+**Depends on:** filing-facts, wire-feeds, atrade `filings-reader` merged
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Emit `signals-filings.json` each run, next to the existing signals file.
+
+### Acceptance Criteria
+
+- [ ] Each run writes `signals-filings.json` atomically (temp file and rename), with one record per event whose `knowable_at` falls within `FILINGS_EMIT_DAYS` (default 30).
+- [ ] The output validates against the committed schema. A test walks every string, and only enum values, tickers, timestamps and pattern-checked accession numbers are allowed.
+- [ ] A golden file for the filings output is added (`tests/fixtures/brief_fixture/signals-filings.golden.json`). The existing signals golden test passes unchanged.
+- [ ] The run time never appears as `knowable_at`: a fixture whose fetch happens two days after acceptance keeps the acceptance time.
+- [ ] With the lane disabled, no file is written and the existing output is byte-identical.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/publishers/signals_filings.py` | Create | Writer |
+| `src/cli.py` *(confirm)* | Modify | Call it in the daily run |
+| `tests/fixtures/brief_fixture/signals-filings.golden.json` | Create | Golden output |
+| `tests/test_filings_signals.py` | Create | The criteria above |
+
+## Feature: filings-backfill
+
+**Branch:** `feature/filings-backfill`
+**Depends on:** filing-facts
+**Status:** Held (deps)
+**Requires:** both
+
+### Goal
+
+Rebuild the filings history from EDGAR's archive so the hypothesis can be tested on years of events, instead of waiting a year for new ones.
+
+### Acceptance Criteria
+
+- [ ] `morning-brief filings backfill --since YYYY-MM-DD` does the following for every universe stock:
+  - fetches historical earnings 8-Ks and their exhibits, including the API's older paged files
+  - stores them in the same `filings` table
+  - extracts facts with the same code as the daily run
+  - writes `data/filings-history.jsonl` in the contract format
+- [ ] Each record carries `in_model_window` = `knowable_at` earlier than `FILINGS_MODEL_CUTOFF` (runtime config, the configured model's training-data cutoff).
+- [ ] Resumable: a second run skips stored accession numbers. A stub clock past `BACKFILL_WINDOW_UTC` stops the run cleanly at the next item, with a summary line.
+- [ ] Rate limiting and the User-Agent rule are the same as `edgar-fetcher`'s (shared client; a test shows it).
+- [ ] [HUMAN] The PM sets `FILINGS_MODEL_CUTOFF` from the model card, runs the backfill on hub, and posts these counts in the PR:
+  - events per stock
+  - verification rate
+  - `direction_n` distribution
+  - in-window vs out-of-window counts
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/fetchers/edgar.py` | Modify | Historical paging |
+| `src/processors/filings_backfill.py` | Create | Resumable, window-bound runner |
+| `src/cli.py` *(confirm)* | Modify | `filings backfill` |
+| `tests/test_filings_backfill.py` | Create | The criteria above |
+
+### Notes
+
+Only events after the model's cutoff are fully free of the model having seen what came next. Earlier events are reported, but kept separate.
+
+## Feature: filing-events
+
+**Branch:** `feature/filing-events`
+**Depends on:** filings-signals
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Emit non-earnings 8-K events (agreements, acquisitions, executive changes, standalone guidance updates) as typed events, so they can be tested separately.
+
+### Acceptance Criteria
+
+- [ ] Items map to events in code, with no model call:
+  - `1.01` → `agreement`
+  - `2.01` → `acquisition`
+  - `5.02` → `exec_change`
+- [ ] A `7.01` or `8.01` release, or an untagged-item wire release, becomes `guidance` only when `filing-facts` extracts a verified guidance range from it. `guidance_change` and `direction` are computed as for earnings.
+- [ ] Non-guidance events have `direction` null. They appear in the output and the history file. A fixture covers each type.
+- [ ] The filings golden file is regenerated in this PR with only the new event records added. A field-by-field test shows the earnings records are unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/processors/filing_events.py` | Create | Item-to-event mapping |
+| `src/publishers/signals_filings.py` | Modify | Emit new types |
+| `tests/test_filing_events.py` | Create | The criteria above |
+
+### Key Decisions
+
+- No direction for agreements, acquisitions or executive changes: their effect isn't well defined in code. The event study measures them by type.
