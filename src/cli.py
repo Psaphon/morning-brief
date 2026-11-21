@@ -152,6 +152,37 @@ def history(days: int) -> None:
         db.close()
 
 
+@cli.command("audit-sources")
+@click.option("--days", "-d", default=7, show_default=True, help="Days of feed items to audit")
+def audit_sources(days: int) -> None:
+    """Report per-feed extracted-text quality (read-only; does not touch the DB)."""
+    import asyncio
+    import os
+    from pathlib import Path
+
+    from .fetchers.rss import parse_feeds_md
+    from .processors.source_audit import audit_feeds, load_paywall_markers, write_report
+
+    config = load_config()
+    min_words = int(os.environ.get("AUDIT_MIN_WORDS", "150"))
+    feeds = parse_feeds_md(config.feeds_path)
+    markers = load_paywall_markers()
+    audits = asyncio.run(audit_feeds(feeds, days, min_words, markers))
+
+    click.echo(
+        f"{'Feed':<28} {'Items':>5} {'MedWords':>8} {'Short%':>7} "
+        f"{'Paywall%':>8} {'Errors':>6}  Verdict"
+    )
+    for a in audits:
+        click.echo(
+            f"{a.source[:28]:<28} {a.items:>5} {a.median_words:>8.0f} "
+            f"{a.short_share * 100:>6.0f}% {a.paywall_share * 100:>7.0f}% "
+            f"{a.fetch_errors:>6}  {a.verdict}"
+        )
+    path = write_report(audits, Path("data"), days, min_words)
+    click.echo(f"Wrote {path}")
+
+
 @cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""
