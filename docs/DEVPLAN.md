@@ -1304,7 +1304,7 @@ The specific journalists and accounts go in the uncommitted feeds overlay, not t
 
 **Branch:** `feature/summary-bakeoff`
 **Depends on:** claude-section-writer
-**Status:** Ready (supervised)
+**Status:** Merged (#85)
 **Requires:** ai
 
 ### Goal
@@ -1313,16 +1313,16 @@ Make the "go back to local-only" decision measurable: score any local model's se
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief bakeoff --model NAME --date YYYY-MM-DD` runs the local writer with that model on the stored extractions for that date, without publishing. It prints, side by side with that day's Claude output:
+- [x] `morning-brief bakeoff --model NAME --date YYYY-MM-DD` runs the local writer with that model on the stored extractions for that date, without publishing. It prints, side by side with that day's Claude output:
   - chunk validator pass rate
   - citation coverage (share of articles cited)
   - words per section
   - fallback count
-- [ ] It writes `data/bakeoff-<date>-<model>.json` and exits 0. A date with no stored extractions exits non-zero with a clear message.
-- [ ] Fixture: stub models with known outputs produce the expected scores.
-- [ ] It makes no API calls (the stub records none).
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] It writes `data/bakeoff-<date>-<model>.json` and exits 0. A date with no stored extractions exits non-zero with a clear message.
+- [x] Fixture: stub models with known outputs produce the expected scores.
+- [x] It makes no API calls (the stub records none).
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
