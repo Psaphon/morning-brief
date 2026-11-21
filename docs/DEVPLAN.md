@@ -1268,7 +1268,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 **Branch:** `feature/social-feeds`
 **Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal

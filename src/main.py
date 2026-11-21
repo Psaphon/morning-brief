@@ -31,10 +31,12 @@ from .processors.dedupe import find_duplicates
 from .processors.extractor import extract_articles
 from .processors.interest import filter_by_feed_minimum, load_interests
 from .processors.lanes import ReaderLaneDB, filter_lane, load_lanes_for_run
+from .processors.posts import group_posts
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
 from .summarizers.cloud import generate_daily_briefing_claude
 from .summarizers.local import (
+    extract_post,
     extraction_max_chars,
     generate_daily_briefing,
     select_balanced_articles,
@@ -137,7 +139,7 @@ async def run_pipeline() -> None:
             follow_redirects=True,
             headers={"User-Agent": "MorningBrief/0.1"},
         ) as client:
-            rss_task = fetch_all_feeds(config.feeds_path, lanes.extra_feeds)
+            rss_task = fetch_all_feeds(config.feeds_path, lanes.extra_feeds, lanes.kinds)
             financial_task = fetch_all_financial(
                 client,
                 finnhub_key=config.api_keys.finnhub,
@@ -199,6 +201,7 @@ async def run_pipeline() -> None:
 
         # Stage 2: Process — extract and deduplicate
         logger.info("Stage 2: Processing articles...")
+        raw_articles = group_posts(raw_articles, config.post_group_hours)
         extracted = await extract_articles(raw_articles)
         logger.info("Extracted %d articles", len(extracted))
 
@@ -270,7 +273,13 @@ async def run_pipeline() -> None:
         logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
         if unsummarized:
-            results, metrics = await summarize_articles(config.ollama, unsummarized)
+            # Posts are their own extraction (no model call); the rest go to Ollama.
+            is_post = [lanes.kind_for(a.get("source", "")) == "post" for a in unsummarized]
+            post_results = [extract_post(a) for a, p in zip(unsummarized, is_post) if p]
+            results, metrics = await summarize_articles(
+                config.ollama, [a for a, p in zip(unsummarized, is_post) if not p]
+            )
+            results = post_results + results
             by_id = {a["id"]: a for a in unsummarized}
             saved = 0
             for result in results:
