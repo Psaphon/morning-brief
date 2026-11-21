@@ -796,7 +796,7 @@ The briefing step will only ever see these extractions, never the full text, whi
 
 **Branch:** `feature/output-validator`
 **Depends on:** article-extraction
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal

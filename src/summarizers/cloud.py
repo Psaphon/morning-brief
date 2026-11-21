@@ -15,7 +15,13 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from .local import _briefing_summaries, _build_briefing_prompt, _parse_briefing_response
+from ..validators.grounding import ValidatorRun
+from .local import (
+    _briefing_summaries,
+    _build_briefing_prompt,
+    _parse_briefing_response,
+    validate_briefing,
+)
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -38,6 +44,7 @@ REQUEST_TIMEOUT = 120.0
 async def generate_daily_briefing_claude(
     db: Database,
     anthropic_api_key: str,
+    validator: ValidatorRun | None = None,
 ) -> str | None:
     """Generate a daily briefing using the Claude API.
 
@@ -51,6 +58,7 @@ async def generate_daily_briefing_claude(
     Args:
         db: Database instance (must already be connected).
         anthropic_api_key: Anthropic API key. If empty, returns None immediately.
+        validator: Optional grounding validator applied to each segment before saving.
     """
     if not anthropic_api_key:
         logger.debug("ANTHROPIC_API_KEY not set — skipping Claude synthesis")
@@ -113,6 +121,12 @@ async def generate_daily_briefing_claude(
             return None
 
         rendered, segment_map_json = _parse_briefing_response(raw)
+        rendered, segment_map_json = validate_briefing(
+            rendered, segment_map_json, articles, validator
+        )
+        if not rendered:
+            logger.warning("Every Claude briefing sentence failed validation — none saved")
+            return None
         db.save_briefing(today, rendered, CLAUDE_MODEL, segment_map_json)
         logger.info("Claude daily briefing generated (%d chars)", len(rendered))
         return rendered

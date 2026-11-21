@@ -19,6 +19,7 @@ import httpx
 
 from ..config import OllamaConfig
 from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
+from ..validators.grounding import ValidatorRun
 from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction
 
 if TYPE_CHECKING:
@@ -516,21 +517,62 @@ def _build_briefing_prompt(summaries_by_category: dict[str, list[tuple[int, str]
     return "\n".join(parts)
 
 
-def _briefing_summaries(articles: list[dict]) -> dict[str, list[tuple[int, str]]]:
-    """Group article summaries by category for the briefing prompt.
-
-    Skips articles without a summary, roundups (several unrelated stories in one
-    summary) and failed extractions. Signals read the raw articles and are unaffected.
+def _briefing_articles(articles: list[dict]) -> list[dict]:
+    """Articles that feed the briefing: skips those without a summary, roundups (several
+    unrelated stories in one summary) and failed or invalidated extractions.
+    Signals read the raw articles and are unaffected.
     """
+    return [
+        a
+        for a in articles
+        if a.get("summary") and not a.get("is_roundup") and not a.get("extraction_failed")
+    ]
+
+
+def _briefing_summaries(articles: list[dict]) -> dict[str, list[tuple[int, str]]]:
+    """Group article summaries by category for the briefing prompt."""
     by_category: dict[str, list[tuple[int, str]]] = {}
-    for article in articles:
-        if not article.get("summary"):
-            continue
-        if article.get("is_roundup") or article.get("extraction_failed"):
-            continue
+    for article in _briefing_articles(articles):
         cat = article.get("category", "General")
         by_category.setdefault(cat, []).append((article["id"], article["summary"]))
     return by_category
+
+
+def validate_briefing(
+    rendered: str,
+    segment_map_json: str | None,
+    articles: list[dict],
+    validator: ValidatorRun | None,
+) -> tuple[str, str | None]:
+    """Ground-check a parsed briefing; return ``(rendered, segment_map_json)`` to save.
+
+    Each segment's text is checked against the titles and summaries of the articles it
+    cites; a segment citing no known article is checked against the whole briefing
+    input. A segment with every sentence dropped is removed, and the rendered text and
+    segment map are rebuilt together so they stay consistent. ``rendered == ""`` means
+    nothing survived. With no validator, or mode ``off``, nothing changes.
+    """
+    if validator is None or validator.mode == "off":
+        return rendered, segment_map_json
+
+    sources = {
+        a["id"]: f"{a.get('title', '')}\n{a['summary']}" for a in _briefing_articles(articles)
+    }
+    everything = "\n".join(sources.values())
+
+    if segment_map_json is None:  # plain-text fallback: no segments to cite
+        return validator.apply(rendered, everything, "briefing"), None
+
+    kept: list[dict] = []
+    for seg in json.loads(segment_map_json):
+        cited = [i for i in seg["source_article_ids"] if isinstance(i, int) and i in sources]
+        source = "\n".join(sources[i] for i in cited) if cited else everything
+        text = validator.apply(seg["text"], source, f"briefing segment {seg['topic']!r}")
+        if text:
+            kept.append({**seg, "text": text})
+    if not kept:
+        return "", None
+    return "\n\n".join(seg["text"] for seg in kept), json.dumps(kept)
 
 
 def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
@@ -583,6 +625,7 @@ def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
 async def generate_daily_briefing(
     db: Database,
     config: OllamaConfig,
+    validator: ValidatorRun | None = None,
 ) -> str | None:
     """Generate a combined daily briefing from today's article summaries.
 
@@ -595,6 +638,9 @@ async def generate_daily_briefing(
     If parsing succeeds the segment map is stored alongside the briefing text.
     If parsing fails the raw response is stored as plain text with no segments
     (graceful fallback).
+
+    With a *validator*, each segment is ground-checked before saving (see
+    ``validate_briefing``); if nothing survives no briefing is saved.
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -648,6 +694,12 @@ async def generate_daily_briefing(
                 return None
 
             rendered, segment_map_json = _parse_briefing_response(raw)
+            rendered, segment_map_json = validate_briefing(
+                rendered, segment_map_json, articles, validator
+            )
+            if not rendered:
+                logger.warning("Every briefing sentence failed validation — no briefing saved")
+                return None
             db.save_briefing(today, rendered, config.model, segment_map_json)
             logger.info("Daily briefing generated (%d chars)", len(rendered))
             return rendered

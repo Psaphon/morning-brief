@@ -6,9 +6,14 @@ Follows twelve-factor app principles.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+VALIDATOR_MODES = ("enforce", "warn", "off")
 
 
 @dataclass
@@ -48,6 +53,17 @@ class Config:
     signals_dir: Path = Path("data/signals")
     dedupe_window_hours: int = 48
     feeds_overlay: Path | None = None
+    validator_mode: str = "enforce"
+    banned_overlay: Path | None = None
+
+
+def _validator_mode() -> str:
+    """VALIDATOR_MODE: enforce (default), warn or off; anything else falls back to enforce."""
+    raw = os.environ.get("VALIDATOR_MODE", "enforce").strip().lower() or "enforce"
+    if raw not in VALIDATOR_MODES:
+        logger.warning("Unknown VALIDATOR_MODE %r; using 'enforce'", raw)
+        return "enforce"
+    return raw
 
 
 def load_config() -> Config:
@@ -80,4 +96,6 @@ def load_config() -> Config:
         signals_dir=Path(os.environ.get("SIGNALS_DIR", "data/signals")),
         dedupe_window_hours=int(os.environ.get("DEDUPE_WINDOW_HOURS", "48")),
         feeds_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_FEEDS_OVERLAY")) else None,
+        validator_mode=_validator_mode(),
+        banned_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_BANNED_OVERLAY")) else None,
     )

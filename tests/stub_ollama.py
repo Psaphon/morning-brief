@@ -18,10 +18,21 @@ CANNED_SUMMARY = "A canned two-sentence summary. It exists only for tests."
 MALFORMED_REPLY = '{"what_happened": "cut off mid-'
 
 
-def canned_extraction(title: str = "", *, is_roundup: bool = False) -> dict[str, Any]:
-    """A valid extraction; ``what_happened`` carries the title so each article is distinct."""
+UNGROUNDED_SENTENCE = "It cost $987 million."
+
+
+def canned_extraction(
+    title: str = "", *, is_roundup: bool = False, ungrounded: bool = False
+) -> dict[str, Any]:
+    """A valid extraction; ``what_happened`` carries the title so each article is distinct.
+
+    ``ungrounded`` appends a sentence whose figure is in no article text.
+    """
+    what = f"Canned fact about {title}." if title else CANNED_SUMMARY
+    if ungrounded:
+        what = f"{what} {UNGROUNDED_SENTENCE}"
     return {
-        "what_happened": f"Canned fact about {title}." if title else CANNED_SUMMARY,
+        "what_happened": what,
         "entities": ["Example Corp"],
         "numbers": ["$1.5 million"],
         "event_date": "2020-01-02",
@@ -65,7 +76,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         if BRIEFING_MARKER in body.get("prompt", ""):
-            text = json.dumps(CANNED_BRIEFING)
+            text = json.dumps(self.server.briefing or CANNED_BRIEFING)  # type: ignore[attr-defined]
         elif EXTRACTION_MARKER in body.get("prompt", ""):
             text = self.server.extraction_reply(body["prompt"])  # type: ignore[attr-defined]
         else:
@@ -82,6 +93,8 @@ class _Server(ThreadingHTTPServer):
         self.model = ""
         self.malformed_titles: set[str] = set()
         self.roundup_titles: set[str] = set()
+        self.ungrounded_titles: set[str] = set()
+        self.briefing: dict[str, Any] | None = None
         self.malformed_remaining = 0
         self._lock = threading.Lock()
 
@@ -94,7 +107,13 @@ class _Server(ThreadingHTTPServer):
                 return MALFORMED_REPLY
         if title in self.malformed_titles:
             return MALFORMED_REPLY
-        return json.dumps(canned_extraction(title, is_roundup=title in self.roundup_titles))
+        return json.dumps(
+            canned_extraction(
+                title,
+                is_roundup=title in self.roundup_titles,
+                ungrounded=title in self.ungrounded_titles,
+            )
+        )
 
 
 class StubOllama:
@@ -103,7 +122,9 @@ class StubOllama:
     Article extraction calls get a valid canned extraction. To exercise failures:
     ``malformed_titles`` makes every call for those article titles return truncated
     JSON, ``malformed_next(n)`` does so for the next *n* extraction calls, and
-    ``roundup_titles`` flags those articles ``is_roundup``.
+    ``roundup_titles`` flags those articles ``is_roundup``, and ``ungrounded_titles``
+    appends a sentence with a figure absent from the article. ``briefing`` replaces the
+    canned briefing reply.
     """
 
     def __init__(
@@ -112,11 +133,15 @@ class StubOllama:
         *,
         malformed_titles: set[str] | None = None,
         roundup_titles: set[str] | None = None,
+        ungrounded_titles: set[str] | None = None,
+        briefing: dict[str, Any] | None = None,
     ) -> None:
         self._server = _Server(("127.0.0.1", 0), _Handler)
         self._server.model = model
         self._server.malformed_titles = set(malformed_titles or ())
         self._server.roundup_titles = set(roundup_titles or ())
+        self._server.ungrounded_titles = set(ungrounded_titles or ())
+        self._server.briefing = briefing
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
     def malformed_next(self, n: int) -> None:

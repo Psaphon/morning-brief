@@ -33,7 +33,14 @@ from .processors.lanes import ReaderLaneDB, filter_lane, load_lanes_for_run
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
 from .summarizers.cloud import generate_daily_briefing_claude
-from .summarizers.local import generate_daily_briefing, select_balanced_articles, summarize_articles
+from .summarizers.local import (
+    extraction_max_chars,
+    generate_daily_briefing,
+    select_balanced_articles,
+    summarize_articles,
+    truncate_text,
+)
+from .validators.grounding import ValidatorRun
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,6 +74,7 @@ async def run_pipeline() -> None:
     config = load_config()
     db = Database(config.database_path)
     data_dir = config.database_path.parent
+    validator = ValidatorRun.from_config(config)
 
     try:
         db.connect()
@@ -208,10 +216,26 @@ async def run_pipeline() -> None:
 
         if unsummarized:
             results, metrics = await summarize_articles(config.ollama, unsummarized)
+            by_id = {a["id"]: a for a in unsummarized}
             saved = 0
             for result in results:
                 if result.success and result.extraction:
-                    db.save_extraction(result.article_id, result.extraction, result.model)
+                    extraction = result.extraction
+                    if validator.mode != "off":
+                        article = by_id[result.article_id]
+                        cap = extraction_max_chars(config.ollama)
+                        text = truncate_text(article.get("full_text", ""), cap)
+                        source = f"{article.get('title', '')}\n{text}"
+                        kept = validator.apply(
+                            extraction["what_happened"], source, f"article {result.article_id}"
+                        )
+                        if not kept:
+                            # Every sentence was ungrounded: leave the article out of the
+                            # briefing (same flag as a failed extraction), save no summary.
+                            db.mark_extraction_failed(result.article_id)
+                            continue
+                        extraction = {**extraction, "what_happened": kept}
+                    db.save_extraction(result.article_id, extraction, result.model)
                     saved += 1
                 elif result.extraction_failed:
                     db.mark_extraction_failed(result.article_id)
@@ -232,14 +256,16 @@ async def run_pipeline() -> None:
         briefing = None
         if config.api_keys.anthropic:
             logger.info("ANTHROPIC_API_KEY set — attempting Claude synthesis")
-            briefing = await generate_daily_briefing_claude(reader_db, config.api_keys.anthropic)
+            briefing = await generate_daily_briefing_claude(
+                reader_db, config.api_keys.anthropic, validator
+            )
             if briefing:
                 logger.info("Claude briefing ready (%d chars)", len(briefing))
             else:
                 logger.info("Claude synthesis failed or skipped — falling back to Ollama")
 
         if briefing is None:
-            briefing = await generate_daily_briefing(reader_db, config.ollama)
+            briefing = await generate_daily_briefing(reader_db, config.ollama, validator)
             if briefing:
                 logger.info("Daily briefing ready (%d chars)", len(briefing))
             else:
@@ -302,6 +328,16 @@ async def run_pipeline() -> None:
         else:
             logger.info("Deploy disabled (set DEPLOY_ENABLED=true to enable)")
 
+        logger.info(
+            "Validator (%s): checked %d sentences, dropped %d (number=%d, name=%d, banned=%d)",
+            validator.mode,
+            validator.checked,
+            sum(validator.dropped.values()),
+            validator.dropped["number"],
+            validator.dropped["name"],
+            validator.dropped["banned"],
+        )
+
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
 
@@ -311,6 +347,7 @@ async def run_pipeline() -> None:
             message=f"Pipeline completed in {elapsed:.1f}s",
             articles=len(all_articles),
             elapsed_seconds=round(elapsed, 1),
+            validator=validator.metadata(),
         )
 
     except Exception as exc:
