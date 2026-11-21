@@ -1,0 +1,61 @@
+# Capitalized words the name check skips (case-insensitive). One per line; # = comment.
+# Months
+January
+February
+March
+April
+May
+June
+July
+August
+September
+October
+November
+December
+# Weekdays
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+Sunday
+# Common sentence words
+The
+This
+That
+These
+Those
+A
+An
+In
+On
+At
+After
+Before
+But
+And
+Or
+For
+With
+As
+Its
+His
+Her
+Their
+It
+He
+She
+They
+We
+# Common acronyms
+US
+U.S.
+UK
+U.K.
+EU
+UN
+AI
+CEO
+CFO
+GDP
