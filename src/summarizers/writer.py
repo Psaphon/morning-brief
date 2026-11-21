@@ -25,6 +25,7 @@ from .claude_writer import (
     load_api_key,
     prices_configured,
     request_section,
+    split_cited_chunks,
 )
 from .local import (
     _briefing_articles,
@@ -86,6 +87,11 @@ def _claude_segment(section: str, draft: SectionDraft) -> dict:
     return _segment(section, draft.text, draft.cited_text, draft.source_article_ids, "claude")
 
 
+def _with_stats(segment: dict, stats: dict) -> dict:
+    """*segment* plus the section's chunk stats. Older segments have no ``stats`` key."""
+    return {**segment, "stats": stats}
+
+
 async def write_sections(
     db,
     config: Config,
@@ -130,15 +136,16 @@ async def write_sections(
         for section, section_articles in sections.items():
             run.sections += 1
             draft: SectionDraft | None = None
+            stats: dict = {}
             if not cap_reached:
                 cap_reached = _cap_reached(db, config, run)
             if not cap_reached:
                 draft = await _claude_section(
-                    client, db, config, api_key, section, section_articles, validator, run
+                    client, db, config, api_key, section, section_articles, validator, run, stats
                 )
             if draft is not None:
                 run.claude += 1
-                segments.append(_claude_segment(section, draft))
+                segments.append(_with_stats(_claude_segment(section, draft), stats))
             else:
                 run.fallback += 1
                 segments.append(await _local_section(config, section, section_articles, validator))
@@ -182,7 +189,9 @@ async def _claude_section(
     articles: list[dict],
     validator: ValidatorRun | None,
     run: WriterRun,
+    stats: dict,
 ) -> SectionDraft | None:
+    """One Claude section. *stats* is filled with ``chunks`` and ``dropped`` (by reason)."""
     writer = config.writer
     try:
         reply = await request_section(client, writer, api_key, section, articles)
@@ -194,4 +203,9 @@ async def _claude_section(
     run.tokens_in += reply.tokens_in
     run.tokens_out += reply.tokens_out
     run.cost_usd += cost
-    return check_section(reply.text, articles, writer, validator, run)
+    before = dict(run.dropped)
+    draft = check_section(reply.text, articles, writer, validator, run)
+    # Counted before dropped chunks are removed, so Claude's pass rate is measurable.
+    stats["chunks"] = len(split_cited_chunks(reply.text))
+    stats["dropped"] = {reason: run.dropped[reason] - before[reason] for reason in before}
+    return draft

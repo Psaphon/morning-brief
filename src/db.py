@@ -433,6 +433,16 @@ class Database:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_articles_for_date(self, date: str) -> list[dict[str, Any]]:
+        """All articles fetched on the UTC date *date* (YYYY-MM-DD)."""
+        rows = self.conn.execute(
+            """SELECT * FROM articles
+               WHERE substr(fetched_at, 1, 10) = ?
+               ORDER BY category, fetched_at DESC""",
+            (date,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_latest_market_data(self) -> list[dict[str, Any]]:
         """Get the most recent market data for each symbol."""
         rows = self.conn.execute(

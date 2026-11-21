@@ -1304,7 +1304,7 @@ The specific journalists and accounts go in the uncommitted feeds overlay, not t
 
 **Branch:** `feature/summary-bakeoff`
 **Depends on:** claude-section-writer
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal
