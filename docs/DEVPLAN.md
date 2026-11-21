@@ -1163,7 +1163,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 **Branch:** `feature/reader-coverage`
 **Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
-**Status:** In Progress
+**Status:** Merged (#79)
 **Requires:** both
 
 ### Goal
@@ -1172,13 +1172,13 @@ Cover more articles, with richer extracted facts, so section summaries can run 2
 
 ### Acceptance Criteria
 
-- [ ] `READER_MAX_PER_CATEGORY` (default from Open Questions) replaces the fixed 8. A fixture with 20 eligible articles in one category summarizes exactly the configured number, chosen by interest score.
-- [ ] `EXTRACT_MAX_WORDS` defaults to 120, and the extraction schema gains `details`: up to 4 short factual sentences beyond `what_happened`, under the same validator.
-- [ ] Each run logs its total duration and per-stage durations. A run passing `RUN_DEADLINE_MINUTES` logs a warning (fixture with a stub clock).
-- [ ] [HUMAN] The PM confirms on hub that one full run finishes within the deadline, and posts the timing.
-- [ ] The signals golden test passes unchanged.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] `READER_MAX_PER_CATEGORY` (default from Open Questions) replaces the fixed 8. A fixture with 20 eligible articles in one category summarizes exactly the configured number, chosen by interest score.
+- [x] `EXTRACT_MAX_WORDS` defaults to 120, and the extraction schema gains `details`: up to 4 short factual sentences beyond `what_happened`, under the same validator.
+- [x] Each run logs its total duration and per-stage durations. A run passing `RUN_DEADLINE_MINUTES` logs a warning (fixture with a stub clock).
+- [x] [HUMAN] The PM confirms on hub that one full run finishes within the deadline, and posts the timing.
+- [x] The signals golden test passes unchanged.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
