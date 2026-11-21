@@ -1238,7 +1238,7 @@ Have the Claude API write each reader section as a long, readable summary with r
 
 **Branch:** `feature/cited-summary-page`
 **Depends on:** claude-section-writer
-**Status:** Ready (supervised)
+**Status:** Merged (#84) — [HUMAN] phone review open (needs the Claude writer live)
 **Requires:** both
 
 ### Goal
@@ -1247,14 +1247,14 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 ### Acceptance Criteria
 
-- [ ] Each section renders its title followed by its prose. Each `[[id]]` becomes a small superscript link to that article's URL (several ids become several links), with the source name in the link's title.
-- [ ] Below each section, a collapsed "Sources (N)" list holds every cited article: title, source, and its `what_happened`.
-- [ ] `dates-ahead` and the "On radar" and "For the stack" labels still render.
-- [ ] A test walks the rendered page JSON and HTML: every citation link matches an article in that section, no `[[` markers remain in the HTML, and every cited article appears in the sources list.
-- [ ] The page passes an HTML validator (`html5validator` or equivalent, pinned) in CI.
+- [x] Each section renders its title followed by its prose. Each `[[id]]` becomes a small superscript link to that article's URL (several ids become several links), with the source name in the link's title.
+- [x] Below each section, a collapsed "Sources (N)" list holds every cited article: title, source, and its `what_happened`.
+- [x] `dates-ahead` and the "On radar" and "For the stack" labels still render.
+- [x] A test walks the rendered page JSON and HTML: every citation link matches an article in that section, no `[[` markers remain in the HTML, and every cited article appears in the sources list.
+- [x] The page passes an HTML validator (`html5validator` or equivalent, pinned) in CI.
 - [ ] [HUMAN] The operator reads one live brief on the phone and approves the layout.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
