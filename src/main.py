@@ -29,6 +29,7 @@ from .processors.dedup import deduplicate
 from .processors.dedupe import find_duplicates
 from .processors.extractor import extract_articles
 from .processors.interest import filter_by_feed_minimum, load_interests
+from .processors.lanes import ReaderLaneDB, filter_lane, load_feed_lanes
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
 from .summarizers.cloud import generate_daily_briefing_claude
@@ -75,6 +76,9 @@ async def run_pipeline() -> None:
         start = datetime.now(timezone.utc)
         logger.info("Pipeline started at %s", start.isoformat())
 
+        # Feed lanes decide where each feed's articles are used (loaded once per run).
+        lanes = load_feed_lanes(overlay=config.feeds_overlay)
+
         # Stage 1: Fetch all data sources in parallel
         logger.info("Stage 1: Fetching data sources...")
 
@@ -82,7 +86,7 @@ async def run_pipeline() -> None:
             follow_redirects=True,
             headers={"User-Agent": "MorningBrief/0.1"},
         ) as client:
-            rss_task = fetch_all_feeds(config.feeds_path)
+            rss_task = fetch_all_feeds(config.feeds_path, lanes.extra_feeds)
             financial_task = fetch_all_financial(
                 client,
                 finnhub_key=config.api_keys.finnhub,
@@ -179,7 +183,7 @@ async def run_pipeline() -> None:
                 _ticker_map_path = Path("config/ticker_map.toml")
                 _ticker_map = load_ticker_map(_ticker_map_path)
                 emit_signals(
-                    articles=todays,
+                    articles=filter_lane(todays, "signals", lanes),
                     ticker_map=_ticker_map,
                     signals_dir=config.signals_dir,
                     universe_ref=_ticker_map.universe_ref,
@@ -191,7 +195,7 @@ async def run_pipeline() -> None:
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
-        candidates = db.get_unsummarized_articles()
+        candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)
         # Dedupe before selecting so duplicates never use an LLM call and the
         # freed slot is refilled from the category's next article.
         interests = load_interests()
@@ -222,17 +226,18 @@ async def run_pipeline() -> None:
         # Generate daily briefing (after summarization, before publish)
         # Try Claude first if API key is configured, fall back to Ollama.
         logger.info("Generating daily briefing...")
+        reader_db = ReaderLaneDB(db, lanes)  # briefing reads reader-lane articles only
         briefing = None
         if config.api_keys.anthropic:
             logger.info("ANTHROPIC_API_KEY set — attempting Claude synthesis")
-            briefing = await generate_daily_briefing_claude(db, config.api_keys.anthropic)
+            briefing = await generate_daily_briefing_claude(reader_db, config.api_keys.anthropic)
             if briefing:
                 logger.info("Claude briefing ready (%d chars)", len(briefing))
             else:
                 logger.info("Claude synthesis failed or skipped — falling back to Ollama")
 
         if briefing is None:
-            briefing = await generate_daily_briefing(db, config.ollama)
+            briefing = await generate_daily_briefing(reader_db, config.ollama)
             if briefing:
                 logger.info("Daily briefing ready (%d chars)", len(briefing))
             else:
@@ -247,7 +252,7 @@ async def run_pipeline() -> None:
 
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")
-        all_articles = db.get_todays_articles()
+        all_articles = filter_lane(db.get_todays_articles(), "reader", lanes)
         market = db.get_latest_market_data()
         health = db.get_latest_health_checks()
         daily_art = db.get_todays_artwork()

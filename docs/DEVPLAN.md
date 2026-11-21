@@ -1127,7 +1127,7 @@ Measure, per feed, how much real article text comes through, so paywalled and tr
 
 **Branch:** `feature/feed-lanes`
 **Depends on:** source-audit
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal

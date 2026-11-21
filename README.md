@@ -51,6 +51,15 @@ the SECRETS USB), plus three plain settings to recreate after a rebuild:
 Signals for atrade are on by default (`SIGNALS_ENABLED`, set in `docker-compose.yml`) and land in
 `data/signals/`. The last run's full output is `~/.local/state/morning-brief-last-run.log`.
 
+### Feed lanes
+
+Each feed has lanes in `config/feed_lanes.toml`: `reader` (briefing and page), `signals` (per-ticker
+signals for atrade) and `rnd` (stored only, never shown). A feed with no entry gets
+`["reader", "signals"]`. Override or add feeds per host with an overlay file, named by
+`MORNING_BRIEF_FEEDS_OVERLAY` (in Docker: `~/.config/morning-brief/feeds-overlay.toml`). It uses the same
+shape; an entry replaces that feed's `lanes`, and an entry with `url` and `category` adds a new feed.
+A missing overlay file is skipped. See the commented example in `interests.example.toml`.
+
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) — AI context, architecture, conventions
