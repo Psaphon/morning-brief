@@ -796,7 +796,7 @@ The briefing step will only ever see these extractions, never the full text, whi
 
 **Branch:** `feature/output-validator`
 **Depends on:** article-extraction
-**Status:** In Progress
+**Status:** Merged (#78)
 **Requires:** ai
 
 ### Goal
@@ -805,16 +805,16 @@ Before anything is rendered, check every generated sentence in code and drop the
 
 ### Acceptance Criteria
 
-- [ ] **Number check:** each digit group in a sentence (commas stripped) must appear in its source text. Unit cases: "$44.6 million" against a source containing "$44.6M" passes; "$45.6 million" fails.
-- [ ] **Name check:** each capitalized token that isn't sentence-initial, is at least 3 characters, and isn't in `config/name_allowlist.txt` must match the source case-insensitively on its first `max(4, len-2)` characters. Unit cases: "Democrats" against "Democratic" passes; "Christie's" against a source without it fails.
-- [ ] **Banned-phrase check:** case-insensitive match against `config/banned_phrases.txt`, plus the overlay at `$MORNING_BRIEF_BANNED_OVERLAY` if that file exists. Unit case: "This highlights the volatility" fails. With the overlay file missing, there is no error.
-- [ ] The source for `what_happened` is the article's title plus its text (the same 12,000-character cut). The source for a section lede is that section's bullets.
-- [ ] With `VALIDATOR_MODE=enforce`, the fixture run with one ungrounded sentence from the stub renders without it, and the run metadata reports `dropped: {number: 1}`. With `warn`, the sentence is kept and a warning is logged.
-- [ ] If every sentence of an extraction is dropped, the article is left out of the briefing.
-- [ ] Each run writes sentences checked and sentences dropped by reason to the run metadata.
-- [ ] The signals golden test passes unchanged.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] **Number check:** each digit group in a sentence (commas stripped) must appear in its source text. Unit cases: "$44.6 million" against a source containing "$44.6M" passes; "$45.6 million" fails.
+- [x] **Name check:** each capitalized token that isn't sentence-initial, is at least 3 characters, and isn't in `config/name_allowlist.txt` must match the source case-insensitively on its first `max(4, len-2)` characters. Unit cases: "Democrats" against "Democratic" passes; "Christie's" against a source without it fails.
+- [x] **Banned-phrase check:** case-insensitive match against `config/banned_phrases.txt`, plus the overlay at `$MORNING_BRIEF_BANNED_OVERLAY` if that file exists. Unit case: "This highlights the volatility" fails. With the overlay file missing, there is no error.
+- [x] The source for `what_happened` is the article's title plus its text (the same 12,000-character cut). The source for a section lede is that section's bullets.
+- [x] With `VALIDATOR_MODE=enforce`, the fixture run with one ungrounded sentence from the stub renders without it, and the run metadata reports `dropped: {number: 1}`. With `warn`, the sentence is kept and a warning is logged.
+- [x] If every sentence of an extraction is dropped, the article is left out of the briefing.
+- [x] Each run writes sentences checked and sentences dropped by reason to the run metadata.
+- [x] The signals golden test passes unchanged.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1163,7 +1163,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 **Branch:** `feature/reader-coverage`
 **Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
-**Status:** Held (deps)
+**Status:** Ready (supervised)
 **Requires:** both
 
 ### Goal
@@ -1268,7 +1268,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 **Branch:** `feature/social-feeds`
 **Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
-**Status:** Held (deps)
+**Status:** Ready (supervised)
 **Requires:** ai
 
 ### Goal
