@@ -40,6 +40,7 @@ class Config:
     signals_enabled: bool = False
     signals_dir: Path = Path("data/signals")
     dedupe_window_hours: int = 48
+    feeds_overlay: Path | None = None
 
 
 def load_config() -> Config:
@@ -65,4 +66,5 @@ def load_config() -> Config:
         signals_enabled=os.environ.get("SIGNALS_ENABLED", "").lower() in ("1", "true", "yes"),
         signals_dir=Path(os.environ.get("SIGNALS_DIR", "data/signals")),
         dedupe_window_hours=int(os.environ.get("DEDUPE_WINDOW_HOURS", "48")),
+        feeds_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_FEEDS_OVERLAY")) else None,
     )

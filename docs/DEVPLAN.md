@@ -1127,7 +1127,7 @@ Measure, per feed, how much real article text comes through, so paywalled and tr
 
 **Branch:** `feature/feed-lanes`
 **Depends on:** source-audit
-**Status:** Ready (supervised)
+**Status:** Merged (#75)
 **Requires:** ai
 
 ### Goal
@@ -1136,14 +1136,14 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 ### Acceptance Criteria
 
-- [ ] Feed config gains `lanes` (a list). `reader` feeds the briefing. `signals` feeds the scorer. `rnd` feeds only `radar-flags` and is never shown in the briefing.
-- [ ] The existing `signals = false` flag is migrated: `false` becomes lanes without `signals`. Feeds with no `lanes` keep today's behaviour (`reader` + `signals`).
-- [ ] arXiv feeds move to `rnd` only. The fixture run shows no arXiv item in the page JSON while its flag records still appear.
-- [ ] A fixture feed in `signals` only appears in signals output but not on the page; a `reader`-only feed does the reverse.
-- [ ] The signals golden test passes unchanged with today's feed config.
-- [ ] Feeds from `$MORNING_BRIEF_FEEDS_OVERLAY` merge over the committed config, matched by feed id. A missing overlay file is skipped with one INFO line.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Feed config gains `lanes` (a list). `reader` feeds the briefing. `signals` feeds the scorer. `rnd` feeds only `radar-flags` and is never shown in the briefing.
+- [x] The existing `signals = false` flag is migrated: `false` becomes lanes without `signals`. Feeds with no `lanes` keep today's behaviour (`reader` + `signals`).
+- [x] arXiv feeds move to `rnd` only. The fixture run shows no arXiv item in the page JSON while its flag records still appear.
+- [x] A fixture feed in `signals` only appears in signals output but not on the page; a `reader`-only feed does the reverse.
+- [x] The signals golden test passes unchanged with today's feed config.
+- [x] Feeds from `$MORNING_BRIEF_FEEDS_OVERLAY` merge over the committed config, matched by feed id. A missing overlay file is skipped with one INFO line.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1162,7 +1162,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 ## Feature: reader-coverage
 
 **Branch:** `feature/reader-coverage`
-**Depends on:** feed-lanes
+**Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
 **Status:** Held (deps)
 **Requires:** both
 
@@ -1267,7 +1267,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 ## Feature: social-feeds
 
 **Branch:** `feature/social-feeds`
-**Depends on:** feed-lanes
+**Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
 **Status:** Held (deps)
 **Requires:** ai
 
