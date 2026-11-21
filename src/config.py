@@ -26,6 +26,8 @@ class OllamaConfig:
     extract_seed: int = 42
     extract_max_words: int = 120
     extract_num_predict: int = 900
+    # Briefing context window: up to READER_MAX_TOTAL articles with details.
+    briefing_num_ctx: int = 32768
     chars_per_token: int = 4
 
 
@@ -80,6 +82,7 @@ def load_config() -> Config:
             extract_seed=int(os.environ.get("EXTRACT_SEED", "42")),
             extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "120")),
             extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "900")),
+            briefing_num_ctx=int(os.environ.get("BRIEFING_NUM_CTX", "32768")),
             chars_per_token=int(os.environ.get("CHARS_PER_TOKEN", "4")),
         ),
         api_keys=APIKeys(

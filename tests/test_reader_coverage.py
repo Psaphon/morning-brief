@@ -333,3 +333,25 @@ def test_stage_timer_unit(caplog):
     with caplog.at_level(logging.WARNING):
         timer.report(deadline_minutes=0)
     assert "process" in caplog.records[-1].getMessage()
+
+
+def test_briefing_prompt_truncation_is_warned(caplog):
+    """A prompt that fills the window means Ollama dropped part of the input."""
+    from src.summarizers.local import _warn_if_prompt_truncated
+
+    with caplog.at_level(logging.WARNING):
+        _warn_if_prompt_truncated({"prompt_eval_count": 31500}, 32768, 1500)
+    assert "likely cut" in caplog.text
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        _warn_if_prompt_truncated({"prompt_eval_count": 9000}, 32768, 1500)
+        _warn_if_prompt_truncated({}, 32768, 1500)
+    assert caplog.text == ""
+
+
+def test_briefing_num_ctx_default_and_env(monkeypatch):
+    from src.config import load_config
+
+    assert load_config().ollama.briefing_num_ctx == 32768
+    monkeypatch.setenv("BRIEFING_NUM_CTX", "16384")
+    assert load_config().ollama.briefing_num_ctx == 16384

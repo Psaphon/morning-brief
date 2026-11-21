@@ -86,6 +86,9 @@ Rules:
 - what_happened: at most 2 sentences.
 - details: up to 4 more facts from the article (figures, who, when, what's next), each one \
 sentence, no repeats of what_happened, facts only.
+- Never state facts about the article itself (its source, site, category, publish date, \
+author byline, score or points). Only facts about the events it reports. If there are no more \
+facts, return fewer details or none.
 - event_date: the date of the event as YYYY-MM-DD, or null if the article gives none. \
 Resolve relative dates ("yesterday", "next Friday") against the published date.
 - status: "happened", "scheduled" (still to come) or "ongoing".
@@ -638,6 +641,18 @@ def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
         return raw, None
 
 
+def _warn_if_prompt_truncated(data: dict, num_ctx: int, num_predict: int) -> None:
+    """Warn when the prompt filled the context window, i.e. Ollama dropped part of it."""
+    used = data.get("prompt_eval_count")
+    if isinstance(used, int) and used >= num_ctx - num_predict:
+        logger.warning(
+            "Briefing prompt used %d of %d context tokens; input was likely cut. "
+            "Raise BRIEFING_NUM_CTX or lower READER_MAX_TOTAL.",
+            used,
+            num_ctx,
+        )
+
+
 async def generate_daily_briefing(
     db: Database,
     config: OllamaConfig,
@@ -698,12 +713,17 @@ async def generate_daily_briefing(
                         "temperature": 0.5,
                         "top_p": 0.9,
                         "num_predict": 1500,
+                        # Without an explicit window Ollama uses its small default and
+                        # silently drops the start of a long prompt (most articles).
+                        "num_ctx": config.briefing_num_ctx,
                     },
                 },
                 timeout=BRIEFING_TIMEOUT,
             )
             resp.raise_for_status()
-            raw = resp.json().get("response", "").strip()
+            data = resp.json()
+            raw = data.get("response", "").strip()
+            _warn_if_prompt_truncated(data, config.briefing_num_ctx, 1500)
 
             if not raw:
                 logger.warning("Empty briefing response from Ollama")

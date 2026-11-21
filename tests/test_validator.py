@@ -109,7 +109,10 @@ def test_banned_phrase_fails_case_insensitively():
 
 def test_seed_phrases_loaded():
     assert {"highlights", "delve", "in today's", "robust"} <= set(PHRASES)
-    assert len(PHRASES) == 20
+    # 20 seed phrases plus the two article-metadata phrases added after the hub run
+    # (details like "The article was published on ..." / "this article covers ...").
+    assert {"the article", "this article"} <= set(PHRASES)
+    assert len(PHRASES) == 22
 
 
 def test_missing_overlay_is_not_an_error(caplog):
