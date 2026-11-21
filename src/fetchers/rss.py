@@ -38,7 +38,8 @@ class RawArticle:
 def parse_feeds_md(feeds_path: Path) -> list[dict[str, str]]:
     """Parse FEEDS.md to extract feed URLs and metadata.
 
-    Looks for markdown table rows with URL patterns.
+    Reads only the ``## RSS Feeds`` section (up to the next ``## `` heading), so
+    the API and MCP tables are never treated as feeds.
     Returns list of {source, url, category} dicts.
     """
     if not feeds_path.exists():
@@ -49,10 +50,20 @@ def parse_feeds_md(feeds_path: Path) -> list[dict[str, str]]:
     feeds: list[dict[str, str]] = []
 
     current_category = "uncategorized"
+    # Rows count until a `## ` heading other than `## RSS Feeds` (a file with no
+    # `## ` headings is read whole).
+    in_rss_section = True
 
     # Match ### headings for category
     # Match table rows with backtick-wrapped URLs
     for line in text.splitlines():
+        section_match = re.match(r"^##\s+(.+)", line)
+        if section_match:
+            in_rss_section = section_match.group(1).strip().lower() == "rss feeds"
+            continue
+        if not in_rss_section:
+            continue
+
         heading_match = re.match(r"^###\s+(.+)", line)
         if heading_match:
             current_category = heading_match.group(1).strip()
@@ -129,9 +140,17 @@ async def fetch_feed(
     return articles
 
 
-async def fetch_all_feeds(feeds_path: Path) -> list[RawArticle]:
-    """Fetch all RSS feeds concurrently and return combined articles."""
+async def fetch_all_feeds(
+    feeds_path: Path, extra_feeds: list[dict[str, str]] | None = None
+) -> list[RawArticle]:
+    """Fetch all RSS feeds concurrently and return combined articles.
+
+    *extra_feeds* (``{source, url, category}``, e.g. from the lanes overlay) are
+    fetched along with the FEEDS.md feeds; a source already listed there is skipped.
+    """
     feed_list = parse_feeds_md(feeds_path)
+    known = {f["source"] for f in feed_list}
+    feed_list += [f for f in extra_feeds or [] if f["source"] not in known]
     if not feed_list:
         return []
 

@@ -744,7 +744,7 @@ Pin today's signals output with an end-to-end test. Every later feature then has
 
 **Branch:** `feature/article-extraction`
 **Depends on:** signals-golden-test
-**Status:** Ready (supervised)
+**Status:** Merged (#77)
 **Requires:** both
 
 ### Goal
@@ -753,22 +753,22 @@ Change the per-article step from free prose to validated JSON facts. Use the art
 
 ### Acceptance Criteria
 
-- [ ] `summarize_single` calls Ollama with a structured-output JSON schema (`format`). Each request the stub records includes the schema, `num_ctx`, temperature and seed from config, and the article's published date.
-- [ ] Schema fields:
+- [x] `summarize_single` calls Ollama with a structured-output JSON schema (`format`). Each request the stub records includes the schema, `num_ctx`, temperature and seed from config, and the article's published date.
+- [x] Schema fields:
   - `what_happened`: at most 2 sentences and `EXTRACT_MAX_WORDS` words (default 50).
   - `entities`: names copied exactly from the article.
   - `numbers`: figures copied exactly.
   - `event_date`: `YYYY-MM-DD` or null, resolved against the published date.
   - `status`: `happened`, `scheduled` or `ongoing`.
   - `is_roundup`: bool.
-- [ ] With the stub returning valid JSON, the fixture run stores one row per article in a new `extractions` table (`article_id` PK, `json`, `model`, `created_at`). The existing `summary` column holds `what_happened`, so the page keeps working.
-- [ ] With the stub returning malformed JSON twice for one article, that article is marked `extraction_failed` and left out of the briefing. The run exits 0 and logs the article id.
-- [ ] A `what_happened` over the word limit is cut at the last sentence boundary within the limit (unit test).
-- [ ] Articles with `is_roundup: true` are left out of the briefing input but still appear in the signals output.
-- [ ] The signals golden test passes unchanged.
-- [ ] [HUMAN] On hub, the PM runs extraction live over one day's articles, reports the JSON-valid rate (target 95% or higher), and pastes 5 sample extractions into the PR.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] With the stub returning valid JSON, the fixture run stores one row per article in a new `extractions` table (`article_id` PK, `json`, `model`, `created_at`). The existing `summary` column holds `what_happened`, so the page keeps working.
+- [x] With the stub returning malformed JSON twice for one article, that article is marked `extraction_failed` and left out of the briefing. The run exits 0 and logs the article id.
+- [x] A `what_happened` over the word limit is cut at the last sentence boundary within the limit (unit test).
+- [x] Articles with `is_roundup: true` are left out of the briefing input but still appear in the signals output.
+- [x] The signals golden test passes unchanged.
+- [x] [HUMAN] On hub, the PM runs extraction live over one day's articles, reports the JSON-valid rate (target 95% or higher), and pastes 5 sample extractions into the PR.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -796,7 +796,7 @@ The briefing step will only ever see these extractions, never the full text, whi
 
 **Branch:** `feature/output-validator`
 **Depends on:** article-extraction
-**Status:** Held (deps)
+**Status:** Ready (supervised)
 **Requires:** ai
 
 ### Goal
@@ -1127,7 +1127,7 @@ Measure, per feed, how much real article text comes through, so paywalled and tr
 
 **Branch:** `feature/feed-lanes`
 **Depends on:** source-audit
-**Status:** Ready (supervised)
+**Status:** Merged (#75)
 **Requires:** ai
 
 ### Goal
@@ -1136,14 +1136,14 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 ### Acceptance Criteria
 
-- [ ] Feed config gains `lanes` (a list). `reader` feeds the briefing. `signals` feeds the scorer. `rnd` feeds only `radar-flags` and is never shown in the briefing.
-- [ ] The existing `signals = false` flag is migrated: `false` becomes lanes without `signals`. Feeds with no `lanes` keep today's behaviour (`reader` + `signals`).
-- [ ] arXiv feeds move to `rnd` only. The fixture run shows no arXiv item in the page JSON while its flag records still appear.
-- [ ] A fixture feed in `signals` only appears in signals output but not on the page; a `reader`-only feed does the reverse.
-- [ ] The signals golden test passes unchanged with today's feed config.
-- [ ] Feeds from `$MORNING_BRIEF_FEEDS_OVERLAY` merge over the committed config, matched by feed id. A missing overlay file is skipped with one INFO line.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Feed config gains `lanes` (a list). `reader` feeds the briefing. `signals` feeds the scorer. `rnd` feeds only `radar-flags` and is never shown in the briefing.
+- [x] The existing `signals = false` flag is migrated: `false` becomes lanes without `signals`. Feeds with no `lanes` keep today's behaviour (`reader` + `signals`).
+- [x] arXiv feeds move to `rnd` only. The fixture run shows no arXiv item in the page JSON while its flag records still appear.
+- [x] A fixture feed in `signals` only appears in signals output but not on the page; a `reader`-only feed does the reverse.
+- [x] The signals golden test passes unchanged with today's feed config.
+- [x] Feeds from `$MORNING_BRIEF_FEEDS_OVERLAY` merge over the committed config, matched by feed id. A missing overlay file is skipped with one INFO line.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1162,7 +1162,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 ## Feature: reader-coverage
 
 **Branch:** `feature/reader-coverage`
-**Depends on:** feed-lanes
+**Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
 **Status:** Held (deps)
 **Requires:** both
 
@@ -1267,7 +1267,7 @@ Render the brief as one long summary made of sections, with tappable citations, 
 ## Feature: social-feeds
 
 **Branch:** `feature/social-feeds`
-**Depends on:** feed-lanes
+**Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
 **Status:** Held (deps)
 **Requires:** ai
 
