@@ -21,6 +21,7 @@ from .local import (
     _build_briefing_prompt,
     _parse_briefing_response,
     validate_briefing,
+    with_details,
 )
 
 if TYPE_CHECKING:
@@ -71,7 +72,7 @@ async def generate_daily_briefing_claude(
         logger.info("Daily briefing already exists for %s, reusing", today)
         return existing["content"]
 
-    articles = db.get_todays_articles()
+    articles = with_details(db, db.get_todays_articles())
     summaries_by_category = _briefing_summaries(articles)
 
     if not summaries_by_category:

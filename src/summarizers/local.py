@@ -84,6 +84,11 @@ Rules:
 - Copy figures exactly as written, with their units.
 - entities and numbers: at most 10 each, the ones what_happened depends on first. No repeats.
 - what_happened: at most 2 sentences.
+- details: up to 4 more facts from the article (figures, who, when, what's next), each one \
+sentence, no repeats of what_happened, facts only.
+- Never state facts about the article itself (its source, site, category, publish date, \
+author byline, score or points). Only facts about the events it reports. If there are no more \
+facts, return fewer details or none.
 - event_date: the date of the event as YYYY-MM-DD, or null if the article gives none. \
 Resolve relative dates ("yesterday", "next Friday") against the published date.
 - status: "happened", "scheduled" (still to come) or "ongoing".
@@ -529,12 +534,26 @@ def _briefing_articles(articles: list[dict]) -> list[dict]:
     ]
 
 
+def _briefing_text(article: dict) -> str:
+    """An article's briefing text: ``what_happened`` plus its surviving ``details``."""
+    return " ".join([article["summary"], *(article.get("details") or [])])
+
+
+def with_details(db: Database, articles: list[dict]) -> list[dict]:
+    """Copies of *articles* carrying their stored ``details`` (read from ``extractions``).
+
+    Only articles that feed the briefing are looked up.
+    """
+    details = db.get_extraction_details([a["id"] for a in _briefing_articles(articles)])
+    return [{**a, "details": details.get(a["id"], [])} for a in articles]
+
+
 def _briefing_summaries(articles: list[dict]) -> dict[str, list[tuple[int, str]]]:
-    """Group article summaries by category for the briefing prompt."""
+    """Group article text (summary plus any ``details``) by category for the briefing prompt."""
     by_category: dict[str, list[tuple[int, str]]] = {}
     for article in _briefing_articles(articles):
         cat = article.get("category", "General")
-        by_category.setdefault(cat, []).append((article["id"], article["summary"]))
+        by_category.setdefault(cat, []).append((article["id"], _briefing_text(article)))
     return by_category
 
 
@@ -556,7 +575,7 @@ def validate_briefing(
         return rendered, segment_map_json
 
     sources = {
-        a["id"]: f"{a.get('title', '')}\n{a['summary']}" for a in _briefing_articles(articles)
+        a["id"]: f"{a.get('title', '')}\n{_briefing_text(a)}" for a in _briefing_articles(articles)
     }
     everything = "\n".join(sources.values())
 
@@ -622,6 +641,18 @@ def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
         return raw, None
 
 
+def _warn_if_prompt_truncated(data: dict, num_ctx: int, num_predict: int) -> None:
+    """Warn when the prompt filled the context window, i.e. Ollama dropped part of it."""
+    used = data.get("prompt_eval_count")
+    if isinstance(used, int) and used >= num_ctx - num_predict:
+        logger.warning(
+            "Briefing prompt used %d of %d context tokens; input was likely cut. "
+            "Raise BRIEFING_NUM_CTX or lower READER_MAX_TOTAL.",
+            used,
+            num_ctx,
+        )
+
+
 async def generate_daily_briefing(
     db: Database,
     config: OllamaConfig,
@@ -649,7 +680,7 @@ async def generate_daily_briefing(
         logger.info("Daily briefing already exists for %s, reusing", today)
         return existing["content"]
 
-    articles = db.get_todays_articles()
+    articles = with_details(db, db.get_todays_articles())
     summaries_by_category = _briefing_summaries(articles)
 
     if not summaries_by_category:
@@ -682,12 +713,17 @@ async def generate_daily_briefing(
                         "temperature": 0.5,
                         "top_p": 0.9,
                         "num_predict": 1500,
+                        # Without an explicit window Ollama uses its small default and
+                        # silently drops the start of a long prompt (most articles).
+                        "num_ctx": config.briefing_num_ctx,
                     },
                 },
                 timeout=BRIEFING_TIMEOUT,
             )
             resp.raise_for_status()
-            raw = resp.json().get("response", "").strip()
+            data = resp.json()
+            raw = data.get("response", "").strip()
+            _warn_if_prompt_truncated(data, config.briefing_num_ctx, 1500)
 
             if not raw:
                 logger.warning("Empty briefing response from Ollama")

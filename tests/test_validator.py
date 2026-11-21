@@ -109,7 +109,10 @@ def test_banned_phrase_fails_case_insensitively():
 
 def test_seed_phrases_loaded():
     assert {"highlights", "delve", "in today's", "robust"} <= set(PHRASES)
-    assert len(PHRASES) == 20
+    # 20 seed phrases plus the two article-metadata phrases added after the hub run
+    # (details like "The article was published on ..." / "this article covers ...").
+    assert {"the article", "this article"} <= set(PHRASES)
+    assert len(PHRASES) == 22
 
 
 def test_missing_overlay_is_not_an_error(caplog):
@@ -290,8 +293,9 @@ def test_enforce_drops_ungrounded_sentence_and_reports_it(tmp_path, monkeypatch)
     validator = status["validator"]
     assert validator["mode"] == "enforce"
     assert validator["dropped"] == {"number": 1, "name": 0, "banned": 0}
-    # One sentence per article plus the extra one, plus the two canned briefing segments.
-    assert validator["checked"] == _summarizable(db) + 1 + 2
+    # Per article: what_happened plus two canned details; plus the extra sentence and the
+    # two canned briefing segments.
+    assert validator["checked"] == _summarizable(db) * 3 + 1 + 2
     assert status["status"] == "ok"
 
 

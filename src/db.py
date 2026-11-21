@@ -370,6 +370,28 @@ class Database:
         )
         self.conn.commit()
 
+    def get_extraction_details(self, article_ids: list[int]) -> dict[int, list[str]]:
+        """Surviving ``details`` sentences per article id, read from the stored extractions.
+
+        Articles without an extraction, or with one saved before ``details`` existed,
+        map to an empty list.
+        """
+        out: dict[int, list[str]] = {}
+        for i in range(0, len(article_ids), 500):  # stay under SQLite's variable limit
+            chunk = article_ids[i : i + 500]
+            marks = ",".join("?" * len(chunk))
+            rows = self.conn.execute(
+                f"SELECT article_id, json FROM extractions WHERE article_id IN ({marks})",
+                chunk,
+            ).fetchall()
+            for row in rows:
+                try:
+                    details = json.loads(row["json"]).get("details", [])
+                except (json.JSONDecodeError, AttributeError):
+                    details = []
+                out[row["article_id"]] = [d for d in details if isinstance(d, str)]
+        return out
+
     def mark_extraction_failed(self, article_id: int) -> None:
         """Flag an article whose extraction failed validation twice, so it is not retried."""
         self.conn.execute(
