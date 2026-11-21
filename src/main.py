@@ -14,6 +14,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +51,47 @@ logging.basicConfig(
 logger = logging.getLogger("morning-brief")
 
 
+# The stage timer's clock; tests monkeypatch it to simulate a slow run.
+_clock = time.monotonic
+
+
+class StageTimer:
+    """Times consecutive pipeline stages: each ``lap`` closes the stage since the last one."""
+
+    def __init__(self, clock=None) -> None:
+        self._clock = clock or _clock  # resolved now, so a patched module clock is honoured
+        self._start = self._last = self._clock()
+        self.stages: dict[str, float] = {}
+
+    def lap(self, stage: str) -> None:
+        now = self._clock()
+        self.stages[stage] = now - self._last
+        self._last = now
+
+    @property
+    def total(self) -> float:
+        return self._last - self._start
+
+    def report(self, deadline_minutes: int) -> dict:
+        """Log the one-line timing summary (plus a deadline warning); return the status payload."""
+        stages = ", ".join(f"{name} {secs:.1f}s" for name, secs in self.stages.items())
+        logger.info("Run timing: total %.1fs (%s)", self.total, stages)
+        if self.total > deadline_minutes * 60:
+            slowest = max(self.stages, key=self.stages.__getitem__)
+            logger.warning(
+                "Run took %.1fs, past the %d-minute deadline (RUN_DEADLINE_MINUTES); "
+                "slowest stage: %s (%.1fs)",
+                self.total,
+                deadline_minutes,
+                slowest,
+                self.stages[slowest],
+            )
+        return {
+            "total_s": round(self.total, 1),
+            "stages": {name: round(secs, 1) for name, secs in self.stages.items()},
+        }
+
+
 def _write_status(data_dir: Path, status: str, message: str, **extra) -> None:
     """Write a JSON status file so health checks and alerting scripts can read it.
 
@@ -83,6 +125,7 @@ async def run_pipeline() -> None:
             logger.info("Retention cleanup: removed %d old articles", cleaned)
         start = datetime.now(timezone.utc)
         logger.info("Pipeline started at %s", start.isoformat())
+        timer = StageTimer()
 
         # Feed lanes decide where each feed's articles are used (loaded once per run).
         lanes = load_lanes_for_run(config.feeds_overlay)
@@ -152,6 +195,7 @@ async def run_pipeline() -> None:
             )
         if artworks:
             logger.info("Stored %d daily artworks", len(artworks))
+        timer.lap("fetch")
 
         # Stage 2: Process — extract and deduplicate
         logger.info("Stage 2: Processing articles...")
@@ -166,6 +210,8 @@ async def run_pipeline() -> None:
         logger.info(
             "Stored %d new articles (%d duplicates skipped)", new_count, len(extracted) - new_count
         )
+
+        timer.lap("process")
 
         # Stage 2.5: Score articles by relevance
         logger.info("Scoring articles by relevance...")
@@ -182,6 +228,8 @@ async def run_pipeline() -> None:
             len(scored),
             len(top),
         )
+
+        timer.lap("score")
 
         # Stage 2.6: Emit per-ticker signals for atrade (optional, non-fatal — §2)
         if config.signals_enabled:
@@ -201,6 +249,8 @@ async def run_pipeline() -> None:
         else:
             logger.debug("Signal emission disabled (set SIGNALS_ENABLED=true to enable)")
 
+        timer.lap("signals")
+
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
         candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)
@@ -211,7 +261,12 @@ async def run_pipeline() -> None:
         duplicates = find_duplicates(candidates, config.dedupe_window_hours)
         db.mark_duplicates(duplicates)
         candidates = [a for a in candidates if a["id"] not in duplicates]
-        unsummarized = select_balanced_articles(candidates, interests=interests)
+        unsummarized = select_balanced_articles(
+            candidates,
+            per_category=config.reader_max_per_category,
+            total=config.reader_max_total,
+            interests=interests,
+        )
         logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
         if unsummarized:
@@ -234,7 +289,17 @@ async def run_pipeline() -> None:
                             # briefing (same flag as a failed extraction), save no summary.
                             db.mark_extraction_failed(result.article_id)
                             continue
-                        extraction = {**extraction, "what_happened": kept}
+                        # Details are held to the same source; the article stands or falls
+                        # on what_happened alone.
+                        details = [
+                            d
+                            for d in (
+                                validator.apply(d, source, f"article {result.article_id} detail")
+                                for d in extraction["details"]
+                            )
+                            if d
+                        ]
+                        extraction = {**extraction, "what_happened": kept, "details": details}
                     db.save_extraction(result.article_id, extraction, result.model)
                     saved += 1
                 elif result.extraction_failed:
@@ -248,6 +313,8 @@ async def run_pipeline() -> None:
                     metrics.succeeded,
                     metrics.total_articles,
                 )
+
+        timer.lap("summarize")
 
         # Generate daily briefing (after summarization, before publish)
         # Try Claude first if API key is configured, fall back to Ollama.
@@ -277,6 +344,8 @@ async def run_pipeline() -> None:
             today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             bref_record = db.get_briefing(today_str)
             briefing_segments = bref_record["segment_map"] if bref_record else None
+
+        timer.lap("briefing")
 
         # Stage 4: Publish HTML dashboard
         logger.info("Stage 4: Rendering dashboard...")
@@ -327,6 +396,7 @@ async def run_pipeline() -> None:
                 logger.warning("Deploy script not found at %s", deploy_script)
         else:
             logger.info("Deploy disabled (set DEPLOY_ENABLED=true to enable)")
+        timer.lap("publish")
 
         logger.info(
             "Validator (%s): checked %d sentences, dropped %d (number=%d, name=%d, banned=%d)",
@@ -338,6 +408,8 @@ async def run_pipeline() -> None:
             validator.dropped["banned"],
         )
 
+        timing = timer.report(config.run_deadline_minutes)
+
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info("Pipeline completed in %.1fs", elapsed)
 
@@ -348,6 +420,7 @@ async def run_pipeline() -> None:
             articles=len(all_articles),
             elapsed_seconds=round(elapsed, 1),
             validator=validator.metadata(),
+            timing=timing,
         )
 
     except Exception as exc:

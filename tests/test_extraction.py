@@ -31,6 +31,7 @@ from tests.test_signals_golden import (
 
 VALID = {
     "what_happened": "Example Corp bought a plant. It paid $1.5 million.",
+    "details": ["The plant employs staff in the region."],
     "entities": ["Example Corp"],
     "numbers": ["$1.5 million"],
     "event_date": "2020-01-02",
@@ -177,11 +178,11 @@ def test_config_defaults(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     o = load_config().ollama
     assert (o.num_ctx, o.extract_temperature, o.extract_seed) == (8192, 0.1, 42)
-    assert (o.extract_max_words, o.extract_num_predict, o.chars_per_token) == (50, 600, 4)
+    assert (o.extract_max_words, o.extract_num_predict, o.chars_per_token) == (120, 900, 4)
 
 
 def test_max_chars_fits_context():
-    assert extraction_max_chars(OllamaConfig()) == (8192 - 600 - 600) * 4
+    assert extraction_max_chars(OllamaConfig()) == (8192 - 900 - 600) * 4
     small = OllamaConfig(num_ctx=4096, extract_num_predict=500, chars_per_token=3)
     assert extraction_max_chars(small) == (4096 - 500 - 600) * 3
 
@@ -252,7 +253,8 @@ async def test_prompt_uses_fetched_at_when_no_published_at_and_caps_text():
     await summarize_single(client, cfg, art)
     prompt = client.calls[0]["prompt"]
     assert "Published: 2021-05-06" in prompt
-    assert prompt.count("x") <= extraction_max_chars(cfg) + 5
+    article_text = prompt.split("Article text:\n", 1)[1]
+    assert article_text.count("x") <= extraction_max_chars(cfg) + 5
 
 
 # --- pipeline: request shape ---------------------------------------------------

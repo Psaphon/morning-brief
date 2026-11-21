@@ -18,12 +18,18 @@ from typing import Any
 # the useful ones; the prompt asks for the most important first.
 MAX_LIST_ITEMS = 10
 
+# Extra short facts beyond what_happened: at most this many, each one sentence of at
+# most DETAIL_MAX_WORDS words.
+MAX_DETAILS = 4
+DETAIL_MAX_WORDS = 30
+
 STATUSES = ("happened", "scheduled", "ongoing")
 
 EXTRACTION_SCHEMA: dict = {
     "type": "object",
     "properties": {
         "what_happened": {"type": "string"},
+        "details": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_DETAILS},
         "entities": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_LIST_ITEMS},
         "numbers": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_LIST_ITEMS},
         "event_date": {"type": ["string", "null"]},
@@ -32,6 +38,7 @@ EXTRACTION_SCHEMA: dict = {
     },
     "required": [
         "what_happened",
+        "details",
         "entities",
         "numbers",
         "event_date",
@@ -52,14 +59,14 @@ class ExtractionError(ValueError):
     """The model's reply is not a valid extraction."""
 
 
-def trim_words(text: str, max_words: int) -> str:
-    """Trim *text* to at most two sentences and *max_words* words.
+def trim_words(text: str, max_words: int, max_sentences: int = MAX_SENTENCES) -> str:
+    """Trim *text* to at most *max_sentences* sentences (default two) and *max_words* words.
 
     Cuts at the last sentence boundary that fits. If even the first sentence is
     over the limit, hard-cuts it at *max_words* words.
     """
     text = " ".join(text.split())
-    sentences = _SENTENCE_SPLIT_RE.split(text)[:MAX_SENTENCES]
+    sentences = _SENTENCE_SPLIT_RE.split(text)[:max_sentences]
 
     kept: list[str] = []
     words = 0
@@ -82,6 +89,9 @@ def _is_str_list(value: Any) -> bool:
 def parse_extraction(raw: str, max_words: int) -> dict:
     """Parse and validate a model reply; ``what_happened`` is trimmed to *max_words*.
 
+    Each ``details`` item is trimmed to one sentence of at most ``DETAIL_MAX_WORDS``
+    words; items left empty are dropped and at most ``MAX_DETAILS`` are kept.
+
     Raises:
         ExtractionError: not valid JSON, not an object, a field is missing or of the
             wrong type, ``status`` is not an allowed value, or ``event_date`` is
@@ -101,7 +111,7 @@ def parse_extraction(raw: str, max_words: int) -> dict:
     what = data["what_happened"]
     if not isinstance(what, str) or not what.strip():
         raise ExtractionError("what_happened must be a non-empty string")
-    for name in ("entities", "numbers"):
+    for name in ("details", "entities", "numbers"):
         if not _is_str_list(data[name]):
             raise ExtractionError(f"{name} must be a list of strings")
     if data["status"] not in STATUSES:
@@ -118,8 +128,12 @@ def parse_extraction(raw: str, max_words: int) -> dict:
         except ValueError as e:
             raise ExtractionError(f"event_date is not a real date: {event_date}") from e
 
+    details = [trim_words(d, DETAIL_MAX_WORDS, max_sentences=1) for d in data["details"]]
+    details = [d for d in details if d][:MAX_DETAILS]
+
     return {
         "what_happened": trim_words(what, max_words),
+        "details": details,
         "entities": data["entities"],
         "numbers": data["numbers"],
         "event_date": event_date,

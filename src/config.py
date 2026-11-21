@@ -24,8 +24,8 @@ class OllamaConfig:
     num_ctx: int = 8192
     extract_temperature: float = 0.1
     extract_seed: int = 42
-    extract_max_words: int = 50
-    extract_num_predict: int = 600
+    extract_max_words: int = 120
+    extract_num_predict: int = 900
     chars_per_token: int = 4
 
 
@@ -55,6 +55,9 @@ class Config:
     feeds_overlay: Path | None = None
     validator_mode: str = "enforce"
     banned_overlay: Path | None = None
+    reader_max_per_category: int = 15
+    reader_max_total: int = 120
+    run_deadline_minutes: int = 60
 
 
 def _validator_mode() -> str:
@@ -75,8 +78,8 @@ def load_config() -> Config:
             num_ctx=int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
             extract_temperature=float(os.environ.get("EXTRACT_TEMPERATURE", "0.1")),
             extract_seed=int(os.environ.get("EXTRACT_SEED", "42")),
-            extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "50")),
-            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "600")),
+            extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "120")),
+            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "900")),
             chars_per_token=int(os.environ.get("CHARS_PER_TOKEN", "4")),
         ),
         api_keys=APIKeys(
@@ -98,4 +101,7 @@ def load_config() -> Config:
         feeds_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_FEEDS_OVERLAY")) else None,
         validator_mode=_validator_mode(),
         banned_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_BANNED_OVERLAY")) else None,
+        reader_max_per_category=int(os.environ.get("READER_MAX_PER_CATEGORY", "15")),
+        reader_max_total=int(os.environ.get("READER_MAX_TOTAL", "120")),
+        run_deadline_minutes=int(os.environ.get("RUN_DEADLINE_MINUTES", "60")),
     )

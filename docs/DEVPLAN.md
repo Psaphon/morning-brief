@@ -1163,7 +1163,7 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 
 **Branch:** `feature/reader-coverage`
 **Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** both
 
 ### Goal

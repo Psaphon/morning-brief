@@ -241,6 +241,7 @@ async def test_summarize_single_success(ollama_config):
         "response": json.dumps(
             {
                 "what_happened": "This is a concise summary of the article.",
+                "details": [],
                 "entities": [],
                 "numbers": [],
                 "event_date": None,

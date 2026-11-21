@@ -15,6 +15,7 @@ from typing import Any
 BRIEFING_MARKER = "write a structured daily intelligence briefing"
 EXTRACTION_MARKER = "extract the facts from the following news article"
 CANNED_SUMMARY = "A canned two-sentence summary. It exists only for tests."
+CANNED_DETAIL = "A canned detail sentence."
 MALFORMED_REPLY = '{"what_happened": "cut off mid-'
 
 
@@ -31,8 +32,14 @@ def canned_extraction(
     what = f"Canned fact about {title}." if title else CANNED_SUMMARY
     if ungrounded:
         what = f"{what} {UNGROUNDED_SENTENCE}"
+    details = (
+        [f"Canned detail about {title}.", f"Canned follow-up about {title}."]
+        if title
+        else [CANNED_DETAIL]
+    )
     return {
         "what_happened": what,
+        "details": details,
         "entities": ["Example Corp"],
         "numbers": ["$1.5 million"],
         "event_date": "2020-01-02",
