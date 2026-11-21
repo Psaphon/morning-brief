@@ -77,6 +77,14 @@ def _script_json(obj: Any) -> str:
     return json.dumps(obj).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
+def _http_url(value: Any) -> str:
+    """The URL if it is http(s), else "" (no javascript:, data: or other schemes)."""
+    from urllib.parse import urlsplit
+
+    url = str(value or "").strip()
+    return url if urlsplit(url).scheme.lower() in ("http", "https") else ""
+
+
 def build_cited_sections(
     segments: list[dict[str, Any]] | None, articles_by_id: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -122,7 +130,7 @@ def build_cited_sections(
                                 "id": art.get("id"),
                                 "title": art.get("title", ""),
                                 "source": art.get("source", ""),
-                                "url": art.get("url", ""),
+                                "url": _http_url(art.get("url")),
                                 "what_happened": art.get("summary", ""),
                             }
                         )

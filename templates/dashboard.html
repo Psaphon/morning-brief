@@ -468,6 +468,16 @@
     (function () {
         'use strict';
 
+        // Only http(s) links, re-serialized by the URL parser, ever become an href
+        // (no javascript:, data: or other schemes from article data).
+        function safeHttpUrl(raw) {
+            try {
+                var u = new URL(String(raw || ''));
+                if (u.protocol === 'http:' || u.protocol === 'https:') { return u.href; }
+            } catch (e) { /* not a URL */ }
+            return null;
+        }
+
         function escapeHtml(str) {
             var d = document.createElement('div');
             d.textContent = str || '';
@@ -813,7 +823,7 @@
                             if (i > 0) { sup.appendChild(document.createTextNode(',')); }
                             var a = document.createElement('a');
                             a.textContent = String(n);
-                            if (/^https?:\/\//i.test(s.url || '')) { a.href = s.url; }
+                            var safe = safeHttpUrl(s.url); if (safe) { a.href = safe; }
                             a.title = s.source || '';
                             a.target = '_blank';
                             a.rel = 'noopener noreferrer';
@@ -840,7 +850,7 @@
                     li.value = s.n;
                     var a = document.createElement('a');
                     a.textContent = s.title || s.url || 'Untitled';
-                    if (/^https?:\/\//i.test(s.url || '')) { a.href = s.url; }
+                    var safe = safeHttpUrl(s.url); if (safe) { a.href = safe; }
                     a.target = '_blank';
                     a.rel = 'noopener noreferrer';
                     li.appendChild(a);

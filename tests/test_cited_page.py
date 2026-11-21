@@ -123,3 +123,22 @@ def test_page_is_valid_html5():
     parser = html5lib.HTMLParser(strict=True)
     parser.parse(html)
     assert not parser.errors
+
+
+def test_only_http_urls_reach_citation_links():
+    """A javascript: or data: URL in article data must never become a link target."""
+    from src.publishers.html import build_cited_sections
+
+    seg = {
+        "topic": "T",
+        "cited_text": "A fact. [[1]] Another. [[2]] Third. [[3]]",
+        "source_article_ids": [1, 2, 3],
+        "writer": "claude",
+    }
+    arts = {
+        "1": {"id": 1, "title": "a", "source": "s", "url": "javascript:alert(1)", "summary": "x"},
+        "2": {"id": 2, "title": "b", "source": "s", "url": "data:text/html,hi", "summary": "y"},
+        "3": {"id": 3, "title": "c", "source": "s", "url": "https://example.org/a", "summary": "z"},
+    }
+    urls = [src["url"] for src in build_cited_sections([seg], arts)[0]["sources"]]
+    assert urls == ["", "", "https://example.org/a"]
