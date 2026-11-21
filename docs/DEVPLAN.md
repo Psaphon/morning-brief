@@ -1090,7 +1090,7 @@ Sentiment comes from a model reading untrusted article text, so a crafted articl
 
 **Branch:** `feature/source-audit`
 **Depends on:** none
-**Status:** In Progress
+**Status:** Merged (#74)
 **Requires:** both
 
 ### Goal
