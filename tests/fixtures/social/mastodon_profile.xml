@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><!-- Shaped like real Mastodon profile RSS: items carry no <title> and no author. -->
+<channel><title>reporter@masto.example.test</title><link>https://social.example.test/</link><description>fixture</description>
+<item><link>https://masto.example.test/@reporter/1001</link><pubDate>Mon, 05 Jan 2026 12:00:00 GMT</pubDate><description><![CDATA[<p>Port traffic is up this quarter, per the harbor authority.</p><p>Shipping volumes rose &amp; held steady.</p>]]></description></item>
+<item><link>https://masto.example.test/@reporter/1002</link><pubDate>Wed, 07 Jan 2026 12:00:00 GMT</pubDate><description><![CDATA[<p>Correction: the figure above is <b>per month</b>, not per quarter.<br/>Apologies for the error.</p>]]></description></item>
+</channel></rss>

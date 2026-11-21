@@ -20,7 +20,7 @@ import httpx
 from ..config import OllamaConfig
 from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
 from ..validators.grounding import ValidatorRun
-from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction
+from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction, trim_words
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -239,6 +239,44 @@ def _published_date(article: dict) -> str:
     """The article's published date (else fetched date) as YYYY-MM-DD, or 'unknown'."""
     stamp = article.get("published_at") or article.get("fetched_at") or ""
     return stamp[:10] or "unknown"
+
+
+POST_MAX_WORDS = 120
+
+
+def extract_post(article: dict) -> SummaryResult:
+    """Extraction for a ``post`` article without a model call.
+
+    The post text, trimmed, is ``what_happened``; every other field is empty.
+    """
+    what = trim_words(article.get("full_text") or "", POST_MAX_WORDS)
+    if not what:
+        return SummaryResult(
+            article_id=article["id"],
+            summary="",
+            model="post",
+            elapsed_seconds=0.0,
+            success=False,
+            error="Post has no text",
+            extraction_failed=True,
+        )
+    extraction = {
+        "what_happened": what,
+        "details": [],
+        "entities": [],
+        "numbers": [],
+        "event_date": None,
+        "status": "happened",
+        "is_roundup": False,
+    }
+    return SummaryResult(
+        article_id=article["id"],
+        summary=what,
+        model="post",
+        elapsed_seconds=0.0,
+        success=True,
+        extraction=extraction,
+    )
 
 
 async def summarize_single(

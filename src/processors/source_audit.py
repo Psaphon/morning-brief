@@ -66,10 +66,16 @@ def classify(
     short_share: float,
     paywall_share: float,
     min_words: int,
+    kind: str = "article",
 ) -> str:
-    """Return ok / truncated / paywalled / failing."""
+    """Return ok / ok-post / truncated / paywalled / failing.
+
+    ``post`` feeds are short by design: unless failing they are ``ok-post``.
+    """
     if feed_failed or items == 0 or errors / items >= FAILING_ERROR_SHARE:
         return "failing"
+    if kind == "post":
+        return "ok-post"
     if paywall_share >= PAYWALLED_SHARE:
         return "paywalled"
     if short_share >= TRUNCATED_SHARE or median_words < min_words:
@@ -96,19 +102,24 @@ async def _audit_item(
     client: httpx.AsyncClient,
     sem: asyncio.Semaphore,
     entry: feedparser.FeedParserDict,
+    fetch_page: bool = True,
 ) -> tuple[int, str, bool]:
-    """Return (word_count, text, fetch_error) for one feed item."""
+    """Return (word_count, text, fetch_error) for one feed item.
+
+    ``fetch_page=False`` (post feeds) measures the feed's own text; no request is made.
+    """
     link = entry.get("link", "")
     text = ""
     error = False
     async with sem:
-        try:
-            response = await client.get(link, timeout=FETCH_TIMEOUT)
-            response.raise_for_status()
-            text = trafilatura.extract(response.text) or ""
-        except Exception as e:  # one bad article must not abort the audit
-            logger.debug("Audit fetch failed for %s: %s", link, e)
-            error = True
+        if fetch_page:
+            try:
+                response = await client.get(link, timeout=FETCH_TIMEOUT)
+                response.raise_for_status()
+                text = trafilatura.extract(response.text) or ""
+            except Exception as e:  # one bad article must not abort the audit
+                logger.debug("Audit fetch failed for %s: %s", link, e)
+                error = True
     if not text:
         # Same fallback the pipeline uses: whatever the feed itself carries.
         text = trafilatura.extract(_entry_text(entry)) or _entry_text(entry)
@@ -126,13 +137,14 @@ async def audit_feed(
 ) -> FeedAudit:
     """Audit a single feed. Never raises."""
     source, url = feed["source"], feed["url"]
+    kind = feed.get("kind", "article")
     cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days)
 
     def result(items: int, errors: int, failed: bool, words: list[int], paywalled: int):
         median = float(statistics.median(words)) if words else 0.0
         short = sum(1 for w in words if w < min_words) / items if items else 0.0
         pay = paywalled / items if items else 0.0
-        verdict = classify(items, errors, failed, median, short, pay, min_words)
+        verdict = classify(items, errors, failed, median, short, pay, min_words, kind)
         return FeedAudit(
             source, url, items, median, round(short, 3), round(pay, 3), errors, verdict
         )
@@ -151,7 +163,7 @@ async def audit_feed(
 
     entries = [e for e in parsed.entries if e.get("link") and _recent(e, cutoff)]
     entries = entries[:MAX_ITEMS_PER_FEED]
-    outcomes = await asyncio.gather(*(_audit_item(client, sem, e) for e in entries))
+    outcomes = await asyncio.gather(*(_audit_item(client, sem, e, kind != "post") for e in entries))
 
     words = [w for w, _, _ in outcomes]
     errors = sum(1 for _, _, err in outcomes if err)

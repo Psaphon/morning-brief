@@ -8,7 +8,8 @@ import logging
 import httpx
 import trafilatura
 
-from ..fetchers.rss import RawArticle
+from ..config import audit_min_words
+from ..fetchers.rss import RawArticle, html_to_text
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,21 @@ async def extract_single(
     """Fetch and extract full text for a single article.
 
     Returns a dict ready for db.insert_article, or None on failure.
+
+    A ``post`` uses its own text and never fetches the page. A ``newsletter`` whose
+    feed content already has at least ``AUDIT_MIN_WORDS`` words uses that content;
+    otherwise it is treated like an ``article``.
     """
+    if article.kind == "post":
+        text = html_to_text(article.content or article.summary)
+        return _article_to_dict(article, text) if text else None
+    if (
+        article.kind == "newsletter"
+        and article.content
+        and len(article.content.split()) >= audit_min_words()
+    ):
+        return _article_to_dict(article, article.content)
+
     try:
         response = await client.get(article.url, timeout=EXTRACT_TIMEOUT)
         response.raise_for_status()

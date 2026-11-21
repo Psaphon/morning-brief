@@ -7,6 +7,9 @@
 Lanes are per feed (keyed by the feed's ``source`` name), declared in
 ``config/feed_lanes.toml``. A per-host overlay file (``$MORNING_BRIEF_FEEDS_OVERLAY``)
 uses the same shape and merges over it by feed id; it may also add new feeds.
+
+Each feed also has a ``kind``: ``article`` (default), ``post`` (a Bluesky or Mastodon
+profile feed) or ``newsletter``. A ``post`` feed with no explicit lanes is reader-only.
 """
 
 from __future__ import annotations
@@ -21,6 +24,10 @@ logger = logging.getLogger(__name__)
 
 VALID_LANES = frozenset({"reader", "signals", "rnd"})
 BUILTIN_DEFAULT = frozenset({"reader", "signals"})
+VALID_KINDS = frozenset({"article", "post", "newsletter"})
+DEFAULT_KIND = "article"
+# Posts are short and personal: they never feed the per-ticker signals unless asked to.
+POST_DEFAULT_LANES = frozenset({"reader"})
 # Anchored to the repo root so the lookup does not depend on the working directory.
 DEFAULT_LANES_PATH = Path(__file__).resolve().parents[2] / "config" / "feed_lanes.toml"
 
@@ -32,9 +39,14 @@ class FeedLanes:
     default: frozenset[str] = BUILTIN_DEFAULT
     feeds: dict[str, frozenset[str]] = field(default_factory=dict)
     extra_feeds: list[dict[str, str]] = field(default_factory=list)
+    kinds: dict[str, str] = field(default_factory=dict)
 
     def lanes_for(self, source: str) -> frozenset[str]:
         return self.feeds.get(source, self.default)
+
+    def kind_for(self, source: str) -> str:
+        """``article`` (default), ``post`` or ``newsletter``."""
+        return self.kinds.get(source, DEFAULT_KIND)
 
 
 def _parse_lanes(value: Any, where: str) -> frozenset[str]:
@@ -46,6 +58,12 @@ def _parse_lanes(value: Any, where: str) -> frozenset[str]:
             f"{where}: unknown lane(s) {unknown!r}; valid lanes are {sorted(VALID_LANES)}"
         )
     return frozenset(value)
+
+
+def _parse_kind(value: Any, where: str) -> str:
+    if value not in VALID_KINDS:
+        raise ValueError(f"{where}: unknown kind {value!r}; valid kinds are {sorted(VALID_KINDS)}")
+    return value
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -69,10 +87,17 @@ def load_feed_lanes(path: Path = DEFAULT_LANES_PATH, overlay: Path | None = None
     default = (
         _parse_lanes(data["default"], f"{path}: default") if "default" in data else BUILTIN_DEFAULT
     )
-    feeds = {
-        name: _parse_lanes(entry.get("lanes"), f"{path}: feed {name!r}")
-        for name, entry in _entries(data, path).items()
-    }
+    feeds: dict[str, frozenset[str]] = {}
+    kinds: dict[str, str] = {}
+    for name, entry in _entries(data, path).items():
+        where = f"{path}: feed {name!r}"
+        if "kind" in entry:
+            kinds[name] = _parse_kind(entry["kind"], where)
+        if "lanes" in entry or "kind" not in entry:
+            feeds[name] = _parse_lanes(entry.get("lanes"), where)
+        else:
+            # kind only: a post feed is reader-only, anything else gets the default.
+            feeds[name] = POST_DEFAULT_LANES if kinds[name] == "post" else default
     extra: list[dict[str, str]] = []
 
     if overlay is not None:
@@ -84,21 +109,27 @@ def load_feed_lanes(path: Path = DEFAULT_LANES_PATH, overlay: Path | None = None
                 default = _parse_lanes(odata["default"], f"{overlay}: default")
             for name, entry in _entries(odata, overlay).items():
                 where = f"{overlay}: feed {name!r}"
+                if "kind" in entry:
+                    kinds[name] = _parse_kind(entry["kind"], where)
                 url, category = entry.get("url"), entry.get("category")
-                if url is not None or category is not None:
+                is_new = url is not None or category is not None
+                if is_new:
                     if not (
                         isinstance(url, str) and url and isinstance(category, str) and category
                     ):
                         raise ValueError(f"{where}: a new feed needs both url and category")
                     extra.append({"source": name, "url": url, "category": category})
-                    # A new feed without lanes gets the default.
-                    feeds[name] = (
-                        _parse_lanes(entry["lanes"], where) if "lanes" in entry else default
-                    )
+                if "lanes" in entry:
+                    feeds[name] = _parse_lanes(entry["lanes"], where)
+                elif is_new or "kind" in entry:
+                    # No lanes given: a post feed is reader-only, anything else the default.
+                    # A kind-only change to a feed with lanes already set keeps those lanes.
+                    if is_new or name not in feeds:
+                        feeds[name] = POST_DEFAULT_LANES if kinds.get(name) == "post" else default
                 else:
-                    feeds[name] = _parse_lanes(entry.get("lanes"), where)
+                    raise ValueError(f"{where}: lanes must be a non-empty list, got None")
 
-    return FeedLanes(default=default, feeds=feeds, extra_feeds=extra)
+    return FeedLanes(default=default, feeds=feeds, extra_feeds=extra, kinds=kinds)
 
 
 def load_lanes_for_run(overlay: Path | None, path: Path = DEFAULT_LANES_PATH) -> FeedLanes:

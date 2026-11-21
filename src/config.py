@@ -60,6 +60,12 @@ class Config:
     reader_max_per_category: int = 15
     reader_max_total: int = 120
     run_deadline_minutes: int = 60
+    post_group_hours: int = 12
+
+
+def audit_min_words() -> int:
+    """AUDIT_MIN_WORDS: words a feed item needs to count as full text (default 150)."""
+    return int(os.environ.get("AUDIT_MIN_WORDS", "150"))
 
 
 def _validator_mode() -> str:
@@ -107,4 +113,5 @@ def load_config() -> Config:
         reader_max_per_category=int(os.environ.get("READER_MAX_PER_CATEGORY", "15")),
         reader_max_total=int(os.environ.get("READER_MAX_TOTAL", "120")),
         run_deadline_minutes=int(os.environ.get("RUN_DEADLINE_MINUTES", "60")),
+        post_group_hours=int(os.environ.get("POST_GROUP_HOURS", "12")),
     )

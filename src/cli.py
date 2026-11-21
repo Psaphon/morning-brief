@@ -161,11 +161,19 @@ def audit_sources(days: int) -> None:
     from pathlib import Path
 
     from .fetchers.rss import parse_feeds_md
+    from .processors.lanes import load_lanes_for_run
     from .processors.source_audit import audit_feeds, load_paywall_markers, write_report
 
     config = load_config()
     min_words = int(os.environ.get("AUDIT_MIN_WORDS", "150"))
+    # Same feed set and kinds the pipeline uses: FEEDS.md plus overlay-added feeds,
+    # each stamped with its kind so post feeds are judged as posts (ok-post).
+    lanes = load_lanes_for_run(config.feeds_overlay)
     feeds = parse_feeds_md(config.feeds_path)
+    known = {f["source"] for f in feeds}
+    feeds += [dict(f) for f in lanes.extra_feeds if f["source"] not in known]
+    for feed in feeds:
+        feed["kind"] = lanes.kind_for(feed["source"])
     markers = load_paywall_markers()
     audits = asyncio.run(audit_feeds(feeds, days, min_words, markers))
 
