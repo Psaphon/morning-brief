@@ -1,7 +1,7 @@
 """Local LLM summarizer — Ollama (default model in config.py).
 
-Sends unsummarized articles to an Ollama instance, gets back concise
-2-3 sentence summaries, and stores them in the database.
+Sends unsummarized articles to an Ollama instance, gets back schema-validated
+JSON facts per article, and stores them in the database.
 
 Ollama API docs: POST /api/generate with model, prompt, stream=false.
 """
@@ -19,15 +19,20 @@ import httpx
 
 from ..config import OllamaConfig
 from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
+from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction
 
 if TYPE_CHECKING:
     from ..db import Database
 
 logger = logging.getLogger(__name__)
 
-# Approximate token limit for input text. The server context is ~8K tokens
-# but we keep it conservative to leave room for the prompt template and output.
+# Default cap on input text for callers of truncate_text. Extraction sizes its own
+# cap from the configured context window (see extraction_max_chars).
 MAX_INPUT_CHARS = 12_000  # ~3000 tokens at ~4 chars/token
+
+# Tokens reserved for the extraction prompt template, title and metadata.
+PROMPT_RESERVE_TOKENS = 600
+MIN_INPUT_CHARS = 1_000
 
 # How many articles to summarize per batch before pausing
 BATCH_SIZE = 5
@@ -66,30 +71,45 @@ BRIEFING_SCHEMA: dict = {
 MAX_RETRIES = 2
 RETRY_DELAY = 3.0
 
-SUMMARY_PROMPT = """You are a news analyst writing a morning intelligence briefing.
+# Marks a per-article extraction request (the test stub keys on it).
+EXTRACTION_MARKER = "extract the facts from the following news article"
 
-Summarize the following article in 2-3 concise, factual sentences. Focus on:
-- What happened (the key facts)
-- Why it matters (significance or impact)
-- Who is involved (key actors or organizations)
+EXTRACTION_PROMPT = """You are a careful news analyst. Read the article below and \
+extract the facts from the following news article as JSON.
 
-Do NOT include opinions, speculation, or editorializing. Write in third person.
-If the article text is too short or unclear to summarize meaningfully, respond with
-exactly: "Insufficient content for summary."
+Rules:
+- Facts only: who did what, the figures, and when. No evaluation, opinion, or impact language.
+- Copy names, tokens and companies exactly as written in the article.
+- Copy figures exactly as written, with their units.
+- entities and numbers: at most 10 each, the ones what_happened depends on first. No repeats.
+- what_happened: at most 2 sentences.
+- event_date: the date of the event as YYYY-MM-DD, or null if the article gives none. \
+Resolve relative dates ("yesterday", "next Friday") against the published date.
+- status: "happened", "scheduled" (still to come) or "ongoing".
+- is_roundup: true ONLY if the article is a list of separate, unrelated news items under one \
+headline, such as "Morning briefing", "5 things to know today" or "Theme park news: A, B and C". \
+One story told with background, several people, places, figures or reactions is NOT a roundup: \
+use false. When unsure, use false.
 
 Article title: {title}
 Source: {source}
 Category: {category}
+Published: {published}
 
 Article text:
 {text}
-
-Summary:"""
+"""
 
 
 @dataclass
 class SummaryResult:
-    """Result of summarizing a single article."""
+    """Result of extracting facts from a single article.
+
+    ``summary`` is the trimmed ``what_happened``. ``extraction`` is the validated
+    extraction dict on success. ``extraction_failed`` is set only when the model
+    replied twice with an invalid extraction (not for timeouts or HTTP errors,
+    which are worth retrying on the next run).
+    """
 
     article_id: int
     summary: str
@@ -97,6 +117,8 @@ class SummaryResult:
     elapsed_seconds: float
     success: bool
     error: str | None = None
+    extraction: dict | None = None
+    extraction_failed: bool = False
 
 
 @dataclass
@@ -201,12 +223,29 @@ async def check_ollama_available(client: httpx.AsyncClient, config: OllamaConfig
         return False
 
 
+def extraction_max_chars(config: OllamaConfig) -> int:
+    """Article-text cap so prompt + output fit the context window."""
+    room = config.num_ctx - config.extract_num_predict - PROMPT_RESERVE_TOKENS
+    return max(MIN_INPUT_CHARS, room * config.chars_per_token)
+
+
+def _published_date(article: dict) -> str:
+    """The article's published date (else fetched date) as YYYY-MM-DD, or 'unknown'."""
+    stamp = article.get("published_at") or article.get("fetched_at") or ""
+    return stamp[:10] or "unknown"
+
+
 async def summarize_single(
     client: httpx.AsyncClient,
     config: OllamaConfig,
     article: dict,
 ) -> SummaryResult:
-    """Summarize a single article via Ollama."""
+    """Extract validated JSON facts from a single article via Ollama.
+
+    A reply that is not a valid extraction is retried once; a second invalid reply
+    returns a result with ``extraction_failed`` set. The raw article text is never
+    used as a fallback summary.
+    """
     article_id = article["id"]
     title = article.get("title", "Untitled")
     source = article.get("source", "Unknown")
@@ -223,17 +262,19 @@ async def summarize_single(
             error="Article text too short",
         )
 
-    truncated = truncate_text(full_text)
-    prompt = SUMMARY_PROMPT.format(
+    prompt = EXTRACTION_PROMPT.format(
         title=title,
         source=source,
         category=category,
-        text=truncated,
+        published=_published_date(article),
+        text=truncate_text(full_text, extraction_max_chars(config)),
     )
 
     start = time.monotonic()
+    transport_attempts = 0
+    invalid_replies = 0
 
-    for attempt in range(MAX_RETRIES + 1):
+    while True:
         try:
             resp = await client.post(
                 f"{config.host}/api/generate",
@@ -244,87 +285,74 @@ async def summarize_single(
                     # Thinking models (gemma4) reason before answering unless told not to:
                     # slower, and it eats num_predict. Older models ignore the flag.
                     "think": False,
+                    "format": EXTRACTION_SCHEMA,
                     "options": {
-                        "temperature": 0.3,
-                        "top_p": 0.9,
-                        "num_predict": 256,
+                        "num_ctx": config.num_ctx,
+                        "temperature": config.extract_temperature,
+                        "seed": config.extract_seed,
+                        "num_predict": config.extract_num_predict,
                     },
                 },
                 timeout=REQUEST_TIMEOUT,
             )
             resp.raise_for_status()
-            data = resp.json()
-            summary = data.get("response", "").strip()
-            elapsed = time.monotonic() - start
-
-            if not summary:
+            raw = resp.json().get("response", "").strip()
+            try:
+                if not raw:
+                    raise ExtractionError("Empty response from Ollama")
+                extraction = parse_extraction(raw, config.extract_max_words)
+            except ExtractionError as e:
+                invalid_replies += 1
+                if invalid_replies < 2:
+                    logger.info(
+                        "Invalid extraction for article %d (%s), retrying once", article_id, e
+                    )
+                    continue
+                logger.warning("Extraction failed for article %d: %s", article_id, e)
                 return SummaryResult(
                     article_id=article_id,
                     summary="",
                     model=config.model,
-                    elapsed_seconds=elapsed,
+                    elapsed_seconds=time.monotonic() - start,
                     success=False,
-                    error="Empty response from Ollama",
+                    error=str(e),
+                    extraction_failed=True,
                 )
 
             return SummaryResult(
                 article_id=article_id,
-                summary=summary,
+                summary=extraction["what_happened"],
                 model=config.model,
-                elapsed_seconds=elapsed,
+                elapsed_seconds=time.monotonic() - start,
                 success=True,
+                extraction=extraction,
             )
 
         except httpx.TimeoutException:
-            elapsed = time.monotonic() - start
-            if attempt < MAX_RETRIES:
-                logger.warning(
-                    "Timeout summarizing article %d (attempt %d/%d), retrying...",
-                    article_id,
-                    attempt + 1,
-                    MAX_RETRIES + 1,
-                )
-                await _async_sleep(RETRY_DELAY)
-                continue
-            return SummaryResult(
-                article_id=article_id,
-                summary="",
-                model=config.model,
-                elapsed_seconds=elapsed,
-                success=False,
-                error="Timeout after retries",
-            )
-
+            error = "Timeout after retries"
+            detail = "timeout"
         except httpx.HTTPError as e:
-            elapsed = time.monotonic() - start
-            if attempt < MAX_RETRIES:
-                logger.warning(
-                    "HTTP error summarizing article %d: %s (attempt %d/%d)",
-                    article_id,
-                    e,
-                    attempt + 1,
-                    MAX_RETRIES + 1,
-                )
-                await _async_sleep(RETRY_DELAY)
-                continue
-            return SummaryResult(
-                article_id=article_id,
-                summary="",
-                model=config.model,
-                elapsed_seconds=elapsed,
-                success=False,
-                error=str(e),
-            )
+            error = detail = str(e)
 
-    # Should not reach here, but just in case
-    return SummaryResult(
-        article_id=article_id,
-        summary="",
-        model=config.model,
-        elapsed_seconds=time.monotonic() - start,
-        success=False,
-        error="Exhausted retries",
-    )
+        if transport_attempts < MAX_RETRIES:
+            logger.warning(
+                "Error summarizing article %d: %s (attempt %d/%d), retrying...",
+                article_id,
+                detail,
+                transport_attempts + 1,
+                MAX_RETRIES + 1,
+            )
+            transport_attempts += 1
+            await _async_sleep(RETRY_DELAY)
+            continue
+        return SummaryResult(
+            article_id=article_id,
+            summary="",
+            model=config.model,
+            elapsed_seconds=time.monotonic() - start,
+            success=False,
+            error=error,
+        )
 
 
 async def _async_sleep(seconds: float) -> None:
@@ -488,6 +516,23 @@ def _build_briefing_prompt(summaries_by_category: dict[str, list[tuple[int, str]
     return "\n".join(parts)
 
 
+def _briefing_summaries(articles: list[dict]) -> dict[str, list[tuple[int, str]]]:
+    """Group article summaries by category for the briefing prompt.
+
+    Skips articles without a summary, roundups (several unrelated stories in one
+    summary) and failed extractions. Signals read the raw articles and are unaffected.
+    """
+    by_category: dict[str, list[tuple[int, str]]] = {}
+    for article in articles:
+        if not article.get("summary"):
+            continue
+        if article.get("is_roundup") or article.get("extraction_failed"):
+            continue
+        cat = article.get("category", "General")
+        by_category.setdefault(cat, []).append((article["id"], article["summary"]))
+    return by_category
+
+
 def _parse_briefing_response(raw: str) -> tuple[str, str | None]:
     """Parse Ollama's response as a structured JSON briefing.
 
@@ -559,12 +604,7 @@ async def generate_daily_briefing(
         return existing["content"]
 
     articles = db.get_todays_articles()
-    summaries_by_category: dict[str, list[tuple[int, str]]] = {}
-    for article in articles:
-        if not article.get("summary"):
-            continue
-        cat = article.get("category", "General")
-        summaries_by_category.setdefault(cat, []).append((article["id"], article["summary"]))
+    summaries_by_category = _briefing_summaries(articles)
 
     if not summaries_by_category:
         logger.info("No summaries available for daily briefing")

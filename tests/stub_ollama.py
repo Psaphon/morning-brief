@@ -7,12 +7,29 @@ summarizer code (URL, payload, response parsing) runs unmodified.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 BRIEFING_MARKER = "write a structured daily intelligence briefing"
+EXTRACTION_MARKER = "extract the facts from the following news article"
 CANNED_SUMMARY = "A canned two-sentence summary. It exists only for tests."
+MALFORMED_REPLY = '{"what_happened": "cut off mid-'
+
+
+def canned_extraction(title: str = "", *, is_roundup: bool = False) -> dict[str, Any]:
+    """A valid extraction; ``what_happened`` carries the title so each article is distinct."""
+    return {
+        "what_happened": f"Canned fact about {title}." if title else CANNED_SUMMARY,
+        "entities": ["Example Corp"],
+        "numbers": ["$1.5 million"],
+        "event_date": "2020-01-02",
+        "status": "happened",
+        "is_roundup": is_roundup,
+    }
+
+
 CANNED_BRIEFING = {
     "segments": [
         {"topic": "Lead", "text": "Canned lead segment.", "source_article_ids": [1]},
@@ -49,19 +66,63 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if BRIEFING_MARKER in body.get("prompt", ""):
             text = json.dumps(CANNED_BRIEFING)
+        elif EXTRACTION_MARKER in body.get("prompt", ""):
+            text = self.server.extraction_reply(body["prompt"])  # type: ignore[attr-defined]
         else:
             text = CANNED_SUMMARY
         self._send({"model": body.get("model"), "response": text, "done": True})
 
 
-class StubOllama:
-    """Context manager running the stub on an ephemeral localhost port."""
+class _Server(ThreadingHTTPServer):
+    """Server state: request log plus knobs for malformed and roundup extraction replies."""
 
-    def __init__(self, model: str = "gemma4:e4b") -> None:
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-        self._server.requests = []  # type: ignore[attr-defined]
-        self._server.model = model  # type: ignore[attr-defined]
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.requests: list[dict[str, Any]] = []
+        self.model = ""
+        self.malformed_titles: set[str] = set()
+        self.roundup_titles: set[str] = set()
+        self.malformed_remaining = 0
+        self._lock = threading.Lock()
+
+    def extraction_reply(self, prompt: str) -> str:
+        match = re.search(r"^Article title: (.*)$", prompt, re.MULTILINE)
+        title = match.group(1) if match else ""
+        with self._lock:
+            if self.malformed_remaining > 0:
+                self.malformed_remaining -= 1
+                return MALFORMED_REPLY
+        if title in self.malformed_titles:
+            return MALFORMED_REPLY
+        return json.dumps(canned_extraction(title, is_roundup=title in self.roundup_titles))
+
+
+class StubOllama:
+    """Context manager running the stub on an ephemeral localhost port.
+
+    Article extraction calls get a valid canned extraction. To exercise failures:
+    ``malformed_titles`` makes every call for those article titles return truncated
+    JSON, ``malformed_next(n)`` does so for the next *n* extraction calls, and
+    ``roundup_titles`` flags those articles ``is_roundup``.
+    """
+
+    def __init__(
+        self,
+        model: str = "gemma4:e4b",
+        *,
+        malformed_titles: set[str] | None = None,
+        roundup_titles: set[str] | None = None,
+    ) -> None:
+        self._server = _Server(("127.0.0.1", 0), _Handler)
+        self._server.model = model
+        self._server.malformed_titles = set(malformed_titles or ())
+        self._server.roundup_titles = set(roundup_titles or ())
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+
+    def malformed_next(self, n: int) -> None:
+        """Return malformed JSON for the next *n* extraction calls."""
+        with self._server._lock:
+            self._server.malformed_remaining = n
 
     @property
     def url(self) -> str:

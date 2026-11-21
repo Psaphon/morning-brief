@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.config import OllamaConfig
 from src.summarizers.local import (
-    SUMMARY_PROMPT,
+    EXTRACTION_PROMPT,
     BatchMetrics,
     SummaryResult,
     check_ollama_available,
@@ -142,23 +143,25 @@ def test_truncate_exact_limit():
     assert truncate_text(text, max_chars=12000) == text
 
 
-# --- SUMMARY_PROMPT ---
+# --- EXTRACTION_PROMPT ---
 
 
 def test_prompt_template_has_placeholders():
     """Prompt template has all required placeholders."""
-    assert "{title}" in SUMMARY_PROMPT
-    assert "{source}" in SUMMARY_PROMPT
-    assert "{category}" in SUMMARY_PROMPT
-    assert "{text}" in SUMMARY_PROMPT
+    assert "{title}" in EXTRACTION_PROMPT
+    assert "{source}" in EXTRACTION_PROMPT
+    assert "{category}" in EXTRACTION_PROMPT
+    assert "{published}" in EXTRACTION_PROMPT
+    assert "{text}" in EXTRACTION_PROMPT
 
 
 def test_prompt_template_formats():
     """Prompt template formats without error."""
-    result = SUMMARY_PROMPT.format(
+    result = EXTRACTION_PROMPT.format(
         title="Test Article",
         source="Test Source",
         category="Testing",
+        published="2020-01-02",
         text="Some article text here.",
     )
     assert "Test Article" in result
@@ -231,10 +234,21 @@ def _make_article(article_id=1, full_text="A" * 200):
 
 @pytest.mark.asyncio
 async def test_summarize_single_success(ollama_config):
-    """Successful summarization returns a SummaryResult."""
+    """Successful extraction returns a SummaryResult whose summary is what_happened."""
     mock_client = AsyncMock()
     mock_resp = MagicMock()
-    mock_resp.json.return_value = {"response": "This is a concise summary of the article."}
+    mock_resp.json.return_value = {
+        "response": json.dumps(
+            {
+                "what_happened": "This is a concise summary of the article.",
+                "entities": [],
+                "numbers": [],
+                "event_date": None,
+                "status": "happened",
+                "is_roundup": False,
+            }
+        )
+    }
     mock_resp.raise_for_status = lambda: None
     mock_client.post = AsyncMock(return_value=mock_resp)
 

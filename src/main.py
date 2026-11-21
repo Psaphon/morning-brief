@@ -210,9 +210,11 @@ async def run_pipeline() -> None:
             results, metrics = await summarize_articles(config.ollama, unsummarized)
             saved = 0
             for result in results:
-                if result.success and result.summary:
-                    db.update_summary(result.article_id, result.summary, result.model)
+                if result.success and result.extraction:
+                    db.save_extraction(result.article_id, result.extraction, result.model)
                     saved += 1
+                elif result.extraction_failed:
+                    db.mark_extraction_failed(result.article_id)
             logger.info("Saved %d summaries to database", saved)
             if metrics.total_articles > 0:
                 logger.info(
