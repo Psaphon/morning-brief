@@ -202,6 +202,15 @@
         }
         .segment-text p { margin-bottom: 0.75rem; }
         .segment-text p:last-child { margin-bottom: 0; }
+        .segment-writer-note { font-size: 0.75rem; color: var(--muted); padding: 0 0.25rem 0.5rem; }
+        .segment-text sup { font-size: 0.7em; line-height: 0; margin-left: 1px; }
+        .segment-text sup a { color: var(--accent); text-decoration: none; padding: 0 1px; }
+        .cited-sources { padding: 0 0.25rem 0.75rem; font-size: 0.85rem; }
+        .cited-sources summary { cursor: pointer; color: var(--muted); min-height: 32px; }
+        .cited-sources ol { margin: 0.5rem 0 0 1.25rem; }
+        .cited-sources li { margin-bottom: 0.5rem; }
+        .cited-sources .src-name { color: var(--muted); font-size: 0.8rem; }
+        .cited-sources .src-what { margin-top: 0.15rem; }
         .segment-body {
             max-height: 0;
             overflow: hidden;
@@ -454,6 +463,7 @@
 
     <script type="application/json" id="segment-data">{{ briefing_segments_json | safe }}</script>
     <script type="application/json" id="articles-data">{{ articles_by_id_json | safe }}</script>
+    <script type="application/json" id="cited-data">{{ cited_sections_json | safe }}</script>
     <script>
     (function () {
         'use strict';
@@ -771,6 +781,89 @@
             return wrapper;
         }
 
+        function buildCitedSegmentEl(sec) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'segment segment-cited';
+
+            var title = document.createElement('h3');
+            title.className = 'segment-topic';
+            title.style.padding = '0.75rem 0 0.25rem';
+            title.textContent = sec.topic;
+            wrapper.appendChild(title);
+
+            if (sec.writer === 'local fallback') {
+                var note = document.createElement('div');
+                note.className = 'segment-writer-note';
+                note.textContent = 'local fallback';
+                wrapper.appendChild(note);
+            }
+
+            var textDiv = document.createElement('div');
+            textDiv.className = 'segment-text';
+            var byN = {};
+            (sec.sources || []).forEach(function (s) { byN[s.n] = s; });
+            (sec.paragraphs || []).forEach(function (parts) {
+                var p = document.createElement('p');
+                parts.forEach(function (part) {
+                    if (part.cite) {
+                        var sup = document.createElement('sup');
+                        part.cite.forEach(function (n, i) {
+                            var s = byN[n];
+                            if (!s) { return; }
+                            if (i > 0) { sup.appendChild(document.createTextNode(',')); }
+                            var a = document.createElement('a');
+                            a.textContent = String(n);
+                            if (/^https?:\/\//i.test(s.url || '')) { a.href = s.url; }
+                            a.title = s.source || '';
+                            a.target = '_blank';
+                            a.rel = 'noopener noreferrer';
+                            sup.appendChild(a);
+                        });
+                        p.appendChild(sup);
+                    } else {
+                        p.appendChild(document.createTextNode(part.text || ''));
+                    }
+                });
+                textDiv.appendChild(p);
+            });
+            wrapper.appendChild(textDiv);
+
+            if ((sec.sources || []).length > 0) {
+                var details = document.createElement('details');
+                details.className = 'cited-sources';
+                var summary = document.createElement('summary');
+                summary.textContent = 'Sources (' + sec.sources.length + ')';
+                details.appendChild(summary);
+                var ol = document.createElement('ol');
+                sec.sources.forEach(function (s) {
+                    var li = document.createElement('li');
+                    li.value = s.n;
+                    var a = document.createElement('a');
+                    a.textContent = s.title || s.url || 'Untitled';
+                    if (/^https?:\/\//i.test(s.url || '')) { a.href = s.url; }
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    li.appendChild(a);
+                    if (s.source) {
+                        var src = document.createElement('span');
+                        src.className = 'src-name';
+                        src.textContent = ' — ' + s.source;
+                        li.appendChild(src);
+                    }
+                    if (s.what_happened) {
+                        var what = document.createElement('div');
+                        what.className = 'src-what';
+                        what.textContent = s.what_happened;
+                        li.appendChild(what);
+                    }
+                    ol.appendChild(li);
+                });
+                details.appendChild(ol);
+                wrapper.appendChild(details);
+            }
+            return wrapper;
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             var segEl = document.getElementById('segment-data');
             var artEl = document.getElementById('articles-data');
@@ -793,8 +886,20 @@
             fallback.style.display = 'none';
             container.style.display = '';
 
-            segments.forEach(function (seg) {
-                container.appendChild(buildSegmentEl(seg, articlesById));
+            var citedByIndex = {};
+            try {
+                var citedEl = document.getElementById('cited-data');
+                (JSON.parse(citedEl.textContent) || []).forEach(function (sec) {
+                    citedByIndex[sec.index] = sec;
+                });
+            } catch (e) { /* old-shape page: no cited data */ }
+
+            segments.forEach(function (seg, i) {
+                if (citedByIndex[i]) {
+                    container.appendChild(buildCitedSegmentEl(citedByIndex[i]));
+                } else {
+                    container.appendChild(buildSegmentEl(seg, articlesById));
+                }
             });
         });
     }());

@@ -10,6 +10,7 @@ import hashlib
 import hmac as _hmac
 import json
 import logging
+import re
 import time
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -62,6 +63,89 @@ def compute_article_sig(
         separators=(",", ":"),
     )
     return _hmac.new(bytes.fromhex(hmac_key), canonical.encode(), hashlib.sha256).hexdigest()
+
+
+_MARKER_RE = re.compile(r"\[\[([^\[\]]*)\]\]")
+
+
+def _script_json(obj: Any) -> str:
+    """JSON safe to embed inside a ``<script>`` element.
+
+    ``<``, ``>`` and ``&`` become unicode escapes, so article text such as
+    ``</script>`` cannot close the element. ``JSON.parse`` decodes them back.
+    """
+    return json.dumps(obj).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+def build_cited_sections(
+    segments: list[dict[str, Any]] | None, articles_by_id: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Turn segments carrying ``cited_text`` into render-ready sections.
+
+    Segments without ``cited_text`` (old shape) are skipped; ``index`` is the
+    position in ``segments`` so the page can pair the two. Citation numbers are
+    1-based in first-cited order within the section. Ids missing from
+    ``articles_by_id`` produce no cite entry and no source.
+    """
+    sections: list[dict[str, Any]] = []
+    for index, seg in enumerate(segments or []):
+        cited_text = seg.get("cited_text")
+        if not cited_text:
+            continue
+        numbers: dict[str, int] = {}
+        sources: list[dict[str, Any]] = []
+        paragraphs: list[list[dict[str, Any]]] = []
+        for para in re.split(r"\n\n+", cited_text):
+            if not para.strip():
+                continue
+            parts: list[dict[str, Any]] = []
+            pos = 0
+
+            def add_text(text: str, parts: list[dict[str, Any]] = parts) -> None:
+                if text:
+                    parts.append({"text": text})
+
+            for m in _MARKER_RE.finditer(para):
+                add_text(para[pos : m.start()])
+                pos = m.end()
+                cite: list[int] = []
+                for raw in m.group(1).split(","):
+                    key = raw.strip()
+                    art = articles_by_id.get(key)
+                    if art is None:
+                        continue
+                    if key not in numbers:
+                        numbers[key] = len(numbers) + 1
+                        sources.append(
+                            {
+                                "n": numbers[key],
+                                "id": art.get("id"),
+                                "title": art.get("title", ""),
+                                "source": art.get("source", ""),
+                                "url": art.get("url", ""),
+                                "what_happened": art.get("summary", ""),
+                            }
+                        )
+                    if numbers[key] not in cite:
+                        cite.append(numbers[key])
+                if cite:
+                    parts.append({"cite": cite})
+            add_text(para[pos:])
+            # Stray unmatched brackets must never leak a raw marker.
+            for part in parts:
+                if "text" in part:
+                    part["text"] = part["text"].replace("[[", "").replace("]]", "")
+            paragraphs.append(parts)
+        sections.append(
+            {
+                "index": index,
+                "topic": seg.get("topic", ""),
+                "writer": seg.get("writer"),
+                "paragraphs": paragraphs,
+                "sources": sources,
+            }
+        )
+    return sections
 
 
 def _group_articles_by_category(articles: list[dict[str, Any]]) -> OrderedDict:
@@ -238,8 +322,12 @@ def render_dashboard(
         health_checks=health_checks,
         artworks=artworks or [],
         briefing=briefing,
-        briefing_segments_json=json.dumps(briefing_segments or []),
-        articles_by_id_json=json.dumps(articles_by_id),
+        # cited_text (with its [[id]] markers) is rendered from cited_sections_json.
+        briefing_segments_json=_script_json(
+            [{k: v for k, v in seg.items() if k != "cited_text"} for seg in briefing_segments or []]
+        ),
+        articles_by_id_json=_script_json(articles_by_id),
+        cited_sections_json=_script_json(build_cited_sections(briefing_segments, articles_by_id)),
         dashboard_token=dashboard_token,
     )
 

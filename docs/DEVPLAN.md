@@ -1238,7 +1238,7 @@ Have the Claude API write each reader section as a long, readable summary with r
 
 **Branch:** `feature/cited-summary-page`
 **Depends on:** claude-section-writer
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** both
 
 ### Goal
