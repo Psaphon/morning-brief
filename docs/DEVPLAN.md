@@ -1194,7 +1194,7 @@ Cover more articles, with richer extracted facts, so section summaries can run 2
 
 **Branch:** `feature/claude-section-writer`
 **Depends on:** reader-coverage
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** both
 
 ### Goal

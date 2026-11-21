@@ -8,6 +8,9 @@
 #   - rootful Docker: the host user's own uid:gid.
 # Either way the container keeps cap_drop ALL (see docker-compose.yml).
 #
+# When the host has $CREDENTIALS_DIRECTORY/anthropic_api_key, docker-compose.credentials.yml is
+# added so the container can read it (read-only, at /run/credentials). Otherwise nothing changes.
+#
 # Exit code is the pipeline container's exit code.
 
 set -euo pipefail
@@ -21,4 +24,10 @@ else
 fi
 
 export MB_UID="${uid}" MB_GID="${gid}"
-docker compose up --build --abort-on-container-exit --exit-code-from morning-brief
+# The claude section writer's key (systemd LoadCredential=): mount it only when it exists.
+compose_files=()
+if [[ -n "${CREDENTIALS_DIRECTORY:-}" && -f "${CREDENTIALS_DIRECTORY}/anthropic_api_key" ]]; then
+    compose_files=(-f docker-compose.yml -f docker-compose.credentials.yml)
+fi
+
+docker compose ${compose_files[@]+"${compose_files[@]}"} up --build --abort-on-container-exit --exit-code-from morning-brief

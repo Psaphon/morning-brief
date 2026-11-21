@@ -781,3 +781,60 @@ async def generate_daily_briefing(
         except httpx.HTTPError as e:
             logger.warning("Failed to generate daily briefing: %s", e)
             return None
+
+
+async def generate_section_local(
+    config: OllamaConfig,
+    section: str,
+    articles: list[dict],
+    validator: ValidatorRun | None = None,
+) -> list[dict] | None:
+    """Write one reader section with the local model (the claude writer's fallback).
+
+    *articles* are the section's briefing articles (carrying ``details``). One Ollama call
+    in the same structured style as ``generate_daily_briefing``, validated with
+    ``validate_briefing``. Returns the surviving segments (``topic``, ``text``,
+    ``source_article_ids``), or None if Ollama is unavailable, the call fails or nothing
+    survives validation. Saves nothing.
+    """
+    pairs = _briefing_summaries(articles).get(section)
+    if not pairs:
+        return None
+    prompt = _build_briefing_prompt({section: pairs})
+    async with httpx.AsyncClient() as client:
+        if not await check_ollama_available(client, config):
+            logger.warning("Section %r: local fallback skipped, Ollama not available", section)
+            return None
+        try:
+            resp = await client.post(
+                f"{config.host}/api/generate",
+                json={
+                    "model": config.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "think": False,
+                    "format": BRIEFING_SCHEMA,
+                    "options": {
+                        "temperature": 0.5,
+                        "top_p": 0.9,
+                        "num_predict": 1500,
+                        "num_ctx": config.briefing_num_ctx,
+                    },
+                },
+                timeout=BRIEFING_TIMEOUT,
+            )
+            resp.raise_for_status()
+            raw = resp.json().get("response", "").strip()
+        except (httpx.HTTPError, ValueError) as e:
+            logger.warning("Section %r: local fallback failed: %s", section, e)
+            return None
+    if not raw:
+        return None
+    rendered, segment_map_json = _parse_briefing_response(raw)
+    if segment_map_json is None:  # plain text: no segments to cite
+        rendered = validate_briefing(rendered, None, articles, validator)[0]
+        if not rendered:
+            return None
+        return [{"topic": section, "text": rendered, "source_article_ids": []}]
+    _, segment_map_json = validate_briefing(rendered, segment_map_json, articles, validator)
+    return json.loads(segment_map_json) if segment_map_json else None

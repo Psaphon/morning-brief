@@ -51,6 +51,47 @@ the SECRETS USB), plus three plain settings to recreate after a rebuild:
 Signals for atrade are on by default (`SIGNALS_ENABLED`, set in `docker-compose.yml`) and land in
 `data/signals/`. The last run's full output is `~/.local/state/morning-brief-last-run.log`.
 
+### Claude section writer (optional)
+
+By default (`SUMMARY_WRITER=local`) the briefing is one local-model call, as before. With
+`SUMMARY_WRITER=claude` each reader section gets one Claude Messages API call. The request holds
+extractions only (id, title, source, `what_happened`, `details`): no full text and no URLs. The reply
+is split at `[[id]]` citations and every chunk is checked in code against the articles it cites;
+chunks with no citation, an unknown id or an ungrounded number or name are dropped. A section that
+loses more than `WRITER_MAX_DROP_SHARE` of its chunks, errors or times out is written by the local
+model instead, and is marked `"writer": "local fallback"` in the segment map (`cited_text` keeps the
+markers for the page).
+
+| Setting | Default |
+|---|---|
+| `SUMMARY_WRITER` | `local` (`local` or `claude`; anything else means `local`, with a warning) |
+| `WRITER_MODEL` | `claude-sonnet-5-5` |
+| `WRITER_API_URL` | `https://api.anthropic.com/v1/messages` |
+| `WRITER_MIN_WORDS` / `WRITER_MAX_WORDS` | `250` / `450` per section |
+| `WRITER_MAX_DROP_SHARE` | `0.3` |
+| `WRITER_TIMEOUT_S` | `120` |
+| `WRITER_MONTHLY_CAP_USD` | `10` |
+| `WRITER_PRICE_IN_PER_MTOK` / `WRITER_PRICE_OUT_PER_MTOK` | unset: set them in the host's `.env`; with either unset the writer logs one warning and runs local |
+
+**The API key is never in `.env` or the environment.** It is read from the file
+`$CREDENTIALS_DIRECTORY/anthropic_api_key` (systemd `LoadCredential=`). If the variable, file or its
+content is missing the run uses the local writer and logs one line naming the credential, never its
+value. `scripts/run-pipeline.sh` adds `docker-compose.credentials.yml` (a read-only mount at
+`/run/credentials`) only when that file exists on the host.
+
+The host-side `LoadCredential=anthropic_api_key:<path>` drop-in for `morning-brief.service` is not in
+this repo; the operator adds it in the hub repo once the key exists.
+
+Spend guard: each call's tokens are priced from the settings above and stored in the `api_usage`
+table. When the UTC month-to-date total reaches `WRITER_MONTHLY_CAP_USD`, the remaining sections use
+the local writer until the month rolls over. The run logs one warning and puts
+`"alerts": ["writer spend cap reached YYYY-MM"]` in `data/last_run.json` the first time that month;
+`scripts/health-check.sh` forwards each alert once through `/usr/local/sbin/hub-alert` (skipped if
+it is not executable). With the writer on, `last_run.json` also has a `writer` block (sections,
+claude, fallback, dropped by reason, tokens, cost).
+
+The old whole-brief path keyed by `ANTHROPIC_API_KEY` in the environment was removed.
+
 ### Feed lanes
 
 Each feed has lanes in `config/feed_lanes.toml`: `reader` (briefing and page), `signals` (per-ticker
