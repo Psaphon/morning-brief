@@ -1162,8 +1162,8 @@ Give each feed explicit lanes (`reader`, `signals`, `rnd`), so the news the oper
 ## Feature: reader-coverage
 
 **Branch:** `feature/reader-coverage`
-**Depends on:** feed-lanes
-**Status:** Not Started
+**Depends on:** feed-lanes, article-extraction, output-validator (extraction schema and validator)
+**Status:** Held (deps)
 **Requires:** both
 
 ### Goal
@@ -1267,8 +1267,8 @@ Render the brief as one long summary made of sections, with tappable citations, 
 ## Feature: social-feeds
 
 **Branch:** `feature/social-feeds`
-**Depends on:** feed-lanes
-**Status:** Not Started
+**Depends on:** feed-lanes, article-extraction, output-validator (`what_happened` and the validator)
+**Status:** Held (deps)
 **Requires:** ai
 
 ### Goal
