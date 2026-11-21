@@ -29,7 +29,7 @@ from .processors.dedup import deduplicate
 from .processors.dedupe import find_duplicates
 from .processors.extractor import extract_articles
 from .processors.interest import filter_by_feed_minimum, load_interests
-from .processors.lanes import ReaderLaneDB, filter_lane, load_feed_lanes
+from .processors.lanes import ReaderLaneDB, filter_lane, load_lanes_for_run
 from .publishers.html import render_dashboard
 from .publishers.terminal import render_terminal
 from .summarizers.cloud import generate_daily_briefing_claude
@@ -77,7 +77,7 @@ async def run_pipeline() -> None:
         logger.info("Pipeline started at %s", start.isoformat())
 
         # Feed lanes decide where each feed's articles are used (loaded once per run).
-        lanes = load_feed_lanes(overlay=config.feeds_overlay)
+        lanes = load_lanes_for_run(config.feeds_overlay)
 
         # Stage 1: Fetch all data sources in parallel
         logger.info("Stage 1: Fetching data sources...")

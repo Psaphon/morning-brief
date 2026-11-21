@@ -272,3 +272,15 @@ def test_parse_feeds_md_ignores_api_and_mcp_sections(tmp_path):
     assert feeds == [
         {"source": "Fixture Reader Feed", "url": "https://example.test/rss.xml", "category": "News"}
     ]
+
+
+def test_run_loader_ignores_a_broken_overlay(tmp_path, caplog):
+    """A typo in the per-host overlay logs an error and keeps the committed lanes."""
+    from src.processors.lanes import DEFAULT_LANES_PATH, load_feed_lanes, load_lanes_for_run
+
+    bad = tmp_path / "feeds-overlay.toml"
+    bad.write_text('[feeds."ArXiv CS.AI"]\nlanes = ["nope"]\n')
+    with caplog.at_level(logging.ERROR):
+        lanes = load_lanes_for_run(bad)
+    assert lanes == load_feed_lanes(DEFAULT_LANES_PATH)
+    assert "overlay is invalid" in caplog.text

@@ -101,6 +101,19 @@ def load_feed_lanes(path: Path = DEFAULT_LANES_PATH, overlay: Path | None = None
     return FeedLanes(default=default, feeds=feeds, extra_feeds=extra)
 
 
+def load_lanes_for_run(overlay: Path | None, path: Path = DEFAULT_LANES_PATH) -> FeedLanes:
+    """Lanes for a pipeline run: a broken per-host overlay must not cost the day's brief.
+
+    An invalid overlay is logged as an error and ignored, falling back to the
+    committed file (which CI validates). An invalid committed file still raises.
+    """
+    try:
+        return load_feed_lanes(path, overlay=overlay)
+    except ValueError:
+        logger.exception("Feed lanes overlay is invalid; using the committed lanes only")
+        return load_feed_lanes(path)
+
+
 def filter_lane(
     articles: list[dict[str, Any]], lane: str, feed_lanes: FeedLanes
 ) -> list[dict[str, Any]]:
