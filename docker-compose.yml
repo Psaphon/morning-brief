@@ -29,6 +29,10 @@ services:
       # On by default; set SIGNALS_ENABLED=false in .env to turn it off.
       - SIGNALS_ENABLED=${SIGNALS_ENABLED:-true}
       - MORNING_BRIEF_INTERESTS=/app/interests/interests.toml
+      # Per-host feed lanes overlay (same mount); a missing file is fine (one INFO line).
+      - MORNING_BRIEF_FEEDS_OVERLAY=/app/interests/feeds-overlay.toml
+      # Per-host banned-phrase overlay (same mount); a missing file is fine.
+      - MORNING_BRIEF_BANNED_OVERLAY=/app/interests/banned-phrases.txt
     extra_hosts:
       - "host.docker.internal:host-gateway"
     cap_drop:

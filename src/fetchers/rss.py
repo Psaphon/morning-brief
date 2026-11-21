@@ -7,8 +7,10 @@ and returns raw article dicts ready for processing.
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,12 +35,39 @@ class RawArticle:
     author: str | None = None
     published: str | None = None
     summary: str | None = None  # RSS-provided summary, not LLM
+    content: str | None = None  # entry's content:encoded, HTML stripped to text
+    kind: str = "article"  # article | post | newsletter (from the lanes config)
+
+
+_BLOCK_TAG_RE = re.compile(r"</?(?:p|div|br|li|ul|ol|h[1-6]|blockquote|tr)\b[^>]*>", re.I)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _title_from_text(value: str | None, limit: int = 100) -> str:
+    """A title for an untitled entry: its text's first line, cut to *limit* characters.
+
+    Bluesky and Mastodon profile feeds carry no <title> on posts, only the post text.
+    """
+    text = html_to_text(value).strip()
+    first = text.splitlines()[0].strip() if text else ""
+    return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
+
+
+def html_to_text(value: str | None) -> str:
+    """Strip tags from feed HTML; block tags become line breaks, entities are decoded."""
+    if not value:
+        return ""
+    text = _BLOCK_TAG_RE.sub("\n", value)
+    text = html.unescape(_TAG_RE.sub("", text))
+    lines = (" ".join(line.split()) for line in text.splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 def parse_feeds_md(feeds_path: Path) -> list[dict[str, str]]:
     """Parse FEEDS.md to extract feed URLs and metadata.
 
-    Looks for markdown table rows with URL patterns.
+    Reads only the ``## RSS Feeds`` section (up to the next ``## `` heading), so
+    the API and MCP tables are never treated as feeds.
     Returns list of {source, url, category} dicts.
     """
     if not feeds_path.exists():
@@ -49,10 +78,20 @@ def parse_feeds_md(feeds_path: Path) -> list[dict[str, str]]:
     feeds: list[dict[str, str]] = []
 
     current_category = "uncategorized"
+    # Rows count until a `## ` heading other than `## RSS Feeds` (a file with no
+    # `## ` headings is read whole).
+    in_rss_section = True
 
     # Match ### headings for category
     # Match table rows with backtick-wrapped URLs
     for line in text.splitlines():
+        section_match = re.match(r"^##\s+(.+)", line)
+        if section_match:
+            in_rss_section = section_match.group(1).strip().lower() == "rss feeds"
+            continue
+        if not in_rss_section:
+            continue
+
         heading_match = re.match(r"^###\s+(.+)", line)
         if heading_match:
             current_category = heading_match.group(1).strip()
@@ -92,6 +131,7 @@ async def fetch_feed(
     url = feed_info["url"]
     source = feed_info["source"]
     category = feed_info["category"]
+    kind = feed_info.get("kind", "article")
 
     try:
         response = await client.get(url, timeout=FETCH_TIMEOUT)
@@ -109,9 +149,12 @@ async def fetch_feed(
     articles: list[RawArticle] = []
     for entry in parsed.entries:
         link = entry.get("link", "")
-        title = entry.get("title", "")
+        title = entry.get("title", "") or _title_from_text(entry.get("summary"))
         if not link or not title:
             continue
+
+        entry_content = entry.get("content")
+        content = html_to_text(entry_content[0].get("value")) if entry_content else None
 
         articles.append(
             RawArticle(
@@ -122,6 +165,8 @@ async def fetch_feed(
                 author=entry.get("author"),
                 published=entry.get("published"),
                 summary=entry.get("summary"),
+                content=content or None,
+                kind=kind,
             )
         )
 
@@ -129,11 +174,26 @@ async def fetch_feed(
     return articles
 
 
-async def fetch_all_feeds(feeds_path: Path) -> list[RawArticle]:
-    """Fetch all RSS feeds concurrently and return combined articles."""
+async def fetch_all_feeds(
+    feeds_path: Path,
+    extra_feeds: list[dict[str, str]] | None = None,
+    kinds: Mapping[str, str] | None = None,
+) -> list[RawArticle]:
+    """Fetch all RSS feeds concurrently and return combined articles.
+
+    *extra_feeds* (``{source, url, category}``, e.g. from the lanes overlay) are
+    fetched along with the FEEDS.md feeds; a source already listed there is skipped.
+    *kinds* maps a source to its feed kind (``post``, ``newsletter``); the default is ``article``.
+    """
     feed_list = parse_feeds_md(feeds_path)
+    known = {f["source"] for f in feed_list}
+    feed_list += [f for f in extra_feeds or [] if f["source"] not in known]
     if not feed_list:
         return []
+    if kinds:
+        feed_list = [
+            {**f, "kind": kinds.get(f["source"], f.get("kind", "article"))} for f in feed_list
+        ]
 
     all_articles: list[RawArticle] = []
 

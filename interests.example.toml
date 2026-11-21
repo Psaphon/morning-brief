@@ -18,3 +18,29 @@ sqlite = 1
 # below min_interest are not summarized. Useful for high-volume feeds.
 [feeds."Example Preprint Feed"]
 min_interest = 2
+
+# Feed lanes (reader / signals / rnd) are not set here: they live in config/feed_lanes.toml.
+# To override them on this host, write ~/.config/morning-brief/feeds-overlay.toml (see
+# $MORNING_BRIEF_FEEDS_OVERLAY) in the same shape, for example:
+#
+#   # Keep an existing feed out of the briefing and page, signals only:
+#   [feeds."Example Preprint Feed"]
+#   lanes = ["signals"]
+#
+#   # Add a feed that exists only on this host:
+#   [feeds."Example Local Feed"]
+#   url = "https://example.com/feed.xml"
+#   category = "Tech"
+#   lanes = ["reader"]
+#
+#   # Journalist-direct sources: kind is article (default), post or newsletter.
+#   # A post feed (Bluesky/Mastodon profile RSS) with no lanes is reader-only.
+#   [feeds."Example Reporter (Bluesky)"]
+#   url = "https://bsky.example/profile/reporter.example/rss"
+#   category = "Tech"
+#   kind = "post"
+#
+#   [feeds."Example Newsletter"]
+#   url = "https://newsletter.example/feed"
+#   category = "Tech"
+#   kind = "newsletter"

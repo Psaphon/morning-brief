@@ -6,15 +6,29 @@ Follows twelve-factor app principles.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+VALIDATOR_MODES = ("enforce", "warn", "off")
 
 
 @dataclass
 class OllamaConfig:
     host: str = "http://localhost:11434"
     model: str = "gemma4:e4b"
+    # Per-article extraction (structured output)
+    num_ctx: int = 8192
+    extract_temperature: float = 0.1
+    extract_seed: int = 42
+    extract_max_words: int = 120
+    extract_num_predict: int = 900
+    # Briefing context window: up to READER_MAX_TOTAL articles with details.
+    briefing_num_ctx: int = 32768
+    chars_per_token: int = 4
 
 
 @dataclass
@@ -40,6 +54,27 @@ class Config:
     signals_enabled: bool = False
     signals_dir: Path = Path("data/signals")
     dedupe_window_hours: int = 48
+    feeds_overlay: Path | None = None
+    validator_mode: str = "enforce"
+    banned_overlay: Path | None = None
+    reader_max_per_category: int = 15
+    reader_max_total: int = 120
+    run_deadline_minutes: int = 60
+    post_group_hours: int = 12
+
+
+def audit_min_words() -> int:
+    """AUDIT_MIN_WORDS: words a feed item needs to count as full text (default 150)."""
+    return int(os.environ.get("AUDIT_MIN_WORDS", "150"))
+
+
+def _validator_mode() -> str:
+    """VALIDATOR_MODE: enforce (default), warn or off; anything else falls back to enforce."""
+    raw = os.environ.get("VALIDATOR_MODE", "enforce").strip().lower() or "enforce"
+    if raw not in VALIDATOR_MODES:
+        logger.warning("Unknown VALIDATOR_MODE %r; using 'enforce'", raw)
+        return "enforce"
+    return raw
 
 
 def load_config() -> Config:
@@ -48,6 +83,13 @@ def load_config() -> Config:
         ollama=OllamaConfig(
             host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
             model=os.environ.get("OLLAMA_MODEL", "gemma4:e4b"),
+            num_ctx=int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
+            extract_temperature=float(os.environ.get("EXTRACT_TEMPERATURE", "0.1")),
+            extract_seed=int(os.environ.get("EXTRACT_SEED", "42")),
+            extract_max_words=int(os.environ.get("EXTRACT_MAX_WORDS", "120")),
+            extract_num_predict=int(os.environ.get("EXTRACT_NUM_PREDICT", "900")),
+            briefing_num_ctx=int(os.environ.get("BRIEFING_NUM_CTX", "32768")),
+            chars_per_token=int(os.environ.get("CHARS_PER_TOKEN", "4")),
         ),
         api_keys=APIKeys(
             finnhub=os.environ.get("FINNHUB_API_KEY", ""),
@@ -65,4 +107,11 @@ def load_config() -> Config:
         signals_enabled=os.environ.get("SIGNALS_ENABLED", "").lower() in ("1", "true", "yes"),
         signals_dir=Path(os.environ.get("SIGNALS_DIR", "data/signals")),
         dedupe_window_hours=int(os.environ.get("DEDUPE_WINDOW_HOURS", "48")),
+        feeds_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_FEEDS_OVERLAY")) else None,
+        validator_mode=_validator_mode(),
+        banned_overlay=Path(v) if (v := os.environ.get("MORNING_BRIEF_BANNED_OVERLAY")) else None,
+        reader_max_per_category=int(os.environ.get("READER_MAX_PER_CATEGORY", "15")),
+        reader_max_total=int(os.environ.get("READER_MAX_TOTAL", "120")),
+        run_deadline_minutes=int(os.environ.get("RUN_DEADLINE_MINUTES", "60")),
+        post_group_hours=int(os.environ.get("POST_GROUP_HOURS", "12")),
     )

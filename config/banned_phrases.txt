@@ -1,0 +1,25 @@
+# Filler phrases dropped by the output validator (case-insensitive substring match).
+# One per line; lines starting with # are comments. Add per-host phrases to the
+# overlay file at $MORNING_BRIEF_BANNED_OVERLAY instead of editing this list.
+highlights
+underscores
+key actors
+key players
+landscape
+it is worth noting
+plays a crucial role
+significant shifts
+these developments
+will be closely monitored
+shape the future
+pave the way
+ever-evolving
+navigating
+the importance of
+a testament to
+sheds light
+delve
+in today's
+robust
+the article
+this article

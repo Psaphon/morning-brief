@@ -1,0 +1,91 @@
+# Feed lanes: where each feed's articles are used. Keyed by the feed name in
+# docs/FEEDS.md. Valid lanes: reader (briefing + page), signals (per-ticker signals),
+# rnd (stored only; never shown). Every active feed is listed so this file is auditable;
+# tests/test_feed_lanes.py fails if a feed is missing. Per-host overrides: see
+# interests.example.toml (MORNING_BRIEF_FEEDS_OVERLAY).
+#
+# Each feed entry may also set kind = "article" | "post" | "newsletter" (default article;
+# anything else is an error). post: Bluesky/Mastodon profile RSS; no page fetch, no model
+# call, posts grouped per author within POST_GROUP_HOURS, and without explicit lanes the
+# feed is reader-only. newsletter: Substack/Ghost; uses the feed's full content when it
+# has at least AUDIT_MIN_WORDS words, else behaves like an article.
+
+default = ["reader", "signals"]
+
+[feeds."ProPublica"]
+lanes = ["reader", "signals"]
+
+[feeds."The Intercept"]
+lanes = ["reader", "signals"]
+
+[feeds."NPR Politics"]
+lanes = ["reader", "signals"]
+
+[feeds."PBS NewsHour"]
+lanes = ["reader", "signals"]
+
+[feeds."PolitiFact"]
+lanes = ["reader", "signals"]
+
+[feeds."Florida Politics"]
+lanes = ["reader", "signals"]
+
+[feeds."BBC World"]
+lanes = ["reader", "signals"]
+
+[feeds."The Guardian World"]
+lanes = ["reader", "signals"]
+
+[feeds."Al Jazeera"]
+lanes = ["reader", "signals"]
+
+[feeds."France 24"]
+lanes = ["reader", "signals"]
+
+[feeds."Deutsche Welle"]
+lanes = ["reader", "signals"]
+
+[feeds."CoinDesk"]
+lanes = ["reader", "signals"]
+
+[feeds."Decrypt"]
+lanes = ["reader", "signals"]
+
+[feeds."Ethereum Foundation Blog"]
+lanes = ["reader", "signals"]
+
+[feeds."The Defiant"]
+lanes = ["reader", "signals"]
+
+[feeds."Hacker News (100+ pts)"]
+lanes = ["reader", "signals"]
+
+[feeds."The New Stack"]
+lanes = ["reader", "signals"]
+
+[feeds."Import AI"]
+lanes = ["reader", "signals"]
+
+[feeds."ArXiv CS.AI"]
+lanes = ["rnd"]
+
+[feeds."Hugging Face Blog"]
+lanes = ["reader", "signals"]
+
+[feeds."DevOps.com"]
+lanes = ["reader", "signals"]
+
+[feeds."Changelog"]
+lanes = ["reader", "signals"]
+
+[feeds."Hyperallergic"]
+lanes = ["reader", "signals"]
+
+[feeds."This is Colossal"]
+lanes = ["reader", "signals"]
+
+[feeds."Contemporary Art Daily"]
+lanes = ["reader", "signals"]
+
+[feeds."Artnet News"]
+lanes = ["reader", "signals"]
