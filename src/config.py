@@ -149,6 +149,9 @@ class Config:
     filings_lookback_days: int = 7
     filings_emit_days: int = 30
     filings_model_cutoff: str = ""
+    backfill_since: str = "2016-01-01"
+    backfill_window_utc: str = "05:00-07:45"
+    filings_history_path: Path = Path("data/filings-history.jsonl")
     filing_facts: FilingFactsConfig = field(default_factory=FilingFactsConfig)
 
 
@@ -276,5 +279,10 @@ def load_config() -> Config:
         filings_lookback_days=int(os.environ.get("FILINGS_LOOKBACK_DAYS", "7") or "7"),
         filings_emit_days=int(os.environ.get("FILINGS_EMIT_DAYS", "30") or "30"),
         filings_model_cutoff=os.environ.get("FILINGS_MODEL_CUTOFF", "").strip(),
+        backfill_since=os.environ.get("FILINGS_BACKFILL_SINCE", "").strip() or "2016-01-01",
+        backfill_window_utc=os.environ.get("BACKFILL_WINDOW_UTC", "").strip() or "05:00-07:45",
+        filings_history_path=Path(v)
+        if (v := os.environ.get("FILINGS_HISTORY_PATH", "").strip())
+        else Path(os.environ.get("SIGNALS_DIR", "data/signals")).parent / "filings-history.jsonl",
         filing_facts=_filing_facts_config(),
     )

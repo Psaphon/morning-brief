@@ -18,6 +18,7 @@ import logging
 import re
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -721,12 +722,14 @@ async def extract_filings(
     *,
     redo: bool = False,
     client: httpx.AsyncClient | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> FactsSummary:
     """Extract every stored 2.02 filing that has no facts yet (all of them with ``redo``).
 
     Oldest first, so ``rev_accel`` and guidance comparisons find the earlier rows. If the
     model server is unreachable the run stops without storing anything for the rest, so
-    they are tried again next time.
+    they are tried again next time. ``should_stop`` is asked before each filing; when it
+    returns true the run ends there (the rest stay without facts for the next run).
     """
     summary = FactsSummary()
     rows = db.filings_for_extraction(redo=redo)
@@ -734,6 +737,8 @@ async def extract_filings(
     http = client or httpx.AsyncClient()
     try:
         for row in rows:
+            if should_stop is not None and should_stop():
+                break
             start = time.monotonic()
             try:
                 result = await extract_filing(http, config, db, row)

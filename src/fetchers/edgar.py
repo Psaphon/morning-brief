@@ -274,8 +274,13 @@ def parse_exhibit_links(index_html: str, folder_path: str) -> list[tuple[str, st
     return found
 
 
-def load_stock_ciks(path: Path) -> list[tuple[str, str]]:
-    """(ticker, cik10) for each stock in the ticker map. ``former_ciks`` are ignored."""
+def load_stock_ciks(path: Path, *, include_former: bool = False) -> list[tuple[str, str]]:
+    """(ticker, cik10) for each stock in the ticker map.
+
+    ``former_ciks`` (predecessor registrants) are ignored by default, as the daily fetch needs.
+    With ``include_former`` each stock is followed by one pair per usable former CIK, for the
+    backfill.
+    """
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
     stocks: list[tuple[str, str]] = []
     for entry in raw.get("tickers", []):
@@ -286,6 +291,14 @@ def load_stock_ciks(path: Path) -> list[tuple[str, str]]:
             logger.warning("Ticker %s has no usable CIK; skipping it", entry.get("symbol"))
             continue
         stocks.append((entry["symbol"], cik))
+        if not include_former:
+            continue
+        for former in entry.get("former_ciks", []) or []:
+            former = str(former)
+            if not CIK_RE.match(former):
+                logger.warning("Ticker %s: ignoring malformed former CIK", entry.get("symbol"))
+            elif (entry["symbol"], former) not in stocks:
+                stocks.append((entry["symbol"], former))
     return stocks
 
 
@@ -331,6 +344,72 @@ def _candidates(recent: dict) -> list[dict]:
     return [dict(zip(keys, values)) for values in zip(*columns) if values[1] == "8-K"]
 
 
+def submission_columns(payload: dict) -> dict:
+    """The parallel arrays of a submissions document, whichever shape it has.
+
+    The main file keeps them under ``filings.recent``; an older paged file
+    (``CIK..-submissions-001.json``) has them at the top level.
+    """
+    recent = payload.get("filings", {}).get("recent") if isinstance(payload, dict) else None
+    return recent if isinstance(recent, dict) else payload
+
+
+async def store_filing(
+    client: EdgarClient,
+    db: Database,
+    ticker: str,
+    cik: str,
+    accession: str,
+    accepted: datetime,
+    items: list[str],
+    primary_name: str,
+    now: Callable[[], datetime],
+    www_base: str,
+) -> bool | None:
+    """Fetch an 8-K's primary document and EX-99.* exhibits and store them.
+
+    The same code serves the daily fetch and the backfill. Returns True when a new row was
+    stored, False when the accession already existed, and None when a request gave up (nothing
+    is stored, so a later run retries). ``cik`` is the filer that owns the archive folder.
+    """
+    folder = f"/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/"
+    primary_url = f"{www_base}{folder}{quote(primary_name, safe='')}"
+    try:
+        primary_html = await client.get(primary_url)
+        index_html = (await client.get(f"{www_base}{folder}{accession}-index.htm")).decode(
+            "utf-8", errors="replace"
+        )
+        exhibits = []
+        for doc_type, path in parse_exhibit_links(index_html, folder):
+            body = await client.get(f"{www_base}{path}")
+            exhibits.append(
+                {
+                    "type": doc_type,
+                    "document": path.rsplit("/", 1)[-1],
+                    "url": f"{www_base}{path}",
+                    "html": body.decode("utf-8", errors="replace"),
+                }
+            )
+    except EdgarRequestError as exc:
+        logger.warning("%s %s: not stored, will retry next run (%s)", ticker, accession, exc)
+        return None
+
+    return db.insert_filing(
+        accession=accession,
+        cik=cik,
+        ticker=ticker,
+        form="8-K",
+        items=items,
+        accepted_at=accepted.strftime(UTC_Z_FORMAT),
+        fetched_at=now().strftime(UTC_Z_FORMAT),
+        primary_doc_url=primary_url,
+        primary_html=primary_html,
+        exhibits=exhibits,
+        primary_text=html_to_text(primary_html.decode("utf-8", errors="replace")),
+        exhibit_text="\n\n".join(f"[{e['type']}]\n{html_to_text(e['html'])}" for e in exhibits),
+    )
+
+
 async def _process_cik(
     client: EdgarClient,
     db: Database,
@@ -346,7 +425,6 @@ async def _process_cik(
     submissions = json.loads(await client.get(f"{data_base}/submissions/CIK{cik}.json"))
     recent = submissions.get("filings", {}).get("recent", {})
     keep_items = set(config.filings_items)
-    cik_int = int(cik)
 
     for row in _candidates(recent):
         accession = str(row["accessionNumber"])
@@ -373,44 +451,12 @@ async def _process_cik(
             logger.warning("%s %s: no primary document listed", ticker, accession)
             continue
 
-        folder = f"/Archives/edgar/data/{cik_int}/{accession.replace('-', '')}/"
-        primary_url = f"{www_base}{folder}{quote(primary_name, safe='')}"
-        try:
-            primary_html = await client.get(primary_url)
-            index_html = (await client.get(f"{www_base}{folder}{accession}-index.htm")).decode(
-                "utf-8", errors="replace"
-            )
-            exhibits = []
-            for doc_type, path in parse_exhibit_links(index_html, folder):
-                body = await client.get(f"{www_base}{path}")
-                exhibits.append(
-                    {
-                        "type": doc_type,
-                        "document": path.rsplit("/", 1)[-1],
-                        "url": f"{www_base}{path}",
-                        "html": body.decode("utf-8", errors="replace"),
-                    }
-                )
-        except EdgarRequestError as exc:
-            summary.failed += 1
-            logger.warning("%s %s: not stored, will retry next run (%s)", ticker, accession, exc)
-            continue
-
-        stored = db.insert_filing(
-            accession=accession,
-            cik=cik,
-            ticker=ticker,
-            form="8-K",
-            items=items,
-            accepted_at=accepted.strftime(UTC_Z_FORMAT),
-            fetched_at=now().strftime(UTC_Z_FORMAT),
-            primary_doc_url=primary_url,
-            primary_html=primary_html,
-            exhibits=exhibits,
-            primary_text=html_to_text(primary_html.decode("utf-8", errors="replace")),
-            exhibit_text="\n\n".join(f"[{e['type']}]\n{html_to_text(e['html'])}" for e in exhibits),
+        stored = await store_filing(
+            client, db, ticker, cik, accession, accepted, items, primary_name, now, www_base
         )
-        if stored:
+        if stored is None:
+            summary.failed += 1
+        elif stored:
             summary.new += 1
             logger.info("%s: stored 8-K %s (items %s)", ticker, accession, ",".join(items))
         else:

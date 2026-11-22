@@ -68,16 +68,25 @@ def _components(row: Any) -> dict[str, float | int | None]:
 
 
 def build_events(
-    db: Database, ticker_map: TickerMap, config: Config, now: datetime
+    db: Database,
+    ticker_map: TickerMap,
+    config: Config,
+    now: datetime,
+    *,
+    windowed: bool = True,
 ) -> list[dict[str, Any]]:
-    """Event records for every stored 2.02 filing with a facts row inside the emit window."""
+    """Event records for every stored 2.02 filing with a facts row inside the emit window.
+
+    ``windowed=False`` drops the emit-day window (the history file wants every stored event);
+    nothing later than *now* is ever included.
+    """
     cutoff = parse_model_cutoff(config.filings_model_cutoff)
     if cutoff is None:
         logger.warning(
             "FILINGS_MODEL_CUTOFF is not set; every filings record is emitted with "
             "in_model_window=true (the model may have seen the outcome)"
         )
-    window_start = now - timedelta(days=config.filings_emit_days)
+    window_start = now - timedelta(days=config.filings_emit_days) if windowed else None
 
     rows = db.conn.execute(
         """SELECT f.accession, f.cik, f.ticker, f.items, f.accepted_at, f.fetched_at,
@@ -105,7 +114,7 @@ def build_events(
         if fetched is not None and knowable > fetched:
             logger.error("Skipping %s: accepted_at is later than fetch time", row["accession"])
             continue
-        if knowable < window_start or knowable > now:
+        if (window_start is not None and knowable < window_start) or knowable > now:
             continue
 
         direction_n = int(row["direction_n"] or 0)
