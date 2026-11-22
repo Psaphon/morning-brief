@@ -1,6 +1,6 @@
 [project]
 name = "morning-brief"
-version = "0.3.0"
+version = "0.4.0"
 description = "Automated morning news and intelligence dashboard"
 requires-python = ">=3.11"
 
