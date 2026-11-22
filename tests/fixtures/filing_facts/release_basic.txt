@@ -1,0 +1,15 @@
+Exampleco Reports Third Quarter Fiscal 2026 Results
+
+SPRINGFIELD, Nov. 4, 2026 -- Exampleco Holdings, a fictional company used only in tests, today announced results for the third quarter fiscal 2026.
+
+Revenue was $12.1 billion for the third quarter, compared with $11.0 billion in the prior-year quarter.
+
+Diluted earnings per share was $2.10, compared with $1.95 per diluted share in the third quarter of fiscal 2025. Adjusted earnings per diluted share, a non-GAAP measure, was $2.31.
+
+Outlook: for the fourth quarter fiscal 2026, Exampleco expects revenue of $12.4 billion to $12.8 billion.
+
+Condensed Consolidated Statements of Income (in millions, except per share data)
+Net revenue $ 12,100 $ 11,000
+Diluted net income per common share $ 2.10 $ 1.95
+Net loss from discontinued operations $ (0.45) $ (0.30)
+Adjusted diluted earnings per share (non-GAAP) $ 2.31 $ 2.02

@@ -258,6 +258,30 @@ def filings_fetch() -> None:
     click.echo(summary.line())
 
 
+@filings.command("extract")
+@click.option(
+    "--redo", is_flag=True, help="Re-extract every stored 2.02 filing, not just new ones."
+)
+def filings_extract(redo: bool) -> None:
+    """Extract and verify earnings numbers from stored 2.02 filings (local model).
+
+    Oldest first, so rev_accel and guidance changes can find earlier rows. Prints one
+    summary line. Works whether or not FILINGS_ENABLED is set.
+    """
+    import asyncio
+
+    from .processors.filing_facts import extract_filings
+
+    config = load_config()
+    db = Database(config.database_path)
+    try:
+        db.connect()
+        summary = asyncio.run(extract_filings(config, db, redo=redo))
+    finally:
+        db.close()
+    click.echo(summary.line())
+
+
 @cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""

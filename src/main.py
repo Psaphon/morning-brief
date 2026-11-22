@@ -260,6 +260,16 @@ async def run_pipeline() -> None:
             except Exception:
                 logger.exception("Filings fetch failed; pipeline continues")
             timer.lap("filings")
+
+            # Stage 2.8: extract numbers from new earnings releases (local model, non-fatal)
+            try:
+                from .processors.filing_facts import extract_filings
+
+                facts_summary = await extract_filings(config, db)
+                logger.info(facts_summary.line())
+            except Exception:
+                logger.exception("Filing facts extraction failed; pipeline continues")
+            timer.lap("filings_extract")
         else:
             logger.debug("Filings fetch disabled (set FILINGS_ENABLED=true to enable)")
 
