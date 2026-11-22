@@ -27,9 +27,6 @@ lanes = ["reader", "signals"]
 [feeds."PolitiFact"]
 lanes = ["reader", "signals"]
 
-[feeds."Florida Politics"]
-lanes = ["reader", "signals"]
-
 [feeds."BBC World"]
 lanes = ["reader", "signals"]
 
