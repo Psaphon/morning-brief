@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.1.0",
+  "emitted_at": "2026-11-22T09:31:04Z",
+  "universe_ref": "atrade/config/universe.toml@82c959e13d5d55f3b3871dbd496b39c023b57230",
+  "lane": "filings",
+  "events": [
+    {
+      "ticker": "AAPL",
+      "cik": "0000320193",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000320193-26-000010",
+      "wire_id": null,
+      "knowable_at": "2026-02-01T21:31:12Z",
+      "period_end": "2025-12-27",
+      "direction": 0.42,
+      "direction_n": 3,
+      "components": {
+        "eps_yoy": 12.5,
+        "rev_yoy": 8.1,
+        "rev_accel": 1.3,
+        "guidance_change": null
+      },
+      "in_model_window": false,
+      "title": "Apple reports results"
+    }
+  ]
+}

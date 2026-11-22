@@ -121,11 +121,20 @@ aliases = [
 # Ambiguous single-letter and common-word tickers (V, MA, HD, PG) are the
 # primary hazard: "V" matches every sentence; "MA" matches "Massachusetts";
 # "HD" matches "HD video"; "PG" matches "PG rating".
+#
+# Filer identifiers (docs/SIGNAL-SCHEMA.md §12.8) — stocks only, never ETFs:
+#   cik          REQUIRED for every stock. The SEC Central Index Key as a 10-digit,
+#                zero-padded string (quoted: leading zeros are significant).
+#   former_ciks  OPTIONAL. A list of 10-digit CIK strings for predecessor
+#                registrants, so the filings backfill can reach history filed
+#                before a reorganization. Omit it when there is none.
+# Neither key is used for alias matching; they do not affect signal output.
 # ---------------------------------------------------------------------------
 
 [[tickers]]
 symbol = "AAPL"
 asset_class = "stock"
+cik = "0000320193"
 aliases = [
     "Apple Inc", "Apple's", "iPhone", "iPad", "MacBook",
     "Tim Cook", "Apple Watch", "App Store", "Apple Silicon",
@@ -135,6 +144,7 @@ aliases = [
 [[tickers]]
 symbol = "MSFT"
 asset_class = "stock"
+cik = "0000789019"
 aliases = [
     "Microsoft", "Microsoft Corp", "Windows", "Azure",
     "Satya Nadella", "Microsoft Teams", "Office 365",
@@ -144,6 +154,7 @@ aliases = [
 [[tickers]]
 symbol = "NVDA"
 asset_class = "stock"
+cik = "0001045810"
 aliases = [
     "Nvidia", "NVIDIA", "GeForce", "Jensen Huang",
     "Nvidia chips", "H100 GPU", "A100 GPU", "CUDA",
@@ -153,6 +164,7 @@ aliases = [
 [[tickers]]
 symbol = "AMZN"
 asset_class = "stock"
+cik = "0001018724"
 aliases = [
     "Amazon", "Amazon.com", "AWS", "Amazon Web Services",
     "Andy Jassy", "Amazon Prime", "Amazon Alexa",
@@ -162,6 +174,7 @@ aliases = [
 [[tickers]]
 symbol = "GOOGL"
 asset_class = "stock"
+cik = "0001652044"
 aliases = [
     "Alphabet", "Google", "Google LLC", "Sundar Pichai",
     "YouTube", "Google Cloud", "DeepMind", "Google Search",
@@ -171,6 +184,7 @@ aliases = [
 [[tickers]]
 symbol = "META"
 asset_class = "stock"
+cik = "0001326801"
 aliases = [
     "Meta Platforms", "Facebook", "Instagram", "WhatsApp",
     "Mark Zuckerberg", "Threads app", "Oculus", "Meta AI",
@@ -180,6 +194,7 @@ aliases = [
 [[tickers]]
 symbol = "TSLA"
 asset_class = "stock"
+cik = "0001318605"
 aliases = [
     "Tesla", "Tesla Inc", "Elon Musk", "Tesla Motors",
     "Model 3", "Model Y", "Cybertruck", "Tesla Powerwall",
@@ -189,6 +204,7 @@ aliases = [
 [[tickers]]
 symbol = "JPM"
 asset_class = "stock"
+cik = "0000019617"
 aliases = [
     "JPMorgan Chase", "JPMorgan", "Chase Bank",
     "Jamie Dimon", "JP Morgan",
@@ -197,6 +213,7 @@ aliases = [
 [[tickers]]
 symbol = "JNJ"
 asset_class = "stock"
+cik = "0000200406"
 aliases = [
     "Johnson & Johnson", "Johnson and Johnson", "J&J",
     "Janssen",
@@ -205,6 +222,7 @@ aliases = [
 [[tickers]]
 symbol = "V"
 asset_class = "stock"
+cik = "0001403161"
 aliases = [
     "Visa Inc", "Visa card", "Visa network", "Visa payment",
     "Visa International", "Visa",
@@ -213,6 +231,7 @@ aliases = [
 [[tickers]]
 symbol = "PG"
 asset_class = "stock"
+cik = "0000080424"
 aliases = [
     "Procter & Gamble", "Procter and Gamble", "P&G",
 ]
@@ -220,6 +239,7 @@ aliases = [
 [[tickers]]
 symbol = "UNH"
 asset_class = "stock"
+cik = "0000731766"
 aliases = [
     "UnitedHealth", "UnitedHealth Group", "United Healthcare",
     "UnitedHealthcare",
@@ -228,6 +248,7 @@ aliases = [
 [[tickers]]
 symbol = "HD"
 asset_class = "stock"
+cik = "0000354950"
 aliases = [
     "Home Depot", "The Home Depot",
 ]
@@ -235,6 +256,7 @@ aliases = [
 [[tickers]]
 symbol = "MA"
 asset_class = "stock"
+cik = "0001141391"
 aliases = [
     "Mastercard", "Mastercard Inc", "Mastercard payment",
     "Mastercard network",
@@ -243,6 +265,8 @@ aliases = [
 [[tickers]]
 symbol = "XOM"
 asset_class = "stock"
+cik = "0002115436"
+former_ciks = ["0000034088"]
 aliases = [
     "ExxonMobil", "Exxon Mobil", "Exxon", "Mobil",
 ]
