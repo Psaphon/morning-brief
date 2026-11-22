@@ -79,6 +79,7 @@ def dashboard(output: str | None) -> None:
             output_path=output_path,
             hmac_key=config.dashboard_hmac_key,
             brief_id=today_str,
+            contact_email=config.contact_email,
         )
         click.echo(f"Dashboard written to {output_path} ({len(articles)} articles)")
 
@@ -189,6 +190,46 @@ def audit_sources(days: int) -> None:
         )
     path = write_report(audits, Path("data"), days, min_words)
     click.echo(f"Wrote {path}")
+
+
+def _check_date(ctx: click.Context, param: click.Parameter, value: str | None) -> str:
+    from datetime import datetime, timezone
+
+    if value is None:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise click.BadParameter("use YYYY-MM-DD") from None
+
+
+@cli.command()
+@click.option("--model", required=True, help="Local Ollama model to score, e.g. gemma4:e4b")
+@click.option("--date", "date", callback=_check_date, help="UTC date to score (default: today)")
+def bakeoff(model: str, date: str) -> None:
+    """Score a local model's section writing against the day's stored Claude sections.
+
+    Reruns each section on MODEL with the same input, citation format and chunk validator
+    as the Claude writer. Publishes nothing, saves no briefing and makes no Claude API call.
+    """
+    import asyncio
+    from pathlib import Path
+
+    from .summarizers.bakeoff import BakeoffError, format_table, run_bakeoff, write_report
+
+    config = load_config()
+    db = Database(config.database_path)
+    try:
+        db.connect()
+        report = asyncio.run(run_bakeoff(db, config, model, date))
+    except BakeoffError as e:
+        click.echo(str(e), err=True)
+        sys.exit(1)
+    finally:
+        db.close()
+
+    click.echo(format_table(report))
+    click.echo(f"Wrote {write_report(report, Path('data'))}")
 
 
 @cli.command()

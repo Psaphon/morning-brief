@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -165,6 +165,26 @@ def validate_text(
             paragraphs.append(" ".join(kept_here))
     result.text = "\n\n".join(paragraphs)
     return result
+
+
+def check_chunk(
+    text: str,
+    sources: Sequence[str],
+    *,
+    allowlist: Collection[str] = (),
+    phrases: Collection[str] = (),
+) -> str | None:
+    """The first failure reason (one of REASONS) of *text* against several *sources*, or None.
+
+    The sources are joined, so a chunk that combines two articles may take a number from
+    one and a name from the other. Every sentence of *text* must pass.
+    """
+    source = "\n".join(sources)
+    for sentence in split_sentences(text):
+        reason = _first_failure(sentence, source, allowlist, phrases)
+        if reason is not None:
+            return reason
+    return None
 
 
 def _read_list(path: Path) -> list[str]:

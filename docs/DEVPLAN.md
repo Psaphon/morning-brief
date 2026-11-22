@@ -915,7 +915,7 @@ Rank briefing articles by the operator's interests, and stop high-volume feeds s
 
 **Branch:** `feature/category-briefing`
 **Depends on:** article-extraction, output-validator
-**Status:** Ready (supervised)
+**Status:** Superseded by brief-reader-v2 (#79, #83, #84); reusable parts moved to `section-polish`
 **Requires:** both
 
 ### Goal
@@ -954,10 +954,46 @@ Replace the single briefing call with one small call per category. The model onl
 - **Titles come from config.** Model-written titles were the source of the false "Upcoming Events and Trends" framing.
 - **Per-category calls fix the silent truncation risk.** The worst case was about 12k tokens in a single call.
 
+## Feature: section-polish
+
+**Branch:** `feature/section-polish`
+**Depends on:** cited-summary-page
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Carry the still-useful parts of the superseded `category-briefing` into the brief-reader-v2 sections: readable titles, interest ordering, a hard token budget, and duplicate coverage in the sources.
+
+### Acceptance Criteria
+
+- [ ] Section titles come from configured category display names (`config/section_names.toml`, category → title), with no LLM involved. A category without an entry keeps its raw name. Fixture: a raw category name renders as its configured title on the page.
+- [ ] Sections are ordered by their highest article interest score (ties keep today's order). With no interests file, the order is unchanged.
+- [ ] Token budget: the per-section local writer, the Claude writer and `bakeoff` estimate each request's tokens (`CHARS_PER_TOKEN`) before sending. Over the budget, the lowest-interest articles are dropped from that request, one WARNING names the section and the count, and no recorded request exceeds the budget (stub test with a tiny budget).
+- [ ] Each cited source in the "Sources (N)" list shows its duplicates (`duplicate_of`, from briefing-dedupe) as "also covered by" links.
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `config/section_names.toml` | Create | Display names |
+| `src/summarizers/writer.py` | Modify | Titles, ordering, budget |
+| `src/summarizers/claude_writer.py`, `src/summarizers/local.py`, `src/summarizers/bakeoff.py` | Modify | Shared budget helper |
+| `src/publishers/html.py`, `templates/dashboard.html` | Modify | Also-covered links in sources |
+| `tests/test_section_polish.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Titles from config, not the model.** From `category-briefing`: model-written titles produced false framings.
+- **Drop by interest, not by position.** The budget cuts what the operator cares about least.
+
 ## Feature: dates-ahead
 
 **Branch:** `feature/dates-ahead`
-**Depends on:** category-briefing
+**Depends on:** cited-summary-page (was category-briefing, superseded)
 **Status:** Held (deps)
 **Requires:** ai
 
@@ -1194,7 +1230,7 @@ Cover more articles, with richer extracted facts, so section summaries can run 2
 
 **Branch:** `feature/claude-section-writer`
 **Depends on:** reader-coverage
-**Status:** Ready (supervised)
+**Status:** Merged (#83) — off by default; [HUMAN] key + live run open
 **Requires:** both
 
 ### Goal
@@ -1203,18 +1239,18 @@ Have the Claude API write each reader section as a long, readable summary with r
 
 ### Acceptance Criteria
 
-- [ ] With `SUMMARY_WRITER=claude`, each reader section gets one API call. Input: section name, plus for each article its id, title, source, `what_happened` and `details`. Output: prose paragraphs where each chunk drawn from a source ends with `[[id]]`, or `[[id1,id2]]` when it combines sources. Target length comes from config.
-- [ ] Code splits the output into chunks at citation markers. Each chunk is validated against the union of its cited articles' text. Chunks that fail, cite unknown ids, or have no citation are dropped and counted in the run metadata.
-- [ ] If a section loses more than `WRITER_MAX_DROP_SHARE` of its chunks (default 0.3), or the API errors or times out, that section falls back to the local writer, and the page marks it "local fallback".
-- [ ] Spend guard: each call's token usage is recorded in SQLite, priced from config. When the month-to-date estimate reaches the cap, the writer switches to local until the month rolls over, logs once, and sends one `hub-alert`.
-- [ ] The API key comes from `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential=`). With the credential missing, the writer falls back to local and logs that clearly, with no traceback containing secrets.
-- [ ] Tests use a stub HTTP server for the API. They cover valid output, an uncited chunk, an unknown id, a wrong number in a chunk, an API 500, and the cap being reached.
-- [ ] A test walks the request bodies the stub recorded and finds no article full text.
-- [ ] `SUMMARY_WRITER=local` uses the existing local path unchanged.
+- [x] With `SUMMARY_WRITER=claude`, each reader section gets one API call. Input: section name, plus for each article its id, title, source, `what_happened` and `details`. Output: prose paragraphs where each chunk drawn from a source ends with `[[id]]`, or `[[id1,id2]]` when it combines sources. Target length comes from config.
+- [x] Code splits the output into chunks at citation markers. Each chunk is validated against the union of its cited articles' text. Chunks that fail, cite unknown ids, or have no citation are dropped and counted in the run metadata.
+- [x] If a section loses more than `WRITER_MAX_DROP_SHARE` of its chunks (default 0.3), or the API errors or times out, that section falls back to the local writer, and the page marks it "local fallback".
+- [x] Spend guard: each call's token usage is recorded in SQLite, priced from config. When the month-to-date estimate reaches the cap, the writer switches to local until the month rolls over, logs once, and sends one `hub-alert`.
+- [x] The API key comes from `$CREDENTIALS_DIRECTORY` (systemd `LoadCredential=`). With the credential missing, the writer falls back to local and logs that clearly, with no traceback containing secrets.
+- [x] Tests use a stub HTTP server for the API. They cover valid output, an uncited chunk, an unknown id, a wrong number in a chunk, an API 500, and the cap being reached.
+- [x] A test walks the request bodies the stub recorded and finds no article full text.
+- [x] `SUMMARY_WRITER=local` uses the existing local path unchanged.
 - [ ] [HUMAN] Operator: API key on the SECRETS USB. PM: one live run on hub, posting the drop counts and token spend.
-- [ ] The signals golden test passes unchanged.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] The signals golden test passes unchanged.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1238,7 +1274,7 @@ Have the Claude API write each reader section as a long, readable summary with r
 
 **Branch:** `feature/cited-summary-page`
 **Depends on:** claude-section-writer
-**Status:** Ready (supervised)
+**Status:** Merged (#84) — [HUMAN] phone review open (needs the Claude writer live)
 **Requires:** both
 
 ### Goal
@@ -1247,14 +1283,14 @@ Render the brief as one long summary made of sections, with tappable citations, 
 
 ### Acceptance Criteria
 
-- [ ] Each section renders its title followed by its prose. Each `[[id]]` becomes a small superscript link to that article's URL (several ids become several links), with the source name in the link's title.
-- [ ] Below each section, a collapsed "Sources (N)" list holds every cited article: title, source, and its `what_happened`.
-- [ ] `dates-ahead` and the "On radar" and "For the stack" labels still render.
-- [ ] A test walks the rendered page JSON and HTML: every citation link matches an article in that section, no `[[` markers remain in the HTML, and every cited article appears in the sources list.
-- [ ] The page passes an HTML validator (`html5validator` or equivalent, pinned) in CI.
+- [x] Each section renders its title followed by its prose. Each `[[id]]` becomes a small superscript link to that article's URL (several ids become several links), with the source name in the link's title.
+- [x] Below each section, a collapsed "Sources (N)" list holds every cited article: title, source, and its `what_happened`.
+- [x] `dates-ahead` and the "On radar" and "For the stack" labels still render.
+- [x] A test walks the rendered page JSON and HTML: every citation link matches an article in that section, no `[[` markers remain in the HTML, and every cited article appears in the sources list.
+- [x] The page passes an HTML validator (`html5validator` or equivalent, pinned) in CI.
 - [ ] [HUMAN] The operator reads one live brief on the phone and approves the layout.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1304,7 +1340,7 @@ The specific journalists and accounts go in the uncommitted feeds overlay, not t
 
 **Branch:** `feature/summary-bakeoff`
 **Depends on:** claude-section-writer
-**Status:** Held (deps)
+**Status:** Merged (#85)
 **Requires:** ai
 
 ### Goal
@@ -1313,16 +1349,16 @@ Make the "go back to local-only" decision measurable: score any local model's se
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief bakeoff --model NAME --date YYYY-MM-DD` runs the local writer with that model on the stored extractions for that date, without publishing. It prints, side by side with that day's Claude output:
+- [x] `morning-brief bakeoff --model NAME --date YYYY-MM-DD` runs the local writer with that model on the stored extractions for that date, without publishing. It prints, side by side with that day's Claude output:
   - chunk validator pass rate
   - citation coverage (share of articles cited)
   - words per section
   - fallback count
-- [ ] It writes `data/bakeoff-<date>-<model>.json` and exits 0. A date with no stored extractions exits non-zero with a clear message.
-- [ ] Fixture: stub models with known outputs produce the expected scores.
-- [ ] It makes no API calls (the stub records none).
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] It writes `data/bakeoff-<date>-<model>.json` and exits 0. A date with no stored extractions exits non-zero with a clear message.
+- [x] Fixture: stub models with known outputs produce the expected scores.
+- [x] It makes no API calls (the stub records none).
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1340,7 +1376,7 @@ Make the "go back to local-only" decision measurable: score any local model's se
 
 **Branch:** `feature/fetch-contact`
 **Depends on:** none
-**Status:** Not Started
+**Status:** Merged (#86)
 **Requires:** both
 
 ### Goal

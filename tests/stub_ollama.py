@@ -82,7 +82,10 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path != "/api/generate":
             self.send_error(404)
             return
-        if BRIEFING_MARKER in body.get("prompt", ""):
+        section = re.match(r"Section: (.*)", body.get("prompt", ""))
+        if section:  # a bakeoff section request: plain text, keyed by section
+            text = self.server.section_replies.get(section.group(1), CANNED_SUMMARY)  # type: ignore[attr-defined]
+        elif BRIEFING_MARKER in body.get("prompt", ""):
             text = json.dumps(self.server.briefing or CANNED_BRIEFING)  # type: ignore[attr-defined]
         elif EXTRACTION_MARKER in body.get("prompt", ""):
             text = self.server.extraction_reply(body["prompt"])  # type: ignore[attr-defined]
@@ -102,6 +105,7 @@ class _Server(ThreadingHTTPServer):
         self.roundup_titles: set[str] = set()
         self.ungrounded_titles: set[str] = set()
         self.briefing: dict[str, Any] | None = None
+        self.section_replies: dict[str, str] = {}
         self.malformed_remaining = 0
         self._lock = threading.Lock()
 
@@ -150,6 +154,10 @@ class StubOllama:
         self._server.ungrounded_titles = set(ungrounded_titles or ())
         self._server.briefing = briefing
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+
+    def section_reply(self, section: str, text: str) -> None:
+        """Plain-text reply for a bakeoff request whose prompt starts ``Section: <section>``."""
+        self._server.section_replies[section] = text
 
     def malformed_next(self, n: int) -> None:
         """Return malformed JSON for the next *n* extraction calls."""

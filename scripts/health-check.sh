@@ -29,6 +29,35 @@ _log_failure() {
     exit "${exit_code}"
 }
 
+# ── 0. Forward run alerts (e.g. writer spend cap) ─────────────────────────────
+# last_run.json "alerts": each one goes out once through hub-alert, if it is executable.
+# Sent alerts are remembered in data/.alerts-sent so a re-run of this check stays quiet.
+# Never fails the check: skipped silently when the publisher or the status file is missing.
+HUB_ALERT="${HUB_ALERT:-/usr/local/sbin/hub-alert}"
+STATUS_FILE="${DATA_DIR}/last_run.json"
+SENT_FILE="${DATA_DIR}/.alerts-sent"
+if [[ -x "${HUB_ALERT}" && -f "${STATUS_FILE}" ]]; then
+    while IFS= read -r alert; do
+        [[ -n "${alert}" ]] || continue
+        stamp="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('timestamp',''))" "${STATUS_FILE}" 2>/dev/null || true)"
+        line="${stamp} ${alert}"
+        if ! grep -qxF -- "${line}" "${SENT_FILE}" 2>/dev/null; then
+            if "${HUB_ALERT}" "morning-brief: ${alert}" "${alert}" default; then
+                printf '%s\n' "${line}" >> "${SENT_FILE}" || true
+            fi
+        fi
+    done < <(python3 -c "
+import json, sys
+try:
+    alerts = json.load(open(sys.argv[1])).get('alerts') or []
+except Exception:
+    alerts = []
+for a in alerts:
+    if isinstance(a, str):
+        print(a.replace('\n', ' '))
+" "${STATUS_FILE}" 2>/dev/null || true)
+fi
+
 # ── 1. Dashboard must exist ───────────────────────────────────────────────────
 if [[ ! -f "${DASHBOARD}" ]]; then
     _log_failure "dashboard not found: ${DASHBOARD}" 1
