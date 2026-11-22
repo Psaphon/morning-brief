@@ -97,6 +97,9 @@ def add(db, n, ticker, accepted, *, fetched=None, status="ok", items=("2.02",), 
             "unverified_count": 0,
             "direction_n": 0,
             "extracted_at": "2026-11-22T11:00:00Z",
+            # A real earnings release has at least one current figure; see
+            # test_2_02_filing_without_earnings_figures_is_skipped.
+            "eps_diluted_current": 1.0,
         }
         row.update(kw)
         db.save_filing_facts(row)
@@ -416,3 +419,21 @@ def test_lane_enabled_pipeline_writes_filings_file(monkeypatch):
     golden = json.loads(SIGNALS_GOLDEN_PATH.read_text(encoding="utf-8"))
     strip = lambda a: {k: v for k, v in a.items() if k != "emitted_at"}  # noqa: E731
     assert strip(artifact) == strip(golden)
+
+
+def test_2_02_filing_without_earnings_figures_is_skipped(db, ticker_map, tmp_path):
+    # Live backfill 2026-11-22: an issuer files quarterly production/delivery reports
+    # under item 2.02. The model read them fine and found no current EPS or revenue.
+    add(db, 1, "AAPL", "2026-11-03T20:00:00Z", status="partial", eps_diluted_current=None)
+    add(
+        db,
+        2,
+        "AAPL",
+        "2026-11-05T20:00:00Z",
+        status="partial",
+        revenue_current=1.0e9,
+        eps_diluted_current=None,
+    )
+    add(db, 3, "AAPL", "2026-11-06T20:00:00Z", status="failed", eps_diluted_current=None)
+    doc = load(emit(db, ticker_map, tmp_path))
+    assert [e["accession"][-1] for e in doc["events"]] == ["2", "3"]

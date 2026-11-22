@@ -306,6 +306,51 @@ def filings_emit() -> None:
     click.echo(f"Wrote {path}" if path else "No filings signals written (see log)")
 
 
+def _check_since(ctx: click.Context, param: click.Parameter, value: str | None) -> str | None:
+    """--since as YYYY-MM-DD; unset stays None so FILINGS_BACKFILL_SINCE applies."""
+    return None if value is None else _check_date(ctx, param, value)
+
+
+@filings.command("backfill")
+@click.option(
+    "--since", "since", callback=_check_since, help="Earliest acceptance date (YYYY-MM-DD)."
+)
+@click.option("--ignore-window", is_flag=True, help="Run outside BACKFILL_WINDOW_UTC (supervised).")
+@click.option("--counts", is_flag=True, help="Print the review counts from the DB; no fetching.")
+def filings_backfill(since: str | None, ignore_window: bool, counts: bool) -> None:
+    """Backfill historical earnings 8-Ks, extract facts, write filings-history.jsonl.
+
+    Resumable: stored accessions and facts rows are skipped. Only runs inside
+    BACKFILL_WINDOW_UTC unless --ignore-window is given; --since defaults to
+    FILINGS_BACKFILL_SINCE. Needs CONTACT_EMAIL (exit code 0 without it).
+    """
+    import asyncio
+    from pathlib import Path
+
+    from .processors.filings_backfill import backfill_counts, run_backfill
+
+    config = load_config()
+    db = Database(config.database_path)
+    try:
+        db.connect()
+        if counts:
+            from .publishers.signals import load_ticker_map
+
+            ticker_map = load_ticker_map(Path("config/ticker_map.toml"))
+            click.echo(backfill_counts(db, ticker_map, config))
+            return
+        try:
+            summary = asyncio.run(
+                run_backfill(config, db, since=since, ignore_window=ignore_window)
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+    finally:
+        db.close()
+    if not summary.outside_window:
+        click.echo(summary.line())
+
+
 @cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""

@@ -68,26 +68,37 @@ def _components(row: Any) -> dict[str, float | int | None]:
 
 
 def build_events(
-    db: Database, ticker_map: TickerMap, config: Config, now: datetime
+    db: Database,
+    ticker_map: TickerMap,
+    config: Config,
+    now: datetime,
+    *,
+    windowed: bool = True,
 ) -> list[dict[str, Any]]:
-    """Event records for every stored 2.02 filing with a facts row inside the emit window."""
+    """Event records for every stored 2.02 filing with a facts row inside the emit window.
+
+    ``windowed=False`` drops the emit-day window (the history file wants every stored event);
+    nothing later than *now* is ever included.
+    """
     cutoff = parse_model_cutoff(config.filings_model_cutoff)
     if cutoff is None:
         logger.warning(
             "FILINGS_MODEL_CUTOFF is not set; every filings record is emitted with "
             "in_model_window=true (the model may have seen the outcome)"
         )
-    window_start = now - timedelta(days=config.filings_emit_days)
+    window_start = now - timedelta(days=config.filings_emit_days) if windowed else None
 
     rows = db.conn.execute(
         """SELECT f.accession, f.cik, f.ticker, f.items, f.accepted_at, f.fetched_at,
-                  ff.direction, ff.direction_n,
+                  ff.direction, ff.direction_n, ff.status,
+                  ff.eps_diluted_current, ff.revenue_current,
                   ff.eps_yoy, ff.rev_yoy, ff.rev_accel, ff.guidance_change
            FROM filings f JOIN filing_facts ff ON ff.accession = f.accession
            ORDER BY f.accepted_at, f.ticker, f.accession"""
     ).fetchall()
 
     events: list[dict[str, Any]] = []
+    not_earnings = 0
     for row in rows:
         if "2.02" not in str(row["items"]).split(","):
             continue
@@ -105,7 +116,18 @@ def build_events(
         if fetched is not None and knowable > fetched:
             logger.error("Skipping %s: accepted_at is later than fetch time", row["accession"])
             continue
-        if knowable < window_start or knowable > now:
+        if (window_start is not None and knowable < window_start) or knowable > now:
+            continue
+        if (
+            row["status"] != "failed"
+            and row["eps_diluted_current"] is None
+            and row["revenue_current"] is None
+        ):
+            # Item 2.02 also covers non-earnings results, e.g. quarterly production and
+            # delivery reports. The model read the release and found no current EPS or
+            # revenue, so it is not an earnings event. A failed extraction is still
+            # emitted: there it is unknown what the filing held.
+            not_earnings += 1
             continue
 
         direction_n = int(row["direction_n"] or 0)
@@ -128,6 +150,8 @@ def build_events(
             }
         )
     events.sort(key=lambda e: (e["knowable_at"], e["ticker"]))
+    if not_earnings:
+        logger.info("Skipped %d item 2.02 filing(s) with no earnings figures", not_earnings)
     return events
 
 
