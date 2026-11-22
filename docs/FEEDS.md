@@ -24,7 +24,7 @@ This is the living registry of all data sources. Update status as feeds are test
 
 | Source | Feed URL | Status | Notes |
 |--------|----------|--------|-------|
-| Florida Politics | `https://floridapolitics.com/feed` | active | Premier FL political news |
+| Florida Politics | `https://floridapolitics.com/feed` | deprecated | Dropped 2026-11-22: a 2023 public-media review found it ran paid content without labelling it as advertising |
 | Miami Herald Politics | `https://www.miamiherald.com/news/politics-government/index.rss` | broken | Server disconnected without response |
 | Tampa Bay Times | `https://www.tampabay.com/news/florida-politics/?outputType=rss` | broken | 500 Internal Server Error |
 | Sun Sentinel | TBD — needs RSS discovery | untested | South FL coverage |
