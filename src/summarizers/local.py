@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from ..config import OllamaConfig
+from ..http import make_client
 from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
 from ..validators.grounding import ValidatorRun
 from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction, trim_words
@@ -431,7 +432,7 @@ async def summarize_articles(
 
     batch_start = time.monotonic()
 
-    async with httpx.AsyncClient() as client:
+    async with make_client() as client:
         # Pre-flight check
         available = await check_ollama_available(client, config)
         if not available:
@@ -730,7 +731,7 @@ async def generate_daily_briefing(
         logger.warning("Briefing prompt is empty")
         return None
 
-    async with httpx.AsyncClient() as client:
+    async with make_client() as client:
         available = await check_ollama_available(client, config)
         if not available:
             logger.warning("Skipping daily briefing — Ollama not available")
@@ -801,7 +802,7 @@ async def generate_section_local(
     if not pairs:
         return None
     prompt = _build_briefing_prompt({section: pairs})
-    async with httpx.AsyncClient() as client:
+    async with make_client() as client:
         if not await check_ollama_available(client, config):
             logger.warning("Section %r: local fallback skipped, Ollama not available", section)
             return None

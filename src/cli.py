@@ -79,6 +79,7 @@ def dashboard(output: str | None) -> None:
             output_path=output_path,
             hmac_key=config.dashboard_hmac_key,
             brief_id=today_str,
+            contact_email=config.contact_email,
         )
         click.echo(f"Dashboard written to {output_path} ({len(articles)} articles)")
 

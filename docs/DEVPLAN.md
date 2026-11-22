@@ -1340,7 +1340,7 @@ Make the "go back to local-only" decision measurable: score any local model's se
 
 **Branch:** `feature/fetch-contact`
 **Depends on:** none
-**Status:** Not Started
+**Status:** In Progress
 **Requires:** both
 
 ### Goal

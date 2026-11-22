@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from ..http import make_client
+
 logger = logging.getLogger(__name__)
 
 CHECK_TIMEOUT = 10.0
@@ -84,10 +86,7 @@ async def check_all_endpoints(
     if not endpoints:
         return []
 
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        headers={"User-Agent": "MorningBrief-HealthCheck/0.1"},
-    ) as client:
+    async with make_client() as client:
         tasks = [check_endpoint(client, ep["url"], ep["name"]) for ep in endpoints]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

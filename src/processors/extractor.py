@@ -10,6 +10,7 @@ import trafilatura
 
 from ..config import audit_min_words
 from ..fetchers.rss import RawArticle, html_to_text
+from ..http import make_client
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,7 @@ async def extract_articles(raw_articles: list[RawArticle]) -> list[dict]:
 
     results: list[dict] = []
 
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        headers={"User-Agent": "MorningBrief/0.1"},
-    ) as client:
+    async with make_client() as client:
         for i in range(0, len(raw_articles), MAX_CONCURRENT):
             batch = raw_articles[i : i + MAX_CONCURRENT]
             tasks = [extract_single(client, a) for a in batch]

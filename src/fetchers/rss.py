@@ -17,6 +17,8 @@ from pathlib import Path
 import feedparser
 import httpx
 
+from ..http import make_client
+
 logger = logging.getLogger(__name__)
 
 # Timeout for individual feed fetches
@@ -197,10 +199,7 @@ async def fetch_all_feeds(
 
     all_articles: list[RawArticle] = []
 
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        headers={"User-Agent": "MorningBrief/0.1 (+https://github.com/Psaphon/morning-brief)"},
-    ) as client:
+    async with make_client() as client:
         # Fetch in batches to respect rate limits
         for i in range(0, len(feed_list), MAX_CONCURRENT):
             batch = feed_list[i : i + MAX_CONCURRENT]
