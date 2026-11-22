@@ -136,3 +136,16 @@ async def test_address_never_in_tracked_files_or_logs(stub, tmp_path, monkeypatc
         f = root / name.decode()
         if f.is_file():
             assert ADDR.encode() not in f.read_bytes(), f"{name!r} contains the address"
+
+
+def test_compose_passes_the_host_contact_file_optionally():
+    """The pipeline container only sees CONTACT_EMAIL through this optional env_file."""
+    from pathlib import Path
+
+    import yaml
+
+    compose = yaml.safe_load((Path(__file__).resolve().parents[1] / "docker-compose.yml").read_text())
+    env_files = compose["services"]["morning-brief"]["env_file"]
+    entry = next(e for e in env_files if isinstance(e, dict) and "contact.env" in e["path"])
+    assert entry["path"] == "${HOME}/.config/morning-brief/contact.env"
+    assert entry["required"] is False

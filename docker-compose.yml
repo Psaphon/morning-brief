@@ -18,6 +18,10 @@ services:
       - ${HOME}/.config/morning-brief:/app/interests:ro
     env_file:
       - .env
+      # Operator contact for the shared User-Agent and page footer (fetch-contact).
+      # Host-only file, never in git; optional so hosts without it still run.
+      - path: ${HOME}/.config/morning-brief/contact.env
+        required: false
     environment:
       # Default: reach Ollama on the host.  `environment` beats `env_file`, so the
       # override comes through interpolation: set OLLAMA_HOST in .env.
