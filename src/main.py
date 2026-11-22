@@ -18,14 +18,13 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-
 from .config import load_config
 from .db import Database
 from .fetchers.art import fetch_daily_artwork
 from .fetchers.crypto import fetch_all_crypto
 from .fetchers.financial import fetch_all_financial
 from .fetchers.rss import fetch_all_feeds
+from .http import make_client
 from .processors.dedup import deduplicate
 from .processors.dedupe import find_duplicates
 from .processors.extractor import extract_articles
@@ -135,10 +134,7 @@ async def run_pipeline() -> None:
         # Stage 1: Fetch all data sources in parallel
         logger.info("Stage 1: Fetching data sources...")
 
-        async with httpx.AsyncClient(
-            follow_redirects=True,
-            headers={"User-Agent": "MorningBrief/0.1"},
-        ) as client:
+        async with make_client() as client:
             rss_task = fetch_all_feeds(config.feeds_path, lanes.extra_feeds, lanes.kinds)
             financial_task = fetch_all_financial(
                 client,
@@ -366,6 +362,7 @@ async def run_pipeline() -> None:
             output_path=output_path,
             hmac_key=config.dashboard_hmac_key,
             brief_id=today_brief_id,
+            contact_email=config.contact_email,
         )
         logger.info("Dashboard published with %d articles", len(all_articles))
 

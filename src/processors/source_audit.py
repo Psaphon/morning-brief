@@ -18,6 +18,8 @@ import feedparser
 import httpx
 import trafilatura
 
+from ..http import make_client
+
 logger = logging.getLogger(__name__)
 
 FETCH_TIMEOUT = 20.0
@@ -183,9 +185,7 @@ async def audit_feeds(
     sem = asyncio.Semaphore(MAX_CONCURRENT)
     owns_client = client is None
     if client is None:
-        client = httpx.AsyncClient(
-            follow_redirects=True, headers={"User-Agent": "MorningBrief/0.1 (source-audit)"}
-        )
+        client = make_client()
     try:
         return list(
             await asyncio.gather(

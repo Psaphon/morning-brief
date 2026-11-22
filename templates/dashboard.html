@@ -458,7 +458,8 @@
     {% endif %}
 
     <footer>
-        Generated {{ generated_at }} | Morning Brief v0.1
+        Generated {{ generated_at }} | Morning Brief v0.1{% if contact_email %}
+        <br>Contact: {{ contact_email }}{% endif %}
     </footer>
 
     <script type="application/json" id="segment-data">{{ briefing_segments_json | safe }}</script>
