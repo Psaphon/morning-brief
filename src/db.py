@@ -116,6 +116,33 @@ CREATE TABLE IF NOT EXISTS filings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_filings_ticker ON filings(ticker, accepted_at);
+
+-- Verified earnings numbers and code-computed direction (one row per 2.02 filing).
+-- Values are base units (dollars, dollars per share). The model's raw output is not kept.
+CREATE TABLE IF NOT EXISTS filing_facts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    accession TEXT UNIQUE NOT NULL REFERENCES filings(accession),
+    status TEXT NOT NULL CHECK (status IN ('ok', 'partial', 'failed')),
+    period_label TEXT,
+    eps_diluted_current REAL,
+    eps_diluted_prior REAL,
+    revenue_current REAL,
+    revenue_prior REAL,
+    guidance_metric TEXT,
+    guidance_period_label TEXT,
+    guidance_low REAL,
+    guidance_high REAL,
+    unverified_count INTEGER NOT NULL DEFAULT 0,
+    eps_yoy REAL,
+    rev_yoy REAL,
+    rev_accel REAL,
+    guidance_change INTEGER,
+    direction REAL,
+    direction_n INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    extracted_at TEXT NOT NULL,
+    error TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -342,6 +369,49 @@ class Database:
         )
         self.conn.commit()
         return cursor.rowcount == 1
+
+    def filings_for_extraction(self, *, redo: bool = False) -> list[sqlite3.Row]:
+        """Stored 8-Ks with item 2.02, oldest first; without facts unless ``redo``."""
+        rows = self.conn.execute(
+            """SELECT f.* FROM filings f
+               LEFT JOIN filing_facts ff ON ff.accession = f.accession
+               WHERE (? OR ff.accession IS NULL)
+               ORDER BY f.accepted_at, f.id""",
+            (1 if redo else 0,),
+        ).fetchall()
+        return [r for r in rows if "2.02" in str(r["items"]).split(",")]
+
+    def previous_earnings_facts(self, ticker: str, accepted_at: str) -> sqlite3.Row | None:
+        """The same ticker's latest earlier 2.02 filing (facts columns NULL if none stored)."""
+        rows = self.conn.execute(
+            """SELECT f.accession, f.accepted_at, f.items, ff.rev_yoy
+               FROM filings f LEFT JOIN filing_facts ff ON ff.accession = f.accession
+               WHERE f.ticker = ? AND f.accepted_at < ?
+               ORDER BY f.accepted_at DESC, f.id DESC""",
+            (ticker, accepted_at),
+        ).fetchall()
+        return next((r for r in rows if "2.02" in str(r["items"]).split(",")), None)
+
+    def earlier_guidance(self, ticker: str, metric: str, accepted_at: str) -> list[sqlite3.Row]:
+        """Earlier guidance rows for the ticker and metric, most recent first."""
+        return self.conn.execute(
+            """SELECT f.accepted_at, ff.guidance_period_label, ff.guidance_low, ff.guidance_high
+               FROM filing_facts ff JOIN filings f ON f.accession = ff.accession
+               WHERE f.ticker = ? AND ff.guidance_metric = ? AND f.accepted_at < ?
+                 AND ff.guidance_low IS NOT NULL AND ff.guidance_high IS NOT NULL
+               ORDER BY f.accepted_at DESC, f.id DESC""",
+            (ticker, metric, accepted_at),
+        ).fetchall()
+
+    def save_filing_facts(self, row: dict[str, Any]) -> None:
+        """Insert or replace the facts row for ``row['accession']``."""
+        cols = list(row)
+        self.conn.execute(
+            f"INSERT OR REPLACE INTO filing_facts ({', '.join(cols)}) "  # noqa: S608
+            f"VALUES ({', '.join('?' for _ in cols)})",
+            tuple(row.values()),
+        )
+        self.conn.commit()
 
     def cleanup_old_articles(self, max_age_days: int = 2) -> int:
         """Delete articles not seen in the last max_age_days days. Returns count deleted."""

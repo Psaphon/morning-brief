@@ -37,6 +37,63 @@ class OllamaConfig:
 
 
 @dataclass
+class FilingFactsConfig:
+    """Filing-facts extraction and direction settings (all ``FILINGS_*`` env vars)."""
+
+    num_ctx: int = 16384
+    num_predict: int = 768
+    seed: int = 42
+    guidance_tolerance: float = 0.01
+    w_eps_yoy: float = 0.3
+    w_rev_yoy: float = 0.3
+    w_rev_accel: float = 0.2
+    w_guidance: float = 0.2
+    k_eps_yoy: float = 25.0
+    k_rev_yoy: float = 10.0
+    k_rev_accel: float = 5.0
+    k_guidance: float = 1.0
+
+    def weights(self) -> dict[str, float]:
+        return {
+            "eps_yoy": self.w_eps_yoy,
+            "rev_yoy": self.w_rev_yoy,
+            "rev_accel": self.w_rev_accel,
+            "guidance_change": self.w_guidance,
+        }
+
+    def scales(self) -> dict[str, float]:
+        return {
+            "eps_yoy": self.k_eps_yoy,
+            "rev_yoy": self.k_rev_yoy,
+            "rev_accel": self.k_rev_accel,
+            "guidance_change": self.k_guidance,
+        }
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    return float(raw) if raw else default
+
+
+def _filing_facts_config() -> FilingFactsConfig:
+    d = FilingFactsConfig()
+    return FilingFactsConfig(
+        num_ctx=int(_float_env("FILINGS_NUM_CTX", d.num_ctx)),
+        num_predict=int(_float_env("FILINGS_NUM_PREDICT", d.num_predict)),
+        seed=int(_float_env("FILINGS_SEED", d.seed)),
+        guidance_tolerance=_float_env("GUIDANCE_TOLERANCE", d.guidance_tolerance),
+        w_eps_yoy=_float_env("FILINGS_W_EPS_YOY", d.w_eps_yoy),
+        w_rev_yoy=_float_env("FILINGS_W_REV_YOY", d.w_rev_yoy),
+        w_rev_accel=_float_env("FILINGS_W_REV_ACCEL", d.w_rev_accel),
+        w_guidance=_float_env("FILINGS_W_GUIDANCE", d.w_guidance),
+        k_eps_yoy=_float_env("FILINGS_K_EPS_YOY", d.k_eps_yoy),
+        k_rev_yoy=_float_env("FILINGS_K_REV_YOY", d.k_rev_yoy),
+        k_rev_accel=_float_env("FILINGS_K_REV_ACCEL", d.k_rev_accel),
+        k_guidance=_float_env("FILINGS_K_GUIDANCE", d.k_guidance),
+    )
+
+
+@dataclass
 class APIKeys:
     finnhub: str = ""
     fred: str = ""
@@ -90,6 +147,7 @@ class Config:
     sec_max_retries: int = 3
     filings_items: tuple[str, ...] = DEFAULT_FILINGS_ITEMS
     filings_lookback_days: int = 7
+    filing_facts: FilingFactsConfig = field(default_factory=FilingFactsConfig)
 
 
 def contact_from_env() -> tuple[str, str]:
@@ -214,4 +272,5 @@ def load_config() -> Config:
         sec_max_retries=max(0, int(os.environ.get("SEC_MAX_RETRIES", "3") or "3")),
         filings_items=_filings_items(),
         filings_lookback_days=int(os.environ.get("FILINGS_LOOKBACK_DAYS", "7") or "7"),
+        filing_facts=_filing_facts_config(),
     )
