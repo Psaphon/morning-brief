@@ -144,7 +144,8 @@ def test_compose_passes_the_host_contact_file_optionally():
 
     import yaml
 
-    compose = yaml.safe_load((Path(__file__).resolve().parents[1] / "docker-compose.yml").read_text())
+    compose_file = Path(__file__).resolve().parents[1] / "docker-compose.yml"
+    compose = yaml.safe_load(compose_file.read_text())
     env_files = compose["services"]["morning-brief"]["env_file"]
     entry = next(e for e in env_files if isinstance(e, dict) and "contact.env" in e["path"])
     assert entry["path"] == "${HOME}/.config/morning-brief/contact.env"
