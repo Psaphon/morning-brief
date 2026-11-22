@@ -79,6 +79,16 @@ class Config:
     reader_max_total: int = 120
     run_deadline_minutes: int = 60
     post_group_hours: int = 12
+    contact_email: str = ""
+    contact_url: str = ""
+
+
+def contact_from_env() -> tuple[str, str]:
+    """(CONTACT_EMAIL, CONTACT_URL), each stripped, empty when unset."""
+    return (
+        os.environ.get("CONTACT_EMAIL", "").strip(),
+        os.environ.get("CONTACT_URL", "").strip(),
+    )
 
 
 def audit_min_words() -> int:
@@ -169,4 +179,6 @@ def load_config() -> Config:
         reader_max_total=int(os.environ.get("READER_MAX_TOTAL", "120")),
         run_deadline_minutes=int(os.environ.get("RUN_DEADLINE_MINUTES", "60")),
         post_group_hours=int(os.environ.get("POST_GROUP_HOURS", "12")),
+        contact_email=contact_from_env()[0],
+        contact_url=contact_from_env()[1],
     )

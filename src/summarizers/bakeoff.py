@@ -17,6 +17,7 @@ from pathlib import Path
 import httpx
 
 from ..config import Config, OllamaConfig
+from ..http import make_client
 from ..processors.lanes import filter_lane, load_lanes_for_run
 from ..validators.grounding import ValidatorRun
 from .claude_writer import (
@@ -96,7 +97,7 @@ async def local_section_reply(
         },
     }
     own = client is None
-    client = client or httpx.AsyncClient()
+    client = client or make_client()
     try:
         resp = await client.post(f"{ollama.host}/api/generate", json=body, timeout=BRIEFING_TIMEOUT)
         resp.raise_for_status()
@@ -194,7 +195,7 @@ async def run_bakeoff(db, config: Config, model: str, date: str) -> dict:
     claude = score_claude(stored["segment_map"] if stored else None, sections)
 
     local: dict[str, Score] = {}
-    async with httpx.AsyncClient() as client:
+    async with make_client() as client:
         for section, articles in sections.items():
             reply = await local_section_reply(
                 config.ollama, model, section, articles, config, client

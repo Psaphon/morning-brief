@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import httpx
 
 from ..config import Config
+from ..http import make_client
 from ..validators.grounding import ValidatorRun
 from .claude_writer import (
     SectionDraft,
@@ -132,7 +133,7 @@ async def write_sections(
 
     segments: list[dict] = []
     cap_reached = False
-    async with httpx.AsyncClient() as client:
+    async with make_client() as client:
         for section, section_articles in sections.items():
             run.sections += 1
             draft: SectionDraft | None = None

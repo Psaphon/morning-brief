@@ -255,6 +255,7 @@ def render_dashboard(
     hmac_key: str = "",
     brief_id: str = "",
     interests: Interests | None = None,
+    contact_email: str = "",
 ) -> str:
     """Render the HTML dashboard.
 
@@ -273,6 +274,8 @@ def render_dashboard(
         interests: Operator interests; bullets matching a labelled file's keywords
             carry its label (``interest_labels`` in the template, ``labels`` in
             the articles JSON). None or empty adds nothing.
+        contact_email: Operator contact (CONTACT_EMAIL), injected at build time into a
+            footer line. Empty leaves the line out.
     """
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -337,6 +340,7 @@ def render_dashboard(
         articles_by_id_json=_script_json(articles_by_id),
         cited_sections_json=_script_json(build_cited_sections(briefing_segments, articles_by_id)),
         dashboard_token=dashboard_token,
+        contact_email=contact_email.strip(),
     )
 
     if output_path:
