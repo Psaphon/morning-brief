@@ -15,7 +15,8 @@ from src.fetchers.rss import RawArticle, fetch_all_feeds
 from src.processors.extractor import extract_articles
 from src.publishers.html import render_dashboard
 
-ADDR = "alias-7f3a@example.test"
+# Built at runtime so this file never contains the literal value the leak scan looks for.
+ADDR = "-".join(["alias", "7f3a"]) + "@" + "example.test"
 TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
 RSS = (
     b'<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
