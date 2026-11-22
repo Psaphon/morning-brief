@@ -519,7 +519,15 @@ async def test_run_writes_nothing_when_a_built_line_is_invalid(
 # --- --counts and the CLI -----------------------------------------------------------
 
 
-def seed(db: Database, accession: str, ticker: str, accepted: str, values: int, n: int) -> None:
+def seed(
+    db: Database,
+    accession: str,
+    ticker: str,
+    accepted: str,
+    values: int,
+    n: int,
+    status: str = "ok",
+) -> None:
     db.insert_filing(
         accession=accession,
         cik=CIK_A,
@@ -539,7 +547,7 @@ def seed(db: Database, accession: str, ticker: str, accepted: str, values: int, 
     db.save_filing_facts(
         {
             "accession": accession,
-            "status": "ok",
+            "status": status,
             **row,
             "unverified_count": 0,
             "direction": 0.5 if n else None,
@@ -558,7 +566,7 @@ def test_counts_cli_on_a_seeded_db(tmp_path, monkeypatch):
     d.connect()
     seed(d, "0000000001-24-000001", "AAA", "2024-05-01T20:00:00Z", 4, 4)
     seed(d, "0000000001-24-000002", "AAA", "2024-08-01T20:00:00Z", 2, 2)
-    seed(d, "0000000001-25-000003", "AAA", "2025-05-01T20:00:00Z", 0, 0)
+    seed(d, "0000000001-25-000003", "AAA", "2025-05-01T20:00:00Z", 0, 0, "failed")
     seed(d, "0000000001-25-000004", "BBB", "2025-06-01T20:00:00Z", 2, 2)
     d.close()
     monkeypatch.chdir(tmp_path)

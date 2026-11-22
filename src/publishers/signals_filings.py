@@ -90,13 +90,15 @@ def build_events(
 
     rows = db.conn.execute(
         """SELECT f.accession, f.cik, f.ticker, f.items, f.accepted_at, f.fetched_at,
-                  ff.direction, ff.direction_n,
+                  ff.direction, ff.direction_n, ff.status,
+                  ff.eps_diluted_current, ff.revenue_current,
                   ff.eps_yoy, ff.rev_yoy, ff.rev_accel, ff.guidance_change
            FROM filings f JOIN filing_facts ff ON ff.accession = f.accession
            ORDER BY f.accepted_at, f.ticker, f.accession"""
     ).fetchall()
 
     events: list[dict[str, Any]] = []
+    not_earnings = 0
     for row in rows:
         if "2.02" not in str(row["items"]).split(","):
             continue
@@ -115,6 +117,17 @@ def build_events(
             logger.error("Skipping %s: accepted_at is later than fetch time", row["accession"])
             continue
         if (window_start is not None and knowable < window_start) or knowable > now:
+            continue
+        if (
+            row["status"] != "failed"
+            and row["eps_diluted_current"] is None
+            and row["revenue_current"] is None
+        ):
+            # Item 2.02 also covers non-earnings results, e.g. quarterly production and
+            # delivery reports. The model read the release and found no current EPS or
+            # revenue, so it is not an earnings event. A failed extraction is still
+            # emitted: there it is unknown what the filing held.
+            not_earnings += 1
             continue
 
         direction_n = int(row["direction_n"] or 0)
@@ -137,6 +150,8 @@ def build_events(
             }
         )
     events.sort(key=lambda e: (e["knowable_at"], e["ticker"]))
+    if not_earnings:
+        logger.info("Skipped %d item 2.02 filing(s) with no earnings figures", not_earnings)
     return events
 
 
