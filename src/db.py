@@ -132,6 +132,10 @@ CREATE TABLE IF NOT EXISTS filing_facts (
     guidance_period_label TEXT,
     guidance_low REAL,
     guidance_high REAL,
+    guidance_basis TEXT,
+    guidance_base REAL,
+    guidance_low_pct REAL,
+    guidance_high_pct REAL,
     unverified_count INTEGER NOT NULL DEFAULT 0,
     eps_yoy REAL,
     rev_yoy REAL,
@@ -189,6 +193,10 @@ class Database:
                 "ALTER TABLE daily_briefings ADD COLUMN briefing_metadata TEXT",
                 "daily_briefings.briefing_metadata",
             ),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_basis TEXT", "guidance_basis"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_base REAL", "guidance_base"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_low_pct REAL", "guidance_low_pct"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_high_pct REAL", "guidance_high_pct"),
         ]
         for sql, name in migrations:
             try:

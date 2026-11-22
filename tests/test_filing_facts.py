@@ -727,3 +727,189 @@ def test_cli_extract_prints_one_summary_line(tmp_path, stub, monkeypatch):
 def test_stub_transport_sanity(stub):
     # The stub answers /api/tags; guards against a port clash masking real failures.
     assert httpx.get(f"{stub.url}/api/tags").status_code == 200
+
+
+# --- guidance stated as growth from a base ------------------------------------------
+
+GROWTH_RANGE = (FIXTURES / "release_growth_range.txt").read_text()
+GROWTH_SINGLE = (FIXTURES / "release_growth_single.txt").read_text()
+ABSOLUTE_RANGE = (FIXTURES / "release_absolute_range.txt").read_text()
+BASE = 14.23
+
+
+def eps_guidance(low, high, *, basis="growth_from_base", base="$14.23") -> dict:
+    return {
+        "metric": "eps",
+        "period_label": "fiscal 2026",
+        "basis": basis,
+        "base": val(base) if base else val(None),
+        "low": low,
+        "high": high,
+    }
+
+
+def growth_reply(low: str, high: str, **kw) -> dict:
+    return basic_reply(
+        eps_diluted_current=val(None),
+        eps_diluted_prior=val(None),
+        revenue_current=val("$8.0 billion", "billions"),
+        revenue_prior=val("$7.5 billion", "billions"),
+        guidance=eps_guidance(low, high, **kw),
+    )
+
+
+async def run_pair(db, stub, first_text, first_reply, second_text, second_reply):
+    stub.set_filing_reply(by_filing_date({"2026-02-03": first_reply, "2026-05-05": second_reply}))
+    a = add_filing(db, first_text, accepted="2026-02-03T21:00:00Z")
+    b = add_filing(db, second_text, accepted="2026-05-05T21:00:00Z")
+    await extract_filings(make_config(stub), db)
+    return facts_row(db, a), facts_row(db, b)
+
+
+def test_schema_guidance_has_basis_and_base():
+    guidance = FILING_FACTS_SCHEMA["properties"]["guidance"]["anyOf"][1]
+    assert guidance["properties"]["basis"]["enum"] == ["absolute", "growth_from_base"]
+    assert "base" in guidance["required"] and "basis" in guidance["required"]
+
+
+async def test_prompt_tells_model_to_put_the_prior_figure_in_base(db, stub):
+    stub.set_filing_reply(basic_reply())
+    add_filing(db)
+    await extract_filings(make_config(stub), db)
+    instructions = stub.generate_calls[0]["body"]["prompt"].split("Release (")[0]
+    assert "growth_from_base" in instructions and "never in low or high" in instructions
+
+
+async def test_growth_guidance_is_verified_and_stored_as_implied_range(db, stub):
+    stub.set_filing_reply(growth_reply("flat", "4.0%"))
+    acc = add_filing(db, GROWTH_RANGE)
+    summary = await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert summary.unverified == 0
+    assert row["guidance_basis"] == "growth_from_base"
+    assert row["guidance_base"] == BASE
+    assert (row["guidance_low_pct"], row["guidance_high_pct"]) == (0.0, 4.0)
+    assert row["guidance_low"] == pytest.approx(BASE)
+    assert row["guidance_high"] == pytest.approx(BASE * 1.04)
+    assert fd.midpoint(row["guidance_low"], row["guidance_high"]) == pytest.approx(BASE * 1.02)
+
+
+async def test_growth_guidance_within_tolerance_is_unchanged(db, stub):
+    first, second = await run_pair(
+        db,
+        stub,
+        GROWTH_RANGE,
+        growth_reply("flat", "4.0%"),
+        GROWTH_SINGLE,
+        growth_reply("1.5%", "1.5%"),
+    )
+    assert second["guidance_low"] == pytest.approx(BASE * 1.015)
+    assert first["guidance_change"] is None
+    assert second["guidance_change"] == 0  # 1.015 vs 1.02 is a 0.49% move, inside 1%
+
+
+async def test_growth_guidance_cut_beyond_tolerance_is_minus_one(db, stub):
+    eight = GROWTH_RANGE.replace("flat to 4.0%", "8.0%")
+    two = GROWTH_SINGLE.replace("1.5%", "2.0%")
+    _, second = await run_pair(
+        db, stub, eight, growth_reply("8.0%", "8.0%"), two, growth_reply("2.0%", "2.0%")
+    )
+    assert second["guidance_low"] == pytest.approx(BASE * 1.02)
+    assert second["guidance_change"] == -1
+
+
+async def test_growth_percent_not_in_source_drops_the_whole_guidance(db, stub):
+    stub.set_filing_reply(growth_reply("flat", "5.0%"))
+    acc = add_filing(db, GROWTH_RANGE)
+    summary = await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert row["guidance_metric"] is None and row["guidance_low"] is None
+    assert row["guidance_basis"] is None and row["status"] == "partial"
+    assert summary.unverified == 1
+
+
+async def test_percent_needs_a_percent_sign_in_the_source(db, stub):
+    # "14" is in the text, but never followed by % or "percent".
+    stub.set_filing_reply(growth_reply("14%", "14%"))
+    acc = add_filing(db, GROWTH_SINGLE)
+    await extract_filings(make_config(stub), db)
+    assert facts_row(db, acc)["guidance_metric"] is None
+
+
+async def test_percent_word_form_verifies(db, stub):
+    text = GROWTH_SINGLE.replace("1.5%", "1.5 percent")
+    stub.set_filing_reply(growth_reply("1.5%", "1.5%"))
+    acc = add_filing(db, text)
+    await extract_filings(make_config(stub), db)
+    assert facts_row(db, acc)["guidance_low_pct"] == 1.5
+
+
+async def test_flat_must_be_in_the_same_paragraph_as_the_base(db, stub):
+    text = GROWTH_SINGLE + "\nThe stock price was flat on the news.\n"
+    text = text.replace("Outlook:", "Separately, results were flat.\n\nOutlook:")
+    stub.set_filing_reply(growth_reply("flat", "1.5%"))
+    acc = add_filing(db, text)
+    await extract_filings(make_config(stub), db)
+    assert facts_row(db, acc)["guidance_metric"] is None
+
+
+async def test_growth_base_not_in_source_drops_the_guidance(db, stub):
+    stub.set_filing_reply(growth_reply("1.5%", "1.5%", base="$14.99"))
+    acc = add_filing(db, GROWTH_SINGLE)
+    summary = await extract_filings(make_config(stub), db)
+    assert facts_row(db, acc)["guidance_metric"] is None
+    assert summary.unverified == 1
+
+
+async def test_absolute_range_still_works_unchanged(db, stub):
+    reply = growth_reply("$14.50", "$14.80")
+    reply["guidance"] = eps_guidance(val("$14.50"), val("$14.80"), basis="absolute", base=None)
+    stub.set_filing_reply(reply)
+    acc = add_filing(db, ABSOLUTE_RANGE)
+    summary = await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert summary.unverified == 0
+    assert (row["guidance_basis"], row["guidance_base"]) == ("absolute", None)
+    assert (row["guidance_low"], row["guidance_high"]) == (14.50, 14.80)
+
+
+async def test_guard_drops_absolute_guidance_that_is_really_a_from_base(db, stub):
+    # The model copied the base into low and high and called it absolute. 14.23 is in the text.
+    reply = growth_reply("x", "x")
+    reply["guidance"] = eps_guidance(val("$14.23"), val("$14.23"), basis="absolute", base=None)
+    stub.set_filing_reply(reply)
+    acc = add_filing(db, GROWTH_SINGLE)
+    summary = await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert row["guidance_metric"] is None and row["guidance_low"] is None
+    assert summary.unverified == 1 and row["unverified_count"] == 1
+    assert row["status"] == "partial"
+
+
+async def test_guard_does_not_hide_a_cut_that_the_old_code_missed(db, stub):
+    bad = growth_reply("x", "x")
+    bad["guidance"] = eps_guidance(val("$14.23"), val("$14.23"), basis="absolute", base=None)
+    _, second = await run_pair(db, stub, GROWTH_RANGE, bad, GROWTH_SINGLE, bad)
+    assert second["guidance_change"] is None  # no guidance stored, rather than a false 0
+
+
+def test_preceded_by_from_window():
+    assert ff.preceded_by_from("$14.23", "grow 1.5% from $14.23 in fiscal 2025")
+    assert ff.preceded_by_from("14.23", "grow 1.5% from about $14.23")
+    assert not ff.preceded_by_from("$14.50", "earnings of $14.50 to $14.80, from last year")
+    assert not ff.preceded_by_from("$14.80", "earnings of $14.50 to $14.80")
+
+
+async def test_migration_adds_columns_to_an_existing_table(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE filing_facts (id INTEGER PRIMARY KEY, accession TEXT)")
+    conn.commit()
+    conn.close()
+    d = Database(path)
+    d.connect()
+    cols = {r["name"] for r in d.conn.execute("PRAGMA table_info(filing_facts)")}
+    d.close()
+    assert {"guidance_basis", "guidance_base", "guidance_low_pct", "guidance_high_pct"} <= cols

@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 SCALES = ("units", "thousands", "millions", "billions")
 GUIDANCE_METRICS = ("revenue", "eps")
+GUIDANCE_BASES = ("absolute", "growth_from_base")
 VALUE_FIELDS = ("eps_diluted_current", "eps_diluted_prior", "revenue_current", "revenue_prior")
 
 _VALUE = {
@@ -47,6 +48,9 @@ _VALUE = {
     "required": ["as_written", "scale"],
     "additionalProperties": False,
 }
+
+# An absolute bound is a value object; a growth bound is a percent string ("1.5%" or "flat").
+_BOUND = {"anyOf": [_VALUE, {"type": "string"}]}
 
 FILING_FACTS_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -61,10 +65,12 @@ FILING_FACTS_SCHEMA: dict[str, Any] = {
                     "properties": {
                         "metric": {"type": "string", "enum": list(GUIDANCE_METRICS)},
                         "period_label": {"type": "string"},
-                        "low": _VALUE,
-                        "high": _VALUE,
+                        "basis": {"type": "string", "enum": list(GUIDANCE_BASES)},
+                        "base": _VALUE,
+                        "low": _BOUND,
+                        "high": _BOUND,
                     },
-                    "required": ["metric", "period_label", "low", "high"],
+                    "required": ["metric", "period_label", "basis", "base", "low", "high"],
                     "additionalProperties": False,
                 },
             ]
@@ -91,8 +97,15 @@ current period.
 - period_label: the current period as the release words it, for example "third quarter \
 fiscal 2026".
 - guidance: the company's own outlook for a future period, or null if the release gives none. \
-Give metric ("revenue" or "eps"), period_label (the future period as written), and low and \
-high (for a single figure, use it for both).
+Give metric ("revenue" or "eps"), period_label (the future period as written), basis, base, \
+low and high (for a single figure, use it for both).
+  - basis "absolute": the release gives the guidance figure itself, for example "$14.50 to \
+$14.80". Put those figures in low and high as value objects, and use null for base.
+  - basis "growth_from_base": the release states the guidance as a change from a prior figure, \
+for example "to grow approximately 1.5% from $14.23" or "flat to 4.0% from $14.23". Put the \
+prior figure ($14.23) in base as a value object, never in low or high. Put the percentages in \
+low and high as strings exactly as written ("1.5%", "4.0%"), or the word "flat" for zero. \
+For a single percentage use it for both low and high.
 
 Each value is an object with as_written and scale.
 - as_written: the number exactly as printed, including any parentheses or minus sign and \
@@ -292,11 +305,25 @@ def parse_reply(raw: str) -> dict[str, Any]:
             raise FactsError("guidance.metric is not revenue or eps")
         if not isinstance(glabel, str) or not glabel.strip():
             raise FactsError("guidance.period_label is not a string")
+        basis = guidance.get("basis", "absolute")
+        if basis not in GUIDANCE_BASES:
+            raise FactsError("guidance.basis is not absolute or growth_from_base")
+        if basis == "absolute":
+            base = {"as_written": None, "scale": None}
+            low = _check_value(guidance.get("low"), "guidance.low")
+            high = _check_value(guidance.get("high"), "guidance.high")
+        else:
+            base = _check_value(guidance.get("base"), "guidance.base")
+            low, high = guidance.get("low"), guidance.get("high")
+            if not isinstance(low, str) or not isinstance(high, str):
+                raise FactsError("growth guidance low/high are not strings")
         guidance = {
             "metric": metric,
             "period_label": glabel,
-            "low": _check_value(guidance.get("low"), "guidance.low"),
-            "high": _check_value(guidance.get("high"), "guidance.high"),
+            "basis": basis,
+            "base": base,
+            "low": low,
+            "high": high,
         }
     parsed["guidance"] = guidance
     return parsed
@@ -415,21 +442,144 @@ def verify_facts(parsed: dict[str, Any], source: str) -> tuple[dict[str, Any], i
             parsed[name], source, per_share=name.startswith("eps"), counter=counter
         )
     out.update(
-        guidance_metric=None, guidance_period_label=None, guidance_low=None, guidance_high=None
+        guidance_metric=None,
+        guidance_period_label=None,
+        guidance_low=None,
+        guidance_high=None,
+        guidance_basis=None,
+        guidance_base=None,
+        guidance_low_pct=None,
+        guidance_high_pct=None,
     )
     guidance = parsed.get("guidance")
     if guidance:
-        per_share = guidance["metric"] == "eps"
-        low = _verify_field(guidance["low"], source, per_share=per_share, counter=counter)
-        high = _verify_field(guidance["high"], source, per_share=per_share, counter=counter)
-        if low is not None and high is not None:
+        verified = _verify_guidance(guidance, source, counter)
+        if verified is not None:
             out.update(
                 guidance_metric=guidance["metric"],
                 guidance_period_label=guidance["period_label"].strip(),
-                guidance_low=min(low, high),
-                guidance_high=max(low, high),
+                guidance_basis=guidance["basis"],
+                **verified,
             )
     return out, counter[0]
+
+
+_PERCENT_RE = re.compile(
+    r"^\s*(?P<sign>[+\-]?)\s*(?P<num>\d+(?:\.\d+)?|\.\d+)\s*(?:%|percent)?\s*$", re.IGNORECASE
+)
+_FROM_WINDOW = 12
+
+
+def _number_digits(as_written: str) -> str | None:
+    m = _AS_WRITTEN_RE.match(_normalise_text(as_written))
+    return m.group("num").replace(",", "") if m else None
+
+
+def _hits(digits: str, source: str):
+    body = re.escape(digits)
+    if digits.startswith((".", "0.")):
+        body = r"0?" + re.escape(digits.lstrip("0"))
+    return re.finditer(rf"(?<![\d.]){body}(?!\.?\d)", source)
+
+
+def preceded_by_from(as_written: str, source_text: str) -> bool:
+    """True if the number occurs in the source right after "from" (e.g. "from $14.23").
+
+    "Right after" means the word "from" within 12 characters before the number. A guidance
+    figure printed that way is the prior-year base of a growth statement, not guidance.
+    """
+    digits = _number_digits(as_written)
+    if digits is None:
+        return False
+    source = _normalise_text(source_text)
+    return any(
+        re.search(r"\bfrom\b", source[max(0, hit.start() - _FROM_WINDOW) : hit.start()], re.I)
+        for hit in _hits(digits, source)
+    )
+
+
+def _paragraphs(source: str) -> list[str]:
+    parts = re.split(r"\n\s*\n", source)
+    return parts if len(parts) > 1 else source.splitlines() or [source]
+
+
+def _verify_percent(as_written: str, base_as_written: str, source_text: str) -> float | None:
+    """A percent bound as a number (``"flat"`` is 0.0), or None if the source lacks it.
+
+    A number verifies if it occurs followed by "%" or " percent". "flat" verifies only if
+    the word occurs in the same paragraph as the base value.
+    """
+    source = _normalise_text(source_text)
+    if as_written.strip().lower() == "flat":
+        digits = _number_digits(base_as_written)
+        if digits is None:
+            return None
+        for paragraph in _paragraphs(source):
+            if re.search(r"\bflat\b", paragraph, re.I) and any(
+                True for _ in _hits(digits, paragraph)
+            ):
+                return 0.0
+        return None
+    m = _PERCENT_RE.match(_normalise_text(as_written))
+    if not m:
+        return None
+    digits = m.group("num")
+    negative = m.group("sign") == "-"
+    for hit in _hits(digits, source):
+        if not re.match(r"\s?(?:%|percent\b)", source[hit.end() :], re.I):
+            continue
+        before = source[: hit.start()].rstrip()
+        if (before.endswith("-") and not before.endswith("--")) != negative:
+            continue
+        value = float(digits)
+        return -value if negative else value
+    return None
+
+
+def _verify_guidance(
+    guidance: dict[str, Any], source: str, counter: list[int]
+) -> dict[str, float | None] | None:
+    """Verified guidance fields, or None (dropping the whole guidance) if any part fails."""
+    per_share = guidance["metric"] == "eps"
+    empty: dict[str, float | None] = {"guidance_base": None, "guidance_low_pct": None}
+    if guidance["basis"] == "absolute":
+        low = _verify_field(guidance["low"], source, per_share=per_share, counter=counter)
+        high = _verify_field(guidance["high"], source, per_share=per_share, counter=counter)
+        if low is None or high is None:
+            return None
+        if low == high and preceded_by_from(guidance["low"]["as_written"] or "", source):
+            counter[0] += 1
+            logger.info("Guidance %r is a 'from' base, not guidance; dropped", guidance["low"])
+            return None
+        return {
+            **empty,
+            "guidance_high_pct": None,
+            "guidance_low": min(low, high),
+            "guidance_high": max(low, high),
+        }
+
+    base = _verify_field(guidance["base"], source, per_share=per_share, counter=counter)
+    if base is None:
+        if guidance["base"]["as_written"] is None:
+            counter[0] += 1
+        return None
+    base_written = guidance["base"]["as_written"]
+    pcts = [_verify_percent(guidance[k], base_written, source) for k in ("low", "high")]
+    if None in pcts:
+        counter[0] += sum(p is None for p in pcts)
+        logger.info(
+            "Unverified guidance percent in %r dropped", (guidance["low"], guidance["high"])
+        )
+        return None
+    low_pct, high_pct = min(pcts), max(pcts)  # type: ignore[type-var]
+    implied = sorted(base * (1 + p / 100.0) for p in (low_pct, high_pct))
+    return {
+        "guidance_base": base,
+        "guidance_low_pct": low_pct,
+        "guidance_high_pct": high_pct,
+        "guidance_low": implied[0],
+        "guidance_high": implied[1],
+    }
 
 
 def compute_components(
