@@ -913,3 +913,60 @@ async def test_migration_adds_columns_to_an_existing_table(tmp_path):
     cols = {r["name"] for r in d.conn.execute("PRAGMA table_info(filing_facts)")}
     d.close()
     assert {"guidance_basis", "guidance_base", "guidance_low_pct", "guidance_high_pct"} <= cols
+
+
+async def test_growth_bounds_given_as_value_objects_are_accepted(db, stub):
+    # Live gemma replies (PM review, 2026-11-22) wrap growth percents in value objects,
+    # because the schema allows either shape. Those replies must parse, not fail.
+    reply = growth_reply(val("1.5%", None), val("1.5%", None))
+    stub.set_filing_reply(reply)
+    acc = add_filing(db, GROWTH_SINGLE)
+    await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert row["status"] != "failed"
+    assert row["guidance_basis"] == "growth_from_base"
+
+
+async def test_malformed_guidance_keeps_verified_eps_and_revenue(db, stub):
+    bad = basic_reply(
+        guidance={
+            "metric": "eps",
+            "period_label": "fiscal 2026",
+            "basis": "growth_from_base",
+            "base": val("$14.23"),
+            "low": 1.5,
+            "high": 1.5,
+        }
+    )
+    stub.set_filing_reply(bad)
+    acc = add_filing(db)
+    await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert row["status"] != "failed"
+    assert row["eps_diluted_current"] == pytest.approx(2.10)
+    assert row["guidance_metric"] is None
+
+
+DECLINE_TEXT = (
+    "Fiscal 2025 outlook\n\nDiluted earnings-per-share to decline approximately 6.0% "
+    "from $14.91 in fiscal 2024\n\nRevenue was $8.0 billion compared with $7.5 billion."
+)
+
+
+def test_growth_sign_reads_decline_words_in_code():
+    assert ff.growth_sign("$14.91", DECLINE_TEXT) == -1
+    grow = "Diluted earnings-per-share to grow approximately 1.5% from $14.23 in fiscal 2025"
+    assert ff.growth_sign("$14.23", grow) == 1
+    flat = "Diluted earnings-per-share to grow approximately flat to 4.0% from $14.23"
+    assert ff.growth_sign("$14.23", flat) == 1
+
+
+async def test_decline_guidance_is_stored_as_negative_growth(db, stub):
+    # Live review 2026-11-22: "decline approximately 6.0% from $14.91" was stored as +6%.
+    reply = growth_reply("6.0%", "6.0%", base="$14.91")
+    stub.set_filing_reply(reply)
+    acc = add_filing(db, DECLINE_TEXT)
+    await extract_filings(make_config(stub), db)
+    row = facts_row(db, acc)
+    assert row["guidance_low_pct"] == -6.0 and row["guidance_high_pct"] == -6.0
+    assert row["guidance_low"] == pytest.approx(14.91 * 0.94)

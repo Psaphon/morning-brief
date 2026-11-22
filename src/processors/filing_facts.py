@@ -296,37 +296,54 @@ def parse_reply(raw: str) -> dict[str, Any]:
         raise FactsError("period_label is not a string")
     parsed: dict[str, Any] = {name: _check_value(data.get(name), name) for name in VALUE_FIELDS}
     parsed["period_label"] = label
-    guidance = data.get("guidance")
-    if guidance is not None:
-        if not isinstance(guidance, dict):
-            raise FactsError("guidance is not an object")
-        metric, glabel = guidance.get("metric"), guidance.get("period_label")
-        if metric not in GUIDANCE_METRICS:
-            raise FactsError("guidance.metric is not revenue or eps")
-        if not isinstance(glabel, str) or not glabel.strip():
-            raise FactsError("guidance.period_label is not a string")
-        basis = guidance.get("basis", "absolute")
-        if basis not in GUIDANCE_BASES:
-            raise FactsError("guidance.basis is not absolute or growth_from_base")
-        if basis == "absolute":
-            base = {"as_written": None, "scale": None}
-            low = _check_value(guidance.get("low"), "guidance.low")
-            high = _check_value(guidance.get("high"), "guidance.high")
-        else:
-            base = _check_value(guidance.get("base"), "guidance.base")
-            low, high = guidance.get("low"), guidance.get("high")
-            if not isinstance(low, str) or not isinstance(high, str):
-                raise FactsError("growth guidance low/high are not strings")
-        guidance = {
-            "metric": metric,
-            "period_label": glabel,
-            "basis": basis,
-            "base": base,
-            "low": low,
-            "high": high,
-        }
-    parsed["guidance"] = guidance
+    try:
+        parsed["guidance"] = _parse_guidance(data.get("guidance"))
+    except FactsError as e:
+        # A malformed guidance block costs only the guidance, never the verified EPS and
+        # revenue from the same reply.
+        logger.info("Dropping malformed guidance (%s)", e)
+        parsed["guidance"] = None
     return parsed
+
+
+def _growth_bound(value: Any, field: str) -> str:
+    """A growth bound as a string ("1.5%", "flat"); a value object's as_written is accepted."""
+    if isinstance(value, dict):
+        value = value.get("as_written")
+    if not isinstance(value, str) or not value.strip():
+        raise FactsError(f"{field} is not a percent string")
+    return value
+
+
+def _parse_guidance(guidance: Any) -> dict[str, Any] | None:
+    if guidance is None:
+        return None
+    if not isinstance(guidance, dict):
+        raise FactsError("guidance is not an object")
+    metric, glabel = guidance.get("metric"), guidance.get("period_label")
+    if metric not in GUIDANCE_METRICS:
+        raise FactsError("guidance.metric is not revenue or eps")
+    if not isinstance(glabel, str) or not glabel.strip():
+        raise FactsError("guidance.period_label is not a string")
+    basis = guidance.get("basis", "absolute")
+    if basis not in GUIDANCE_BASES:
+        raise FactsError("guidance.basis is not absolute or growth_from_base")
+    if basis == "absolute":
+        base: Any = {"as_written": None, "scale": None}
+        low: Any = _check_value(guidance.get("low"), "guidance.low")
+        high: Any = _check_value(guidance.get("high"), "guidance.high")
+    else:
+        base = _check_value(guidance.get("base"), "guidance.base")
+        low = _growth_bound(guidance.get("low"), "guidance.low")
+        high = _growth_bound(guidance.get("high"), "guidance.high")
+    return {
+        "metric": metric,
+        "period_label": glabel,
+        "basis": basis,
+        "base": base,
+        "low": low,
+        "high": high,
+    }
 
 
 def build_prompt(
@@ -536,6 +553,36 @@ def _verify_percent(as_written: str, base_as_written: str, source_text: str) -> 
     return None
 
 
+_DECLINE_RE = re.compile(r"\b(declin\w*|decreas\w*|down|lower|fall\w*|drop\w*|reduc\w*)\b", re.I)
+_GROW_RE = re.compile(r"\b(grow\w*|increas\w*|up|higher|rise|rising)\b", re.I)
+_SIGN_WINDOW = 160
+
+
+def growth_sign(base_as_written: str, source_text: str) -> int:
+    """-1 if the sentence leading up to "... from <base>" says decline, else +1.
+
+    Code reads the direction word; the model only copies the bare percent ("6.0%"), so a
+    "decline approximately 6.0% from $14.91" must not become +6%. When both a decline and a
+    growth word appear, the one closest to the base wins.
+    """
+    digits = _number_digits(base_as_written)
+    if digits is None:
+        return 1
+    source = _normalise_text(source_text)
+    for hit in _hits(digits, source):
+        window = source[max(0, hit.start() - _SIGN_WINDOW) : hit.start()]
+        if not re.search(r"\bfrom\b\s*\$?\s*$", window, re.I):
+            continue
+        # Sentence breaks only: a "." between digits ("6.0%") is a decimal point.
+        window = re.split(r"(?<!\d)\.|\.(?!\d)|[;•\n]", window)[-1]
+        down = [m.end() for m in _DECLINE_RE.finditer(window)]
+        up = [m.end() for m in _GROW_RE.finditer(window)]
+        if down and (not up or max(down) > max(up)):
+            return -1
+        return 1
+    return 1
+
+
 def _verify_guidance(
     guidance: dict[str, Any], source: str, counter: list[int]
 ) -> dict[str, float | None] | None:
@@ -571,6 +618,8 @@ def _verify_guidance(
             "Unverified guidance percent in %r dropped", (guidance["low"], guidance["high"])
         )
         return None
+    if growth_sign(base_written, source) < 0:
+        pcts = [-abs(p) for p in pcts]  # type: ignore[arg-type]
     low_pct, high_pct = min(pcts), max(pcts)  # type: ignore[type-var]
     implied = sorted(base * (1 + p / 100.0) for p in (low_pct, high_pct))
     return {
