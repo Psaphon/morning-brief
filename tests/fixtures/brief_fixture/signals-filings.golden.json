@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.1.0",
+  "emitted_at": "2026-11-22T12:00:00Z",
+  "universe_ref": "atrade/config/universe.toml@82c959e13d5d55f3b3871dbd496b39c023b57230",
+  "lane": "filings",
+  "events": [
+    {
+      "ticker": "MSFT",
+      "cik": "0000000001",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000000001-26-000002",
+      "wire_id": null,
+      "knowable_at": "2026-10-29T20:15:00Z",
+      "period_end": null,
+      "direction": 0.46,
+      "direction_n": 1,
+      "components": {
+        "eps_yoy": 20.0,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": true
+    },
+    {
+      "ticker": "NVDA",
+      "cik": "0000000001",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000000001-26-000004",
+      "wire_id": null,
+      "knowable_at": "2026-10-30T21:00:00Z",
+      "period_end": null,
+      "direction": -0.05,
+      "direction_n": 2,
+      "components": {
+        "eps_yoy": -4.0,
+        "rev_yoy": 2.0,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": true
+    },
+    {
+      "ticker": "AAPL",
+      "cik": "0000000001",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000000001-26-000001",
+      "wire_id": null,
+      "knowable_at": "2026-11-05T20:31:07Z",
+      "period_end": null,
+      "direction": 0.62,
+      "direction_n": 4,
+      "components": {
+        "eps_yoy": 12.5,
+        "rev_yoy": 8.0,
+        "rev_accel": 1.5,
+        "guidance_change": 1
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "NVDA",
+      "cik": "0000000001",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000000001-26-000003",
+      "wire_id": null,
+      "knowable_at": "2026-11-12T21:02:33Z",
+      "period_end": null,
+      "direction": null,
+      "direction_n": 0,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": false
+    }
+  ]
+}

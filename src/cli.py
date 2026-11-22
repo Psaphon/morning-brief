@@ -282,6 +282,30 @@ def filings_extract(redo: bool) -> None:
     click.echo(summary.line())
 
 
+@filings.command("emit")
+def filings_emit() -> None:
+    """Write signals-filings.json from stored filings and facts (manual run).
+
+    Works whether or not FILINGS_ENABLED is set. Prints the path, or a notice if nothing
+    was written.
+    """
+    from pathlib import Path
+
+    from .publishers.signals import load_ticker_map
+    from .publishers.signals_filings import emit_filings_signals
+
+    config = load_config()
+    db = Database(config.database_path)
+    try:
+        db.connect()
+        path = emit_filings_signals(
+            db, config.signals_dir, load_ticker_map(Path("config/ticker_map.toml")), config
+        )
+    finally:
+        db.close()
+    click.echo(f"Wrote {path}" if path else "No filings signals written (see log)")
+
+
 @cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""

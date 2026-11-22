@@ -270,6 +270,21 @@ async def run_pipeline() -> None:
             except Exception:
                 logger.exception("Filing facts extraction failed; pipeline continues")
             timer.lap("filings_extract")
+
+            # Stage 2.9: emit signals-filings.json for atrade (non-fatal)
+            try:
+                from .publishers.signals import load_ticker_map
+                from .publishers.signals_filings import emit_filings_signals
+
+                emit_filings_signals(
+                    db,
+                    config.signals_dir,
+                    load_ticker_map(Path("config/ticker_map.toml")),
+                    config,
+                )
+            except Exception:
+                logger.exception("Filings signal emission failed; pipeline continues")
+            timer.lap("filings_emit")
         else:
             logger.debug("Filings fetch disabled (set FILINGS_ENABLED=true to enable)")
 

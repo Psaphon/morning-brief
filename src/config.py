@@ -147,6 +147,8 @@ class Config:
     sec_max_retries: int = 3
     filings_items: tuple[str, ...] = DEFAULT_FILINGS_ITEMS
     filings_lookback_days: int = 7
+    filings_emit_days: int = 30
+    filings_model_cutoff: str = ""
     filing_facts: FilingFactsConfig = field(default_factory=FilingFactsConfig)
 
 
@@ -272,5 +274,7 @@ def load_config() -> Config:
         sec_max_retries=max(0, int(os.environ.get("SEC_MAX_RETRIES", "3") or "3")),
         filings_items=_filings_items(),
         filings_lookback_days=int(os.environ.get("FILINGS_LOOKBACK_DAYS", "7") or "7"),
+        filings_emit_days=int(os.environ.get("FILINGS_EMIT_DAYS", "30") or "30"),
+        filings_model_cutoff=os.environ.get("FILINGS_MODEL_CUTOFF", "").strip(),
         filing_facts=_filing_facts_config(),
     )
