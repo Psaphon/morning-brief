@@ -915,7 +915,7 @@ Rank briefing articles by the operator's interests, and stop high-volume feeds s
 
 **Branch:** `feature/category-briefing`
 **Depends on:** article-extraction, output-validator
-**Status:** Ready (supervised)
+**Status:** Superseded by brief-reader-v2 (#79, #83, #84); reusable parts moved to `section-polish`
 **Requires:** both
 
 ### Goal
@@ -954,10 +954,46 @@ Replace the single briefing call with one small call per category. The model onl
 - **Titles come from config.** Model-written titles were the source of the false "Upcoming Events and Trends" framing.
 - **Per-category calls fix the silent truncation risk.** The worst case was about 12k tokens in a single call.
 
+## Feature: section-polish
+
+**Branch:** `feature/section-polish`
+**Depends on:** cited-summary-page
+**Status:** Ready (supervised)
+**Requires:** ai
+
+### Goal
+
+Carry the still-useful parts of the superseded `category-briefing` into the brief-reader-v2 sections: readable titles, interest ordering, a hard token budget, and duplicate coverage in the sources.
+
+### Acceptance Criteria
+
+- [ ] Section titles come from configured category display names (`config/section_names.toml`, category → title), with no LLM involved. A category without an entry keeps its raw name. Fixture: a raw category name renders as its configured title on the page.
+- [ ] Sections are ordered by their highest article interest score (ties keep today's order). With no interests file, the order is unchanged.
+- [ ] Token budget: the per-section local writer, the Claude writer and `bakeoff` estimate each request's tokens (`CHARS_PER_TOKEN`) before sending. Over the budget, the lowest-interest articles are dropped from that request, one WARNING names the section and the count, and no recorded request exceeds the budget (stub test with a tiny budget).
+- [ ] Each cited source in the "Sources (N)" list shows its duplicates (`duplicate_of`, from briefing-dedupe) as "also covered by" links.
+- [ ] The signals golden test passes unchanged.
+- [ ] All tests pass
+- [ ] Lint clean
+
+### Files to Create or Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `config/section_names.toml` | Create | Display names |
+| `src/summarizers/writer.py` | Modify | Titles, ordering, budget |
+| `src/summarizers/claude_writer.py`, `src/summarizers/local.py`, `src/summarizers/bakeoff.py` | Modify | Shared budget helper |
+| `src/publishers/html.py`, `templates/dashboard.html` | Modify | Also-covered links in sources |
+| `tests/test_section_polish.py` | Create | The criteria above |
+
+### Key Decisions
+
+- **Titles from config, not the model.** From `category-briefing`: model-written titles produced false framings.
+- **Drop by interest, not by position.** The budget cuts what the operator cares about least.
+
 ## Feature: dates-ahead
 
 **Branch:** `feature/dates-ahead`
-**Depends on:** category-briefing
+**Depends on:** cited-summary-page (was category-briefing, superseded)
 **Status:** Held (deps)
 **Requires:** ai
 
