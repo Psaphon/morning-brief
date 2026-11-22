@@ -232,6 +232,32 @@ def bakeoff(model: str, date: str) -> None:
     click.echo(f"Wrote {write_report(report, Path('data'))}")
 
 
+@cli.group()
+def filings() -> None:
+    """Filings lane: SEC EDGAR 8-K filings."""
+
+
+@filings.command("fetch")
+def filings_fetch() -> None:
+    """Fetch new 8-Ks for the universe's stocks from EDGAR and store them.
+
+    Needs CONTACT_EMAIL; without it nothing is requested and the exit code is still 0.
+    Works whether or not FILINGS_ENABLED is set (that only gates the daily run).
+    """
+    import asyncio
+
+    from .fetchers.edgar import fetch_filings
+
+    config = load_config()
+    db = Database(config.database_path)
+    try:
+        db.connect()
+        summary = asyncio.run(fetch_filings(config, db))
+    finally:
+        db.close()
+    click.echo(summary.line())
+
+
 @cli.command()
 def deploy() -> None:
     """Deploy the latest dashboard to gh-pages branch."""
