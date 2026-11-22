@@ -250,6 +250,19 @@ async def run_pipeline() -> None:
 
         timer.lap("signals")
 
+        # Stage 2.7: EDGAR 8-K filings (optional, non-fatal; counts toward the run deadline)
+        if config.filings_enabled:
+            try:
+                from .fetchers.edgar import fetch_filings
+
+                filings_summary = await fetch_filings(config, db)
+                logger.info(filings_summary.line())
+            except Exception:
+                logger.exception("Filings fetch failed; pipeline continues")
+            timer.lap("filings")
+        else:
+            logger.debug("Filings fetch disabled (set FILINGS_ENABLED=true to enable)")
+
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
         candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)

@@ -13,6 +13,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# The SEC's published fair-access ceiling (requests per second); SEC_MAX_RPS is clamped to it.
+SEC_RPS_CEILING = 10
+DEFAULT_FILINGS_ITEMS = ("2.02", "7.01", "8.01", "1.01", "2.01", "5.02")
+
 VALIDATOR_MODES = ("enforce", "warn", "off")
 WRITER_MODES = ("local", "claude")
 
@@ -81,6 +85,11 @@ class Config:
     post_group_hours: int = 12
     contact_email: str = ""
     contact_url: str = ""
+    filings_enabled: bool = False
+    sec_max_rps: int = 5
+    sec_max_retries: int = 3
+    filings_items: tuple[str, ...] = DEFAULT_FILINGS_ITEMS
+    filings_lookback_days: int = 7
 
 
 def contact_from_env() -> tuple[str, str]:
@@ -89,6 +98,25 @@ def contact_from_env() -> tuple[str, str]:
         os.environ.get("CONTACT_EMAIL", "").strip(),
         os.environ.get("CONTACT_URL", "").strip(),
     )
+
+
+def _sec_max_rps() -> int:
+    """SEC_MAX_RPS (default 5); anything above the SEC ceiling is clamped with a WARNING."""
+    rps = int(os.environ.get("SEC_MAX_RPS", "5") or "5")
+    if rps > SEC_RPS_CEILING:
+        logger.warning("SEC_MAX_RPS=%d exceeds the SEC ceiling; using %d", rps, SEC_RPS_CEILING)
+        return SEC_RPS_CEILING
+    if rps < 1:
+        logger.warning("SEC_MAX_RPS=%d is not positive; using 1", rps)
+        return 1
+    return rps
+
+
+def _filings_items() -> tuple[str, ...]:
+    """FILINGS_ITEMS: comma-separated 8-K item numbers to keep (default 2.02,7.01,...)."""
+    raw = os.environ.get("FILINGS_ITEMS", "")
+    items = tuple(i.strip() for i in raw.split(",") if i.strip())
+    return items or DEFAULT_FILINGS_ITEMS
 
 
 def audit_min_words() -> int:
@@ -181,4 +209,9 @@ def load_config() -> Config:
         post_group_hours=int(os.environ.get("POST_GROUP_HOURS", "12")),
         contact_email=contact_from_env()[0],
         contact_url=contact_from_env()[1],
+        filings_enabled=os.environ.get("FILINGS_ENABLED", "").lower() in ("1", "true", "yes"),
+        sec_max_rps=_sec_max_rps(),
+        sec_max_retries=max(0, int(os.environ.get("SEC_MAX_RETRIES", "3") or "3")),
+        filings_items=_filings_items(),
+        filings_lookback_days=int(os.environ.get("FILINGS_LOOKBACK_DAYS", "7") or "7"),
     )

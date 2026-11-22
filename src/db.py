@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,25 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 
+-- Filings lane (SIGNAL-SCHEMA section 12). Deliberately outside the 2-day article retention.
+CREATE TABLE IF NOT EXISTS filings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    accession TEXT UNIQUE NOT NULL,
+    cik TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    form TEXT NOT NULL,
+    items TEXT NOT NULL,
+    accepted_at TEXT NOT NULL,
+    origin TEXT NOT NULL DEFAULT 'edgar',
+    fetched_at TEXT NOT NULL,
+    primary_doc_url TEXT,
+    primary_html BLOB,
+    exhibits BLOB,
+    primary_text TEXT,
+    exhibit_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_filings_ticker ON filings(ticker, accepted_at);
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -267,6 +287,61 @@ class Database:
             "SELECT fetched_at FROM articles WHERE url_hash = ?", (url_hash,)
         ).fetchone()
         return row["fetched_at"] == now
+
+    def has_filing(self, accession: str) -> bool:
+        """True when this accession number is already stored."""
+        row = self.conn.execute(
+            "SELECT 1 FROM filings WHERE accession = ?", (accession,)
+        ).fetchone()
+        return row is not None
+
+    def insert_filing(
+        self,
+        *,
+        accession: str,
+        cik: str,
+        ticker: str,
+        form: str,
+        items: list[str],
+        accepted_at: str,
+        fetched_at: str,
+        primary_doc_url: str,
+        primary_html: bytes,
+        exhibits: list[dict[str, str]],
+        primary_text: str,
+        exhibit_text: str,
+        origin: str = "edgar",
+    ) -> bool:
+        """Store one filing. Returns False (and changes nothing) if the accession exists.
+
+        ``primary_html`` and ``exhibits`` (a JSON list of {type, document, url, html}) are
+        zlib-compressed; the text columns hold the plain-text rendering.
+        """
+        exhibits_blob = zlib.compress(json.dumps(exhibits).encode("utf-8"))
+        cursor = self.conn.execute(
+            """INSERT INTO filings
+               (accession, cik, ticker, form, items, accepted_at, origin, fetched_at,
+                primary_doc_url, primary_html, exhibits, primary_text, exhibit_text)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(accession) DO NOTHING""",
+            (
+                accession,
+                cik,
+                ticker,
+                form,
+                ",".join(items),
+                accepted_at,
+                origin,
+                fetched_at,
+                primary_doc_url,
+                zlib.compress(primary_html),
+                exhibits_blob,
+                primary_text,
+                exhibit_text,
+            ),
+        )
+        self.conn.commit()
+        return cursor.rowcount == 1
 
     def cleanup_old_articles(self, max_age_days: int = 2) -> int:
         """Delete articles not seen in the last max_age_days days. Returns count deleted."""
