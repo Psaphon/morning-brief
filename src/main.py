@@ -250,6 +250,44 @@ async def run_pipeline() -> None:
 
         timer.lap("signals")
 
+        # Stage 2.7: EDGAR 8-K filings (optional, non-fatal; counts toward the run deadline)
+        if config.filings_enabled:
+            try:
+                from .fetchers.edgar import fetch_filings
+
+                filings_summary = await fetch_filings(config, db)
+                logger.info(filings_summary.line())
+            except Exception:
+                logger.exception("Filings fetch failed; pipeline continues")
+            timer.lap("filings")
+
+            # Stage 2.8: extract numbers from new earnings releases (local model, non-fatal)
+            try:
+                from .processors.filing_facts import extract_filings
+
+                facts_summary = await extract_filings(config, db)
+                logger.info(facts_summary.line())
+            except Exception:
+                logger.exception("Filing facts extraction failed; pipeline continues")
+            timer.lap("filings_extract")
+
+            # Stage 2.9: emit signals-filings.json for atrade (non-fatal)
+            try:
+                from .publishers.signals import load_ticker_map
+                from .publishers.signals_filings import emit_filings_signals
+
+                emit_filings_signals(
+                    db,
+                    config.signals_dir,
+                    load_ticker_map(Path("config/ticker_map.toml")),
+                    config,
+                )
+            except Exception:
+                logger.exception("Filings signal emission failed; pipeline continues")
+            timer.lap("filings_emit")
+        else:
+            logger.debug("Filings fetch disabled (set FILINGS_ENABLED=true to enable)")
+
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
         candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)

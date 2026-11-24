@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.1.0",
+  "emitted_at": "2026-11-22T09:31:04Z",
+  "universe_ref": "atrade/config/universe.toml@82c959e13d5d55f3b3871dbd496b39c023b57230",
+  "lane": "filings",
+  "events": [
+    {
+      "ticker": "AAPL",
+      "cik": "0000320193",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0000320193-26-000010",
+      "wire_id": null,
+      "knowable_at": "2026-02-01T21:31:12Z",
+      "period_end": "2025-12-27",
+      "direction": 0.42,
+      "direction_n": 3,
+      "components": {
+        "eps_yoy": 12.5,
+        "rev_yoy": 8.1,
+        "rev_accel": 1.3,
+        "guidance_change": null
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "MSFT",
+      "cik": "0000789019",
+      "event": "earnings",
+      "origin": "both",
+      "accession": "0000789019-26-000020",
+      "wire_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "knowable_at": "2026-01-28T21:05:00Z",
+      "period_end": "2025-12-31",
+      "direction": -0.2,
+      "direction_n": 4,
+      "components": {
+        "eps_yoy": -3.0,
+        "rev_yoy": 2.2,
+        "rev_accel": -0.8,
+        "guidance_change": -1
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "NVDA",
+      "cik": "0001045810",
+      "event": "guidance",
+      "origin": "wire",
+      "accession": null,
+      "wire_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "knowable_at": "2026-05-20T20:10:00Z",
+      "period_end": null,
+      "direction": 0.6,
+      "direction_n": 1,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": 1
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "JPM",
+      "cik": "0000019617",
+      "event": "acquisition",
+      "origin": "edgar",
+      "accession": "0000019617-26-000031",
+      "wire_id": null,
+      "knowable_at": "2026-03-03T13:45:30Z",
+      "period_end": null,
+      "direction": null,
+      "direction_n": 0,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "HD",
+      "cik": "0000354950",
+      "event": "agreement",
+      "origin": "wire",
+      "accession": null,
+      "wire_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "knowable_at": "2026-04-10T11:00:00Z",
+      "period_end": null,
+      "direction": null,
+      "direction_n": 0,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": false
+    },
+    {
+      "ticker": "XOM",
+      "cik": "0000034088",
+      "event": "exec_change",
+      "origin": "both",
+      "accession": "0000034088-18-000007",
+      "wire_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "knowable_at": "2018-06-14T12:30:00Z",
+      "period_end": null,
+      "direction": null,
+      "direction_n": 0,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": true
+    },
+    {
+      "ticker": "TSLA",
+      "cik": "0001318605",
+      "event": "earnings",
+      "origin": "edgar",
+      "accession": "0001318605-26-000044",
+      "wire_id": null,
+      "knowable_at": "2026-04-22T20:15:09Z",
+      "period_end": "2026-03-31",
+      "direction": null,
+      "direction_n": 0,
+      "components": {
+        "eps_yoy": null,
+        "rev_yoy": null,
+        "rev_accel": null,
+        "guidance_change": null
+      },
+      "in_model_window": false
+    }
+  ]
+}

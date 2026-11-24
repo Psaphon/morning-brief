@@ -13,6 +13,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# The SEC's published fair-access ceiling (requests per second); SEC_MAX_RPS is clamped to it.
+SEC_RPS_CEILING = 10
+DEFAULT_FILINGS_ITEMS = ("2.02", "7.01", "8.01", "1.01", "2.01", "5.02")
+
 VALIDATOR_MODES = ("enforce", "warn", "off")
 WRITER_MODES = ("local", "claude")
 
@@ -30,6 +34,63 @@ class OllamaConfig:
     # Briefing context window: up to READER_MAX_TOTAL articles with details.
     briefing_num_ctx: int = 32768
     chars_per_token: int = 4
+
+
+@dataclass
+class FilingFactsConfig:
+    """Filing-facts extraction and direction settings (all ``FILINGS_*`` env vars)."""
+
+    num_ctx: int = 16384
+    num_predict: int = 768
+    seed: int = 42
+    guidance_tolerance: float = 0.01
+    w_eps_yoy: float = 0.3
+    w_rev_yoy: float = 0.3
+    w_rev_accel: float = 0.2
+    w_guidance: float = 0.2
+    k_eps_yoy: float = 25.0
+    k_rev_yoy: float = 10.0
+    k_rev_accel: float = 5.0
+    k_guidance: float = 1.0
+
+    def weights(self) -> dict[str, float]:
+        return {
+            "eps_yoy": self.w_eps_yoy,
+            "rev_yoy": self.w_rev_yoy,
+            "rev_accel": self.w_rev_accel,
+            "guidance_change": self.w_guidance,
+        }
+
+    def scales(self) -> dict[str, float]:
+        return {
+            "eps_yoy": self.k_eps_yoy,
+            "rev_yoy": self.k_rev_yoy,
+            "rev_accel": self.k_rev_accel,
+            "guidance_change": self.k_guidance,
+        }
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    return float(raw) if raw else default
+
+
+def _filing_facts_config() -> FilingFactsConfig:
+    d = FilingFactsConfig()
+    return FilingFactsConfig(
+        num_ctx=int(_float_env("FILINGS_NUM_CTX", d.num_ctx)),
+        num_predict=int(_float_env("FILINGS_NUM_PREDICT", d.num_predict)),
+        seed=int(_float_env("FILINGS_SEED", d.seed)),
+        guidance_tolerance=_float_env("GUIDANCE_TOLERANCE", d.guidance_tolerance),
+        w_eps_yoy=_float_env("FILINGS_W_EPS_YOY", d.w_eps_yoy),
+        w_rev_yoy=_float_env("FILINGS_W_REV_YOY", d.w_rev_yoy),
+        w_rev_accel=_float_env("FILINGS_W_REV_ACCEL", d.w_rev_accel),
+        w_guidance=_float_env("FILINGS_W_GUIDANCE", d.w_guidance),
+        k_eps_yoy=_float_env("FILINGS_K_EPS_YOY", d.k_eps_yoy),
+        k_rev_yoy=_float_env("FILINGS_K_REV_YOY", d.k_rev_yoy),
+        k_rev_accel=_float_env("FILINGS_K_REV_ACCEL", d.k_rev_accel),
+        k_guidance=_float_env("FILINGS_K_GUIDANCE", d.k_guidance),
+    )
 
 
 @dataclass
@@ -81,6 +142,17 @@ class Config:
     post_group_hours: int = 12
     contact_email: str = ""
     contact_url: str = ""
+    filings_enabled: bool = False
+    sec_max_rps: int = 5
+    sec_max_retries: int = 3
+    filings_items: tuple[str, ...] = DEFAULT_FILINGS_ITEMS
+    filings_lookback_days: int = 7
+    filings_emit_days: int = 30
+    filings_model_cutoff: str = ""
+    backfill_since: str = "2016-01-01"
+    backfill_window_utc: str = "05:00-07:45"
+    filings_history_path: Path = Path("data/filings-history.jsonl")
+    filing_facts: FilingFactsConfig = field(default_factory=FilingFactsConfig)
 
 
 def contact_from_env() -> tuple[str, str]:
@@ -89,6 +161,25 @@ def contact_from_env() -> tuple[str, str]:
         os.environ.get("CONTACT_EMAIL", "").strip(),
         os.environ.get("CONTACT_URL", "").strip(),
     )
+
+
+def _sec_max_rps() -> int:
+    """SEC_MAX_RPS (default 5); anything above the SEC ceiling is clamped with a WARNING."""
+    rps = int(os.environ.get("SEC_MAX_RPS", "5") or "5")
+    if rps > SEC_RPS_CEILING:
+        logger.warning("SEC_MAX_RPS=%d exceeds the SEC ceiling; using %d", rps, SEC_RPS_CEILING)
+        return SEC_RPS_CEILING
+    if rps < 1:
+        logger.warning("SEC_MAX_RPS=%d is not positive; using 1", rps)
+        return 1
+    return rps
+
+
+def _filings_items() -> tuple[str, ...]:
+    """FILINGS_ITEMS: comma-separated 8-K item numbers to keep (default 2.02,7.01,...)."""
+    raw = os.environ.get("FILINGS_ITEMS", "")
+    items = tuple(i.strip() for i in raw.split(",") if i.strip())
+    return items or DEFAULT_FILINGS_ITEMS
 
 
 def audit_min_words() -> int:
@@ -181,4 +272,17 @@ def load_config() -> Config:
         post_group_hours=int(os.environ.get("POST_GROUP_HOURS", "12")),
         contact_email=contact_from_env()[0],
         contact_url=contact_from_env()[1],
+        filings_enabled=os.environ.get("FILINGS_ENABLED", "").lower() in ("1", "true", "yes"),
+        sec_max_rps=_sec_max_rps(),
+        sec_max_retries=max(0, int(os.environ.get("SEC_MAX_RETRIES", "3") or "3")),
+        filings_items=_filings_items(),
+        filings_lookback_days=int(os.environ.get("FILINGS_LOOKBACK_DAYS", "7") or "7"),
+        filings_emit_days=int(os.environ.get("FILINGS_EMIT_DAYS", "30") or "30"),
+        filings_model_cutoff=os.environ.get("FILINGS_MODEL_CUTOFF", "").strip(),
+        backfill_since=os.environ.get("FILINGS_BACKFILL_SINCE", "").strip() or "2016-01-01",
+        backfill_window_utc=os.environ.get("BACKFILL_WINDOW_UTC", "").strip() or "05:00-07:45",
+        filings_history_path=Path(v)
+        if (v := os.environ.get("FILINGS_HISTORY_PATH", "").strip())
+        else Path(os.environ.get("SIGNALS_DIR", "data/signals")).parent / "filings-history.jsonl",
+        filing_facts=_filing_facts_config(),
     )
