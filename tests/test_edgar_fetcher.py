@@ -447,7 +447,18 @@ async def test_failed_document_is_not_stored_and_retried_next_run(stub, db, tick
 # --- contact handling and logging -----------------------------------------------------
 
 
+class _FrozenDatetime(datetime):
+    """``datetime`` whose ``now()`` is the fixtures' NOW, for CLI legs that use the real clock."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW.astimezone(tz) if tz else NOW.replace(tzinfo=None)
+
+
 def _cli_env(monkeypatch, tmp_path, stub, ticker_map, **extra):
+    # The CLI calls fetch_filings with the real clock. Freeze it, or fixture filings
+    # age out of the lookback window and "future" ones stop being future (2026-11-24).
+    monkeypatch.setattr(edgar, "datetime", _FrozenDatetime)
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "cli.db"))
     monkeypatch.setenv("SEC_MAX_RPS", "10")
     monkeypatch.setattr(edgar, "SEC_DATA_BASE", stub.url)
