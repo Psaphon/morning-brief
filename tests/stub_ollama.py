@@ -14,6 +14,7 @@ from typing import Any
 
 BRIEFING_MARKER = "write a structured daily intelligence briefing"
 EXTRACTION_MARKER = "extract the facts from the following news article"
+FILING_MARKER = "extract the reported figures from the following earnings release"
 CANNED_SUMMARY = "A canned two-sentence summary. It exists only for tests."
 CANNED_DETAIL = "A canned detail sentence."
 MALFORMED_REPLY = '{"what_happened": "cut off mid-'
@@ -85,6 +86,8 @@ class _Handler(BaseHTTPRequestHandler):
         section = re.match(r"Section: (.*)", body.get("prompt", ""))
         if section:  # a bakeoff section request: plain text, keyed by section
             text = self.server.section_replies.get(section.group(1), CANNED_SUMMARY)  # type: ignore[attr-defined]
+        elif FILING_MARKER in body.get("prompt", ""):
+            text = self.server.filing_reply_text(body["prompt"])  # type: ignore[attr-defined]
         elif BRIEFING_MARKER in body.get("prompt", ""):
             text = json.dumps(self.server.briefing or CANNED_BRIEFING)  # type: ignore[attr-defined]
         elif EXTRACTION_MARKER in body.get("prompt", ""):
@@ -107,7 +110,13 @@ class _Server(ThreadingHTTPServer):
         self.briefing: dict[str, Any] | None = None
         self.section_replies: dict[str, str] = {}
         self.malformed_remaining = 0
+        # Filing-facts replies: a dict/str, or a callable(prompt) -> dict/str.
+        self.filing_reply: Any = {}
         self._lock = threading.Lock()
+
+    def filing_reply_text(self, prompt: str) -> str:
+        reply = self.filing_reply(prompt) if callable(self.filing_reply) else self.filing_reply
+        return reply if isinstance(reply, str) else json.dumps(reply)
 
     def extraction_reply(self, prompt: str) -> str:
         match = re.search(r"^Article title: (.*)$", prompt, re.MULTILINE)
@@ -158,6 +167,10 @@ class StubOllama:
     def section_reply(self, section: str, text: str) -> None:
         """Plain-text reply for a bakeoff request whose prompt starts ``Section: <section>``."""
         self._server.section_replies[section] = text
+
+    def set_filing_reply(self, reply: Any) -> None:
+        """Reply for filing-facts calls: a dict, a raw string, or ``callable(prompt)``."""
+        self._server.filing_reply = reply
 
     def malformed_next(self, n: int) -> None:
         """Return malformed JSON for the next *n* extraction calls."""

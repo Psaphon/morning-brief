@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morning-brief.invalid/schemas/signals-filings.schema.json",
+  "title": "Filings lane (docs/SIGNAL-SCHEMA.md §12)",
+  "description": "Validates signals-filings.json (use #/$defs/daily_file) and each line of filings-history.jsonl (use #/$defs/history_line). No free text is permitted anywhere.",
+  "x-schema-version": "1.1.0",
+  "$ref": "#/$defs/daily_file",
+  "$defs": {
+    "timestamp_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eps_yoy", "rev_yoy", "rev_accel", "guidance_change"],
+      "properties": {
+        "eps_yoy": { "type": ["number", "null"] },
+        "rev_yoy": { "type": ["number", "null"] },
+        "rev_accel": { "type": ["number", "null"] },
+        "guidance_change": { "enum": [-1, 0, 1, null] }
+      }
+    },
+    "event_fields": {
+      "type": "object",
+      "required": [
+        "ticker", "cik", "event", "origin", "accession", "wire_id", "knowable_at",
+        "period_end", "direction", "direction_n", "components", "in_model_window"
+      ],
+      "properties": {
+        "ticker": { "type": "string", "pattern": "^[A-Z]{1,5}$" },
+        "cik": { "type": "string", "pattern": "^[0-9]{10}$" },
+        "event": {
+          "enum": ["earnings", "guidance", "acquisition", "agreement", "exec_change"]
+        },
+        "origin": { "enum": ["edgar", "wire", "both"] },
+        "accession": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{10}-[0-9]{2}-[0-9]{6}$"
+        },
+        "wire_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "knowable_at": { "$ref": "#/$defs/timestamp_utc" },
+        "period_end": {
+          "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }]
+        },
+        "direction": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "direction_n": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "components": { "$ref": "#/$defs/components" },
+        "in_model_window": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "origin": { "const": "edgar" } }, "required": ["origin"] },
+          "then": {
+            "properties": {
+              "accession": { "type": "string" },
+              "wire_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "origin": { "const": "wire" } }, "required": ["origin"] },
+          "then": {
+            "properties": {
+              "accession": { "type": "null" },
+              "wire_id": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "origin": { "const": "both" } }, "required": ["origin"] },
+          "then": {
+            "properties": {
+              "accession": { "type": "string" },
+              "wire_id": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "direction_n": { "const": 0 } }, "required": ["direction_n"] },
+          "then": { "properties": { "direction": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "event": { "enum": ["acquisition", "agreement", "exec_change"] }
+            },
+            "required": ["event"]
+          },
+          "then": { "properties": { "direction": { "type": "null" } } }
+        },
+        {
+          "if": {
+            "properties": { "event": { "not": { "const": "earnings" } } },
+            "required": ["event"]
+          },
+          "then": { "properties": { "period_end": { "type": "null" } } }
+        }
+      ]
+    },
+    "event": {
+      "$comment": "Event record (§12.4). Closed set of keys.",
+      "allOf": [{ "$ref": "#/$defs/event_fields" }],
+      "unevaluatedProperties": false
+    },
+    "history_line": {
+      "$comment": "One line of filings-history.jsonl: an event record plus schema_version.",
+      "allOf": [
+        { "$ref": "#/$defs/event_fields" },
+        {
+          "type": "object",
+          "required": ["schema_version"],
+          "properties": { "schema_version": { "$ref": "#/$defs/semver" } }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "daily_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "emitted_at", "universe_ref", "lane", "events"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/semver" },
+        "emitted_at": { "$ref": "#/$defs/timestamp_utc" },
+        "universe_ref": { "type": "string", "pattern": "^[A-Za-z0-9_./@-]+$" },
+        "lane": { "const": "filings" },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+      }
+    }
+  }
+}
