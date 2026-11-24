@@ -1613,7 +1613,7 @@ Extract earnings and guidance numbers from each earnings release, verify them ag
 
 **Branch:** `feature/filings-signals`
 **Depends on:** filing-facts, atrade `filings-reader` merged (wire-feeds held 2026-11-22; EDGAR-only)
-**Status:** Ready (supervised)
+**Status:** Merged (#99)
 **Requires:** ai
 
 ### Goal
@@ -1622,13 +1622,13 @@ Emit `signals-filings.json` each run, next to the existing signals file.
 
 ### Acceptance Criteria
 
-- [ ] Each run writes `signals-filings.json` atomically (temp file and rename), with one record per event whose `knowable_at` falls within `FILINGS_EMIT_DAYS` (default 30).
-- [ ] The output validates against the committed schema. A test walks every string, and only enum values, tickers, timestamps and pattern-checked accession numbers are allowed.
-- [ ] A golden file for the filings output is added (`tests/fixtures/brief_fixture/signals-filings.golden.json`). The existing signals golden test passes unchanged.
-- [ ] The run time never appears as `knowable_at`: a fixture whose fetch happens two days after acceptance keeps the acceptance time.
-- [ ] With the lane disabled, no file is written and the existing output is byte-identical.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Each run writes `signals-filings.json` atomically (temp file and rename), with one record per event whose `knowable_at` falls within `FILINGS_EMIT_DAYS` (default 30).
+- [x] The output validates against the committed schema. A test walks every string, and only enum values, tickers, timestamps and pattern-checked accession numbers are allowed.
+- [x] A golden file for the filings output is added (`tests/fixtures/brief_fixture/signals-filings.golden.json`). The existing signals golden test passes unchanged.
+- [x] The run time never appears as `knowable_at`: a fixture whose fetch happens two days after acceptance keeps the acceptance time.
+- [x] With the lane disabled, no file is written and the existing output is byte-identical.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1643,7 +1643,7 @@ Emit `signals-filings.json` each run, next to the existing signals file.
 
 **Branch:** `feature/filings-backfill`
 **Depends on:** filing-facts
-**Status:** Held (deps)
+**Status:** Merged (#100)
 **Requires:** both
 
 ### Goal
@@ -1652,21 +1652,21 @@ Rebuild the filings history from EDGAR's archive so the hypothesis can be tested
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief filings backfill --since YYYY-MM-DD` does the following for every universe stock:
+- [x] `morning-brief filings backfill --since YYYY-MM-DD` does the following for every universe stock:
   - fetches historical earnings 8-Ks and their exhibits, including the API's older paged files
   - stores them in the same `filings` table
   - extracts facts with the same code as the daily run
   - writes `data/filings-history.jsonl` in the contract format
-- [ ] Each record carries `in_model_window` = `knowable_at` earlier than `FILINGS_MODEL_CUTOFF` (runtime config, the configured model's training-data cutoff).
-- [ ] Resumable: a second run skips stored accession numbers. A stub clock past `BACKFILL_WINDOW_UTC` stops the run cleanly at the next item, with a summary line.
-- [ ] Rate limiting and the User-Agent rule are the same as `edgar-fetcher`'s (shared client; a test shows it).
-- [ ] [HUMAN] The PM sets `FILINGS_MODEL_CUTOFF` from the model card, runs the backfill on hub, and posts these counts in the PR:
+- [x] Each record carries `in_model_window` = `knowable_at` earlier than `FILINGS_MODEL_CUTOFF` (runtime config, the configured model's training-data cutoff).
+- [x] Resumable: a second run skips stored accession numbers. A stub clock past `BACKFILL_WINDOW_UTC` stops the run cleanly at the next item, with a summary line.
+- [x] Rate limiting and the User-Agent rule are the same as `edgar-fetcher`'s (shared client; a test shows it).
+- [x] [HUMAN] The PM sets `FILINGS_MODEL_CUTOFF` from the model card, runs the backfill on hub, and posts these counts in the PR:
   - events per stock
   - verification rate
   - `direction_n` distribution
   - in-window vs out-of-window counts
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
