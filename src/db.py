@@ -559,6 +559,30 @@ class Database:
                 out[row["article_id"]] = [d for d in details if isinstance(d, str)]
         return out
 
+    def get_ticker_sentiment(self, article_ids: list[int]) -> dict[int, dict[str, int]]:
+        """Stored ``ticker_sentiment`` per article id (``{}`` when missing, old, or malformed)."""
+        out: dict[int, dict[str, int]] = {}
+        for i in range(0, len(article_ids), 500):  # stay under SQLite's variable limit
+            chunk = article_ids[i : i + 500]
+            marks = ",".join("?" * len(chunk))
+            rows = self.conn.execute(
+                f"SELECT article_id, json FROM extractions WHERE article_id IN ({marks})",
+                chunk,
+            ).fetchall()
+            for row in rows:
+                try:
+                    raw = json.loads(row["json"]).get("ticker_sentiment", {})
+                except (json.JSONDecodeError, AttributeError):
+                    raw = {}
+                if not isinstance(raw, dict):
+                    raw = {}
+                out[row["article_id"]] = {
+                    k: v
+                    for k, v in raw.items()
+                    if isinstance(k, str) and type(v) is int and v in (-1, 0, 1)
+                }
+        return out
+
     def mark_extraction_failed(self, article_id: int) -> None:
         """Flag an article whose extraction failed validation twice, so it is not retried."""
         self.conn.execute(

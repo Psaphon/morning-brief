@@ -16,6 +16,7 @@ from src.summarizers.local import (
     summarize_single,
 )
 from src.summarizers.schema import (
+    BASE_EXTRACTION_SCHEMA,
     EXTRACTION_SCHEMA,
     ExtractionError,
     parse_extraction,
@@ -270,7 +271,9 @@ def test_request_carries_schema_config_options_and_published_date(tmp_path, monk
     calls = [c["body"] for c in stub.generate_calls if EXTRACTION_MARKER in c["body"]["prompt"]]
     assert len(calls) == _summarizable(db)
     for body in calls:
-        assert body["format"] == EXTRACTION_SCHEMA
+        # ticker_sentiment is requested only for articles that matched tickers
+        asked = "ticker_sentiment" in body["prompt"]
+        assert body["format"] == (EXTRACTION_SCHEMA if asked else BASE_EXTRACTION_SCHEMA)
         assert body["think"] is False
         opts = body["options"]
         assert (opts["num_ctx"], opts["temperature"], opts["seed"], opts["num_predict"]) == (

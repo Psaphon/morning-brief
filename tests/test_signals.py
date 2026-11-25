@@ -290,7 +290,7 @@ def test_atomic_write_no_tmp_file_remains(tmp_path: Path):
 
     # Must parse as valid JSON with the expected envelope shape.
     artifact = json.loads(out.read_text())
-    assert artifact["schema_version"] == "1.0.0"
+    assert artifact["schema_version"] == "1.2.0"
     assert "emitted_at" in artifact
     assert "universe_ref" in artifact
     assert isinstance(artifact["signals"], list)
