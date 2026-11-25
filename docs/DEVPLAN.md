@@ -1084,7 +1084,7 @@ Write stack-relevant articles to a flag outbox that a downstream triage tool ing
 
 **Branch:** `feature/signal-direction`
 **Depends on:** article-extraction; atrade `signal-direction-reader` merged
-**Status:** Ready (supervised)
+**Status:** In Progress
 **Requires:** ai
 
 ### Goal
