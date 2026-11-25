@@ -21,7 +21,13 @@ from ..config import OllamaConfig
 from ..http import make_client
 from ..processors.interest import Interests, filter_by_feed_minimum, interest_score
 from ..validators.grounding import ValidatorRun
-from .schema import EXTRACTION_SCHEMA, ExtractionError, parse_extraction, trim_words
+from .schema import (
+    BASE_EXTRACTION_SCHEMA,
+    EXTRACTION_SCHEMA,
+    ExtractionError,
+    parse_extraction,
+    trim_words,
+)
 
 if TYPE_CHECKING:
     from ..db import Database
@@ -106,6 +112,22 @@ Published: {published}
 Article text:
 {text}
 """
+
+
+# Added to the prompt only when the article matched tickers (signals enabled).
+TICKER_SENTIMENT_INSTRUCTION = (
+    "- ticker_sentiment: an object with one entry for each of these tickers: {tickers}. "
+    "Use -1 if the article is bad news for that company, 0 if neutral or the company is only "
+    "mentioned, 1 if it is good news. Use only those tickers and only the integers -1, 0 or 1.\n"
+)
+
+
+def _with_ticker_instruction(prompt: str, tickers: list[str]) -> str:
+    """Insert the ticker_sentiment rule at the end of the rules, before the article block."""
+    marker = "\nArticle title:"
+    head, sep, tail = prompt.partition(marker)
+    rule = TICKER_SENTIMENT_INSTRUCTION.format(tickers=", ".join(tickers))
+    return head.rstrip("\n") + "\n" + rule + sep + tail
 
 
 @dataclass
@@ -284,8 +306,12 @@ async def summarize_single(
     client: httpx.AsyncClient,
     config: OllamaConfig,
     article: dict,
+    tickers: list[str] | None = None,
 ) -> SummaryResult:
     """Extract validated JSON facts from a single article via Ollama.
+
+    *tickers* (optional, non-empty) are the tickers the article matched; the prompt then
+    also asks for ``ticker_sentiment`` for them. Without them the request is unchanged.
 
     A reply that is not a valid extraction is retried once; a second invalid reply
     returns a result with ``extraction_failed`` set. The raw article text is never
@@ -314,6 +340,9 @@ async def summarize_single(
         published=_published_date(article),
         text=truncate_text(full_text, extraction_max_chars(config)),
     )
+    tickers = list(tickers) if tickers else []
+    if tickers:
+        prompt = _with_ticker_instruction(prompt, tickers)
 
     start = time.monotonic()
     transport_attempts = 0
@@ -330,7 +359,7 @@ async def summarize_single(
                     # Thinking models (gemma4) reason before answering unless told not to:
                     # slower, and it eats num_predict. Older models ignore the flag.
                     "think": False,
-                    "format": EXTRACTION_SCHEMA,
+                    "format": EXTRACTION_SCHEMA if tickers else BASE_EXTRACTION_SCHEMA,
                     "options": {
                         "num_ctx": config.num_ctx,
                         "temperature": config.extract_temperature,
@@ -345,7 +374,7 @@ async def summarize_single(
             try:
                 if not raw:
                     raise ExtractionError("Empty response from Ollama")
-                extraction = parse_extraction(raw, config.extract_max_words)
+                extraction = parse_extraction(raw, config.extract_max_words, tickers)
             except ExtractionError as e:
                 invalid_replies += 1
                 if invalid_replies < 2:
@@ -410,8 +439,12 @@ async def _async_sleep(seconds: float) -> None:
 async def summarize_articles(
     config: OllamaConfig,
     articles: list[dict],
+    tickers_by_article: dict[int, list[str]] | None = None,
 ) -> tuple[list[SummaryResult], BatchMetrics]:
     """Summarize a batch of articles via Ollama.
+
+    *tickers_by_article* maps article id to its matched tickers; articles without an
+    entry get no ticker list.
 
     Processes articles in small batches with pauses to avoid
     overwhelming the local model.
@@ -464,7 +497,11 @@ async def summarize_articles(
             )
 
             for article in batch:
-                result = await summarize_single(client, config, article)
+                tickers = (tickers_by_article or {}).get(article["id"])
+                if tickers:
+                    result = await summarize_single(client, config, article, tickers)
+                else:
+                    result = await summarize_single(client, config, article)
                 results.append(result)
 
                 if result.success:

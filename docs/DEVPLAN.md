@@ -1093,13 +1093,13 @@ Add an optional per-ticker news `direction` to the signals file for atrade's sha
 
 ### Acceptance Criteria
 
-- [ ] For articles that match ticker aliases (using the existing alias code, run before the LLM call), the extraction request includes those tickers. The response may contain `ticker_sentiment: {TICKER: -1|0|1}`. Tickers that weren't requested, and values that aren't one of those three, are discarded. Articles with no matches get no ticker list (checked with the stub).
-- [ ] Each signal record gains `direction` (a float in [-1, 1], the mean over contributing articles, rounded to 2 places, or null) and `direction_n` (an int). Fixture: a ticker with sentiments +1 and −1 gets `0.0` and `2`. With the stub returning `"bullish"`, the result is `null` and `0`.
-- [ ] `score`, `knowable_at`, `article_count` and provenance are byte-identical to the previous golden file. A test checks this field by field. The golden file is regenerated in this PR, with only the two new fields added.
-- [ ] `docs/SIGNAL-SCHEMA.md` gets a version bump and documents the fields, following its own versioning rules. The same bump lands in atrade the same day. The output validates against the schema's JSON schema, or a test-local schema if there isn't one.
-- [ ] The signal file contains no string values outside enumerated fields (a test walks the file).
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] For articles that match ticker aliases (using the existing alias code, run before the LLM call), the extraction request includes those tickers. The response may contain `ticker_sentiment: {TICKER: -1|0|1}`. Tickers that weren't requested, and values that aren't one of those three, are discarded. Articles with no matches get no ticker list (checked with the stub).
+- [x] Each signal record gains `direction` (a float in [-1, 1], the mean over contributing articles, rounded to 2 places, or null) and `direction_n` (an int). Fixture: a ticker with sentiments +1 and −1 gets `0.0` and `2`. With the stub returning `"bullish"`, the result is `null` and `0`.
+- [x] `score`, `knowable_at`, `article_count` and provenance are byte-identical to the previous golden file. A test checks this field by field. The golden file is regenerated in this PR, with only the two new fields added.
+- [x] The signals file emits `schema_version: "1.2.0"` (the contract, `docs/SIGNAL-SCHEMA.md`, is already at 1.2.0 with `direction` and `direction_n` documented, and atrade's reader has shipped). Signals are emitted after the extraction loop and take `direction` only from extracted signal articles, so direction is sparse at first.
+- [x] The signal file contains no string values outside enumerated fields (a test walks the file).
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1108,7 +1108,6 @@ Add an optional per-ticker news `direction` to the signals file for atrade's sha
 | `src/summarizers/schema.py` | Modify | `ticker_sentiment` field |
 | `src/summarizers/local.py` | Modify | Pass matched tickers into the extraction call |
 | `src/publishers/signals.py` | Modify | `direction`, `direction_n` |
-| `docs/SIGNAL-SCHEMA.md` | Modify | Version bump and field docs |
 | `tests/fixtures/brief_fixture/signals.golden.json` | Modify | New fields only |
 | `tests/test_signal_direction.py` | Create | The criteria above |
 

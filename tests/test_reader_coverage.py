@@ -17,7 +17,7 @@ from tests.stub_ollama import EXTRACTION_MARKER, UNGROUNDED_SENTENCE, StubOllama
 from tests.test_extraction import VALID, _briefing_prompts, _raw, _rows
 from tests.test_signals_golden import load_fixture_articles, run_pipeline_on
 
-STAGES = ["fetch", "process", "score", "signals", "summarize", "briefing", "publish"]
+STAGES = ["fetch", "process", "score", "summarize", "signals", "briefing", "publish"]
 
 
 @pytest.fixture(autouse=True)
@@ -308,7 +308,7 @@ def test_timing_line_is_logged_and_no_warning_within_deadline(tmp_path, monkeypa
 def test_deadline_warning_names_deadline_and_slowest_stage(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("RUN_DEADLINE_MINUTES", "60")
     # Clock reads: timer start, then one per stage; summarize takes 4000 s of the 4060 s.
-    ticks = iter([0, 10, 20, 30, 40, 4040, 4050, 4060])
+    ticks = iter([0, 10, 20, 30, 4030, 4040, 4050, 4060])
     monkeypatch.setattr("src.main._clock", lambda: next(ticks))
 
     with caplog.at_level(logging.INFO):

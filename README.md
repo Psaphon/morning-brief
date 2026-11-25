@@ -51,6 +51,13 @@ the SECRETS USB), plus three plain settings to recreate after a rebuild:
 Signals for atrade are on by default (`SIGNALS_ENABLED`, set in `docker-compose.yml`) and land in
 `data/signals/`. The last run's full output is `~/.local/state/morning-brief-last-run.log`.
 
+Each signal record (contract 1.2.0) also has an optional `direction`: the mean of a per-ticker
+news sentiment (-1 bad, 0 neutral, +1 good for that company) over the contributing articles, with
+`direction_n` counting them. It comes from the existing extraction call (no extra model call), so
+it is sparse: only signal articles that were extracted this run contribute, and the rest give
+`direction: null`, `direction_n: 0`. Signals are written after extraction for that reason. `score`
+is unchanged.
+
 ### Claude section writer (optional)
 
 By default (`SUMMARY_WRITER=local`) the briefing is one local-model call, as before. With

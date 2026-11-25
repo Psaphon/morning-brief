@@ -9,9 +9,13 @@ prefix text, not valid JSON) and the date format is not expressible in the schem
 from __future__ import annotations
 
 import json
+import logging
 import re
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Long articles otherwise list every name and figure, and the reply runs past
 # num_predict mid-string (seen on hub: 7 of 100 replies cut off). Ten each keeps
@@ -35,6 +39,8 @@ EXTRACTION_SCHEMA: dict = {
         "event_date": {"type": ["string", "null"]},
         "status": {"type": "string", "enum": list(STATUSES)},
         "is_roundup": {"type": "boolean"},
+        # Optional: only asked for when the article matched tickers (see the prompt).
+        "ticker_sentiment": {"type": "object", "additionalProperties": {"type": "integer"}},
     },
     "required": [
         "what_happened",
@@ -46,6 +52,17 @@ EXTRACTION_SCHEMA: dict = {
         "is_roundup",
     ],
 }
+
+# Without matched tickers the request carries the schema minus ticker_sentiment, so it
+# is byte-identical to what it was before the field existed.
+BASE_EXTRACTION_SCHEMA: dict = {
+    **EXTRACTION_SCHEMA,
+    "properties": {
+        k: v for k, v in EXTRACTION_SCHEMA["properties"].items() if k != "ticker_sentiment"
+    },
+}
+
+SENTIMENT_VALUES = (-1, 0, 1)
 
 MAX_SENTENCES = 2
 
@@ -86,11 +103,35 @@ def _is_str_list(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(v, str) for v in value)
 
 
-def parse_extraction(raw: str, max_words: int) -> dict:
+def _clean_ticker_sentiment(value: Any, allowed: frozenset[str]) -> dict[str, int]:
+    """Keep only requested tickers whose value is exactly the int -1, 0 or 1.
+
+    Never raises: anything else (wrong type, unrequested key, bool, 0.5, "bullish")
+    is dropped, so a bad sentiment can never fail or retry an extraction.
+    """
+    if not isinstance(value, dict):
+        if value is not None:
+            logger.debug("Dropping ticker_sentiment of type %s", type(value).__name__)
+        return {}
+    clean: dict[str, int] = {}
+    for key, val in value.items():
+        if key not in allowed:
+            logger.debug("Dropping unrequested ticker_sentiment key")
+        elif type(val) is not int or val not in SENTIMENT_VALUES:
+            logger.debug("Dropping invalid ticker_sentiment value for %s", key)
+        else:
+            clean[key] = val
+    return clean
+
+
+def parse_extraction(raw: str, max_words: int, allowed_tickers: Iterable[str] = ()) -> dict:
     """Parse and validate a model reply; ``what_happened`` is trimmed to *max_words*.
 
     Each ``details`` item is trimmed to one sentence of at most ``DETAIL_MAX_WORDS``
     words; items left empty are dropped and at most ``MAX_DETAILS`` are kept.
+
+    ``ticker_sentiment`` keeps only keys in *allowed_tickers* whose value is exactly the
+    int -1, 0 or 1; it is ``{}`` when nothing valid remains and never raises.
 
     Raises:
         ExtractionError: not valid JSON, not an object, a field is missing or of the
@@ -139,4 +180,7 @@ def parse_extraction(raw: str, max_words: int) -> dict:
         "event_date": event_date,
         "status": data["status"],
         "is_roundup": data["is_roundup"],
+        "ticker_sentiment": _clean_ticker_sentiment(
+            data.get("ticker_sentiment"), frozenset(allowed_tickers)
+        ),
     }

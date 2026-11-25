@@ -30,7 +30,7 @@ from ..timeutil import parse_timestamp, to_utc_z
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.2.0"
 
 
 class SignalEmitError(Exception):
@@ -210,6 +210,7 @@ def _provenance_published_at(article: dict[str, Any]) -> str | None:
 def build_signals(
     matched: dict[str, list[dict[str, Any]]],
     universe_ref: str,
+    sentiment: dict[int, dict[str, int]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build one signal record per ticker that has at least one scored article.
 
@@ -217,6 +218,9 @@ def build_signals(
       §4 — score is the MEAN of contributing article scores, rounded to 4 dp.
       §5 — knowable_at = max(published_at or fetched_at) across contributors, as UTC.
       §3 — no free text: articles reach the artifact only as url_hash + score.
+      direction — mean of the per-article ticker sentiment (-1/0/1) over contributing
+           articles that have one, rounded to 2 dp; direction_n counts them. No
+           sentiment at all: direction null, direction_n 0. Never affects score.
       §7 — provenance carries article_id, source (lowercased), url_hash,
            published_at (null retained so auditors can see which used fetched_at).
     """
@@ -247,12 +251,21 @@ def build_signals(
             for a, _ in scored
         ]
 
+        votes = [
+            sentiment[a["id"]][symbol]
+            for a, _ in scored
+            if sentiment and symbol in sentiment.get(a["id"], {})
+        ]
+        direction = round(sum(votes) / len(votes), 2) if votes else None
+
         signals.append(
             {
                 "ticker": symbol,
                 "score": mean_score,
                 "knowable_at": knowable_at,
                 "article_count": len(scored),
+                "direction": direction,
+                "direction_n": len(votes),
                 "provenance": provenance,
             }
         )
@@ -270,6 +283,7 @@ def emit_signals(
     ticker_map: TickerMap,
     signals_dir: Path,
     universe_ref: str | None = None,
+    sentiment: dict[int, dict[str, int]] | None = None,
 ) -> Path | None:
     """Match articles to tickers and write a versioned signal artifact atomically.
 
@@ -286,7 +300,7 @@ def emit_signals(
 
     ref = universe_ref if universe_ref is not None else ticker_map.universe_ref
     matched = match_articles_to_tickers(articles, ticker_map)
-    signals = build_signals(matched, ref)
+    signals = build_signals(matched, ref, sentiment)
 
     now = datetime.now(timezone.utc)
     emitted_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")

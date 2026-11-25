@@ -110,6 +110,9 @@ class _Server(ThreadingHTTPServer):
         self.briefing: dict[str, Any] | None = None
         self.section_replies: dict[str, str] = {}
         self.malformed_remaining = 0
+        # Added to every extraction reply as ``ticker_sentiment``, verbatim (so tests can
+        # send junk): a value, or ``callable(title) -> value``. None leaves the reply alone.
+        self.ticker_sentiment: Any = None
         # Filing-facts replies: a dict/str, or a callable(prompt) -> dict/str.
         self.filing_reply: Any = {}
         self._lock = threading.Lock()
@@ -127,13 +130,15 @@ class _Server(ThreadingHTTPServer):
                 return MALFORMED_REPLY
         if title in self.malformed_titles:
             return MALFORMED_REPLY
-        return json.dumps(
-            canned_extraction(
-                title,
-                is_roundup=title in self.roundup_titles,
-                ungrounded=title in self.ungrounded_titles,
-            )
+        reply = canned_extraction(
+            title,
+            is_roundup=title in self.roundup_titles,
+            ungrounded=title in self.ungrounded_titles,
         )
+        if self.ticker_sentiment is not None:
+            sentiment = self.ticker_sentiment
+            reply["ticker_sentiment"] = sentiment(title) if callable(sentiment) else sentiment
+        return json.dumps(reply)
 
 
 class StubOllama:
@@ -171,6 +176,10 @@ class StubOllama:
     def set_filing_reply(self, reply: Any) -> None:
         """Reply for filing-facts calls: a dict, a raw string, or ``callable(prompt)``."""
         self._server.filing_reply = reply
+
+    def set_ticker_sentiment(self, value: Any) -> None:
+        """Add ``ticker_sentiment`` to every extraction reply: a value or ``callable(title)``."""
+        self._server.ticker_sentiment = value
 
     def malformed_next(self, n: int) -> None:
         """Return malformed JSON for the next *n* extraction calls."""
