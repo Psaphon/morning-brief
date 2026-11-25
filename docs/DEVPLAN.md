@@ -1084,7 +1084,7 @@ Write stack-relevant articles to a flag outbox that a downstream triage tool ing
 
 **Branch:** `feature/signal-direction`
 **Depends on:** article-extraction; atrade `signal-direction-reader` merged
-**Status:** Ready (supervised)
+**Status:** Merged (#104)
 **Requires:** ai
 
 ### Goal
@@ -1093,13 +1093,13 @@ Add an optional per-ticker news `direction` to the signals file for atrade's sha
 
 ### Acceptance Criteria
 
-- [ ] For articles that match ticker aliases (using the existing alias code, run before the LLM call), the extraction request includes those tickers. The response may contain `ticker_sentiment: {TICKER: -1|0|1}`. Tickers that weren't requested, and values that aren't one of those three, are discarded. Articles with no matches get no ticker list (checked with the stub).
-- [ ] Each signal record gains `direction` (a float in [-1, 1], the mean over contributing articles, rounded to 2 places, or null) and `direction_n` (an int). Fixture: a ticker with sentiments +1 and −1 gets `0.0` and `2`. With the stub returning `"bullish"`, the result is `null` and `0`.
-- [ ] `score`, `knowable_at`, `article_count` and provenance are byte-identical to the previous golden file. A test checks this field by field. The golden file is regenerated in this PR, with only the two new fields added.
-- [ ] `docs/SIGNAL-SCHEMA.md` gets a version bump and documents the fields, following its own versioning rules. The same bump lands in atrade the same day. The output validates against the schema's JSON schema, or a test-local schema if there isn't one.
-- [ ] The signal file contains no string values outside enumerated fields (a test walks the file).
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] For articles that match ticker aliases (using the existing alias code, run before the LLM call), the extraction request includes those tickers. The response may contain `ticker_sentiment: {TICKER: -1|0|1}`. Tickers that weren't requested, and values that aren't one of those three, are discarded. Articles with no matches get no ticker list (checked with the stub).
+- [x] Each signal record gains `direction` (a float in [-1, 1], the mean over contributing articles, rounded to 2 places, or null) and `direction_n` (an int). Fixture: a ticker with sentiments +1 and −1 gets `0.0` and `2`. With the stub returning `"bullish"`, the result is `null` and `0`.
+- [x] `score`, `knowable_at`, `article_count` and provenance are byte-identical to the previous golden file. A test checks this field by field. The golden file is regenerated in this PR, with only the two new fields added.
+- [x] The signals file emits `schema_version: "1.2.0"` (the contract, `docs/SIGNAL-SCHEMA.md`, is already at 1.2.0 with `direction` and `direction_n` documented, and atrade's reader has shipped). Signals are emitted after the extraction loop and take `direction` only from extracted signal articles, so direction is sparse at first.
+- [x] The signal file contains no string values outside enumerated fields (a test walks the file).
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1108,7 +1108,6 @@ Add an optional per-ticker news `direction` to the signals file for atrade's sha
 | `src/summarizers/schema.py` | Modify | `ticker_sentiment` field |
 | `src/summarizers/local.py` | Modify | Pass matched tickers into the extraction call |
 | `src/publishers/signals.py` | Modify | `direction`, `direction_n` |
-| `docs/SIGNAL-SCHEMA.md` | Modify | Version bump and field docs |
 | `tests/fixtures/brief_fixture/signals.golden.json` | Modify | New fields only |
 | `tests/test_signal_direction.py` | Create | The criteria above |
 
@@ -1411,7 +1410,7 @@ Every outbound fetch identifies the tool and a way to reach the operator, and th
 
 **Branch:** `feature/filings-contract`
 **Depends on:** feed-lanes
-**Status:** Ready (supervised)
+**Status:** Merged (#94)
 **Requires:** ai
 
 ### Goal
@@ -1420,7 +1419,7 @@ Define the filings-lane file and the backfill history file in SIGNAL-SCHEMA, and
 
 ### Acceptance Criteria
 
-- [ ] `docs/SIGNAL-SCHEMA.md` gets the next minor version and a new section for `signals-filings.json` and `filings-history.jsonl`, following §8's rules. The section covers:
+- [x] `docs/SIGNAL-SCHEMA.md` gets the next minor version and a new section for `signals-filings.json` and `filings-history.jsonl`, following §8's rules. The section covers:
   - every field and its type
   - the enums: `lane` = `filings`; `event` = `earnings`, `guidance`, `acquisition`, `agreement`, `exec_change`; `origin` = `edgar`, `wire`, `both`
   - the `direction` range [-1, 1], or null
@@ -1428,13 +1427,13 @@ Define the filings-lane file and the backfill history file in SIGNAL-SCHEMA, and
   - the component fields: `eps_yoy`, `rev_yoy`, `rev_accel`, `guidance_change`
   - `in_model_window` (bool)
   - the `knowable_at` rule from Constraints
-- [ ] A JSON schema file for both new files is committed. A test validates the synthetic fixtures against it.
-- [ ] `config/ticker_map.toml` gains `cik` for every stock symbol and none for ETFs. A test loads the real file and fails if any stock lacks a 10-digit CIK or any ETF has one.
-- [ ] The signals golden test passes unchanged: adding `cik` does not alter matching.
-- [ ] The same SIGNAL-SCHEMA text lands in atrade (companion `filings-reader`) the same day.
-- [ ] [HUMAN] The PM checks each CIK against EDGAR's company search on hub.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] A JSON schema file for both new files is committed. A test validates the synthetic fixtures against it.
+- [x] `config/ticker_map.toml` gains `cik` for every stock symbol and none for ETFs. A test loads the real file and fails if any stock lacks a 10-digit CIK or any ETF has one.
+- [x] The signals golden test passes unchanged: adding `cik` does not alter matching.
+- [x] The same SIGNAL-SCHEMA text lands in atrade (companion `filings-reader`) the same day.
+- [x] [HUMAN] The PM checks each CIK against EDGAR's company search on hub.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1455,7 +1454,7 @@ Define the filings-lane file and the backfill history file in SIGNAL-SCHEMA, and
 
 **Branch:** `feature/edgar-fetcher`
 **Depends on:** filings-contract, fetch-contact
-**Status:** Ready (supervised)
+**Status:** Merged (#96)
 **Requires:** both
 
 ### Goal
@@ -1464,7 +1463,7 @@ Each run, fetch new 8-K filings for the universe's stocks from EDGAR, with their
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief filings fetch` reads the CIKs from the alias map and gets each company's recent filings from EDGAR's JSON submissions API *(PM verifies the endpoint)*. For each new 8-K it stores:
+- [x] `morning-brief filings fetch` reads the CIKs from the alias map and gets each company's recent filings from EDGAR's JSON submissions API *(PM verifies the endpoint)*. For each new 8-K it stores:
   - accession number
   - CIK and ticker
   - acceptance time (UTC)
@@ -1472,21 +1471,21 @@ Each run, fetch new 8-K filings for the universe's stocks from EDGAR, with their
   - the primary document's and Exhibit 99.x's text
   - `origin = edgar`
   - fetch time
-- [ ] Only items listed in `FILINGS_ITEMS` are stored (default `2.02,7.01,8.01,1.01,2.01,5.02`). Re-running is idempotent: accession numbers are unique.
-- [ ] Acceptance-time conversion is tested on fixtures on both sides of a daylight-saving change.
-- [ ] [HUMAN] The PM confirms which zone the API's acceptance time is really in, by comparing one known filing with its EDGAR index page, and records the answer in a code comment and the test.
-- [ ] With `CONTACT_EMAIL` unset, the command exits 0, logs one WARNING and stores nothing. A stub HTTP server records that no request was made.
-- [ ] Against the stub server:
+- [x] Only items listed in `FILINGS_ITEMS` are stored (default `2.02,7.01,8.01,1.01,2.01,5.02`). Re-running is idempotent: accession numbers are unique.
+- [x] Acceptance-time conversion is tested on fixtures on both sides of a daylight-saving change.
+- [x] [HUMAN] The PM confirms which zone the API's acceptance time is really in, by comparing one known filing with its EDGAR index page, and records the answer in a code comment and the test.
+- [x] With `CONTACT_EMAIL` unset, the command exits 0, logs one WARNING and stores nothing. A stub HTTP server records that no request was made.
+- [x] Against the stub server:
   - every request carries the User-Agent
   - no more than `SEC_MAX_RPS` requests are sent in any one-second window
   - a 429 triggers backoff
   - repeated 403s stop the run for that day with an ERROR
   - the contact address is absent from captured logs
-- [ ] The daily `morning-brief` run calls the fetch step when the `filings` lane is enabled. A fetch failure is logged and never fails the brief.
-- [ ] The signals golden test passes unchanged.
-- [ ] [HUMAN] With `CONTACT_EMAIL` already set by `fetch-contact`, the PM confirms one real run stores the latest earnings 8-K for at least one stock.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] The daily `morning-brief` run calls the fetch step when the `filings` lane is enabled. A fetch failure is logged and never fails the brief.
+- [x] The signals golden test passes unchanged.
+- [x] [HUMAN] With `CONTACT_EMAIL` already set by `fetch-contact`, the PM confirms one real run stores the latest earnings 8-K for at least one stock.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1508,7 +1507,7 @@ Each run, fetch new 8-K filings for the universe's stocks from EDGAR, with their
 
 **Branch:** `feature/wire-feeds`
 **Depends on:** edgar-fetcher
-**Status:** Ready (supervised)
+**Status:** Held (no qualifying feed, 2026-11-22)
 **Requires:** both
 
 ### Goal
@@ -1551,11 +1550,18 @@ Add press-release wire feeds to the `filings` lane, matched to universe stocks o
 
 GlobeNewswire publishes public RSS feeds, including site-wide, public-company, subject and industry feeds. PR Newswire publishes RSS and full-text feeds. The PM verifies the current URLs.
 
+### Hold reason (PM, 2026-11-22)
+
+- No free, full-text wire feed works from hub: PR Newswire's RSS carries only ~290-character summaries; GlobeNewswire returns 403 to hub even with the contact User-Agent; Business Wire's public RSS returns no items.
+- EDGAR already carries every universe earnings release as an 8-K EX-99.1, accepted 0–20 minutes after the wire (e.g. 2 min for one pre-market release, 18 min for another). With one brief a day, the wire adds no usable lead time.
+- Revisit if a free full-text wire becomes reachable, or if the lane moves to intraday runs. The contract's `origin = wire | both` values stay defined but unused.
+
+
 ## Feature: filing-facts
 
 **Branch:** `feature/filing-facts`
 **Depends on:** edgar-fetcher
-**Status:** Ready (supervised)
+**Status:** Merged (#97)
 **Requires:** both
 
 ### Goal
@@ -1564,28 +1570,28 @@ Extract earnings and guidance numbers from each earnings release, verify them ag
 
 ### Acceptance Criteria
 
-- [ ] For each stored `2.02` event (or wire earnings release), one local-model call returns JSON matching a strict schema:
+- [x] For each stored `2.02` event (or wire earnings release), one local-model call returns JSON matching a strict schema:
   - diluted EPS, current and prior-year period
   - revenue, current and prior-year period
   - the guidance range for the next period or year, if given (low, high, metric, period)
   - each value as written plus its scale ("in millions")
 
   Invalid JSON is retried once, then stored as failed.
-- [ ] Every extracted number is checked against the source text after normalization: commas, currency symbols, parentheses for negatives, and "billion"/"million". An unverified value is set to null and counted. Fixtures:
+- [x] Every extracted number is checked against the source text after normalization: commas, currency symbols, parentheses for negatives, and "billion"/"million". An unverified value is set to null and counted. Fixtures:
   - a release whose numbers are all present verifies fully
   - an altered number is nulled
-- [ ] Code computes the components:
+- [x] Code computes the components:
   - `eps_yoy` and `rev_yoy`, as % change between the current and prior-year values from the same release, so the scale cancels
   - `rev_accel`: this quarter's `rev_yoy` minus the same company's previous quarter's, from stored history
   - `guidance_change`: +1, 0 or -1, comparing this release's guidance midpoint with the same metric and period's midpoint from the company's previous release in the table, beyond `GUIDANCE_TOLERANCE`
-- [ ] `direction` = `clip(Σ wᵢ·tanh(componentᵢ / kᵢ), -1, 1)`, over verified components only, with weights renormalized. Weights and `k` come from config. `direction_n` is the number of components used; with none, direction is null.
-- [ ] A test with a stub model shows:
+- [x] `direction` = `clip(Σ wᵢ·tanh(componentᵢ / kᵢ), -1, 1)`, over verified components only, with weights renormalized. Weights and `k` come from config. `direction_n` is the number of components used; with none, direction is null.
+- [x] A test with a stub model shows:
   - the prompt contains no instruction to judge good or bad news
   - the model's output can't set `direction` directly (an injected `"direction": 1` in the output is ignored)
-- [ ] The call sends `num_ctx` and the deterministic temperature and seed from config, and trims long releases to the financial tables and highlights *(implementation decides how)* within the context budget.
-- [ ] [HUMAN] The PM runs it on hub on the last four earnings releases of three universe stocks and posts each extracted value next to the release text in a PR comment.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] The call sends `num_ctx` and the deterministic temperature and seed from config, and trims long releases to the financial tables and highlights *(implementation decides how)* within the context budget.
+- [x] [HUMAN] The PM runs it on hub on the last four earnings releases of three universe stocks and posts each extracted value next to the release text in a PR comment.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1605,8 +1611,8 @@ Extract earnings and guidance numbers from each earnings release, verify them ag
 ## Feature: filings-signals
 
 **Branch:** `feature/filings-signals`
-**Depends on:** filing-facts, wire-feeds, atrade `filings-reader` merged
-**Status:** Ready (supervised)
+**Depends on:** filing-facts, atrade `filings-reader` merged (wire-feeds held 2026-11-22; EDGAR-only)
+**Status:** Merged (#99)
 **Requires:** ai
 
 ### Goal
@@ -1615,13 +1621,13 @@ Emit `signals-filings.json` each run, next to the existing signals file.
 
 ### Acceptance Criteria
 
-- [ ] Each run writes `signals-filings.json` atomically (temp file and rename), with one record per event whose `knowable_at` falls within `FILINGS_EMIT_DAYS` (default 30).
-- [ ] The output validates against the committed schema. A test walks every string, and only enum values, tickers, timestamps and pattern-checked accession numbers are allowed.
-- [ ] A golden file for the filings output is added (`tests/fixtures/brief_fixture/signals-filings.golden.json`). The existing signals golden test passes unchanged.
-- [ ] The run time never appears as `knowable_at`: a fixture whose fetch happens two days after acceptance keeps the acceptance time.
-- [ ] With the lane disabled, no file is written and the existing output is byte-identical.
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] Each run writes `signals-filings.json` atomically (temp file and rename), with one record per event whose `knowable_at` falls within `FILINGS_EMIT_DAYS` (default 30).
+- [x] The output validates against the committed schema. A test walks every string, and only enum values, tickers, timestamps and pattern-checked accession numbers are allowed.
+- [x] A golden file for the filings output is added (`tests/fixtures/brief_fixture/signals-filings.golden.json`). The existing signals golden test passes unchanged.
+- [x] The run time never appears as `knowable_at`: a fixture whose fetch happens two days after acceptance keeps the acceptance time.
+- [x] With the lane disabled, no file is written and the existing output is byte-identical.
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 
@@ -1636,7 +1642,7 @@ Emit `signals-filings.json` each run, next to the existing signals file.
 
 **Branch:** `feature/filings-backfill`
 **Depends on:** filing-facts
-**Status:** Held (deps)
+**Status:** Merged (#100)
 **Requires:** both
 
 ### Goal
@@ -1645,21 +1651,21 @@ Rebuild the filings history from EDGAR's archive so the hypothesis can be tested
 
 ### Acceptance Criteria
 
-- [ ] `morning-brief filings backfill --since YYYY-MM-DD` does the following for every universe stock:
+- [x] `morning-brief filings backfill --since YYYY-MM-DD` does the following for every universe stock:
   - fetches historical earnings 8-Ks and their exhibits, including the API's older paged files
   - stores them in the same `filings` table
   - extracts facts with the same code as the daily run
   - writes `data/filings-history.jsonl` in the contract format
-- [ ] Each record carries `in_model_window` = `knowable_at` earlier than `FILINGS_MODEL_CUTOFF` (runtime config, the configured model's training-data cutoff).
-- [ ] Resumable: a second run skips stored accession numbers. A stub clock past `BACKFILL_WINDOW_UTC` stops the run cleanly at the next item, with a summary line.
-- [ ] Rate limiting and the User-Agent rule are the same as `edgar-fetcher`'s (shared client; a test shows it).
-- [ ] [HUMAN] The PM sets `FILINGS_MODEL_CUTOFF` from the model card, runs the backfill on hub, and posts these counts in the PR:
+- [x] Each record carries `in_model_window` = `knowable_at` earlier than `FILINGS_MODEL_CUTOFF` (runtime config, the configured model's training-data cutoff).
+- [x] Resumable: a second run skips stored accession numbers. A stub clock past `BACKFILL_WINDOW_UTC` stops the run cleanly at the next item, with a summary line.
+- [x] Rate limiting and the User-Agent rule are the same as `edgar-fetcher`'s (shared client; a test shows it).
+- [x] [HUMAN] The PM sets `FILINGS_MODEL_CUTOFF` from the model card, runs the backfill on hub, and posts these counts in the PR:
   - events per stock
   - verification rate
   - `direction_n` distribution
   - in-window vs out-of-window counts
-- [ ] All tests pass
-- [ ] Lint clean
+- [x] All tests pass
+- [x] Lint clean
 
 ### Files to Create or Modify
 

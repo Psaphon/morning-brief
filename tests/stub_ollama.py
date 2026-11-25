@@ -14,6 +14,7 @@ from typing import Any
 
 BRIEFING_MARKER = "write a structured daily intelligence briefing"
 EXTRACTION_MARKER = "extract the facts from the following news article"
+FILING_MARKER = "extract the reported figures from the following earnings release"
 CANNED_SUMMARY = "A canned two-sentence summary. It exists only for tests."
 CANNED_DETAIL = "A canned detail sentence."
 MALFORMED_REPLY = '{"what_happened": "cut off mid-'
@@ -85,6 +86,8 @@ class _Handler(BaseHTTPRequestHandler):
         section = re.match(r"Section: (.*)", body.get("prompt", ""))
         if section:  # a bakeoff section request: plain text, keyed by section
             text = self.server.section_replies.get(section.group(1), CANNED_SUMMARY)  # type: ignore[attr-defined]
+        elif FILING_MARKER in body.get("prompt", ""):
+            text = self.server.filing_reply_text(body["prompt"])  # type: ignore[attr-defined]
         elif BRIEFING_MARKER in body.get("prompt", ""):
             text = json.dumps(self.server.briefing or CANNED_BRIEFING)  # type: ignore[attr-defined]
         elif EXTRACTION_MARKER in body.get("prompt", ""):
@@ -107,7 +110,16 @@ class _Server(ThreadingHTTPServer):
         self.briefing: dict[str, Any] | None = None
         self.section_replies: dict[str, str] = {}
         self.malformed_remaining = 0
+        # Added to every extraction reply as ``ticker_sentiment``, verbatim (so tests can
+        # send junk): a value, or ``callable(title) -> value``. None leaves the reply alone.
+        self.ticker_sentiment: Any = None
+        # Filing-facts replies: a dict/str, or a callable(prompt) -> dict/str.
+        self.filing_reply: Any = {}
         self._lock = threading.Lock()
+
+    def filing_reply_text(self, prompt: str) -> str:
+        reply = self.filing_reply(prompt) if callable(self.filing_reply) else self.filing_reply
+        return reply if isinstance(reply, str) else json.dumps(reply)
 
     def extraction_reply(self, prompt: str) -> str:
         match = re.search(r"^Article title: (.*)$", prompt, re.MULTILINE)
@@ -118,13 +130,15 @@ class _Server(ThreadingHTTPServer):
                 return MALFORMED_REPLY
         if title in self.malformed_titles:
             return MALFORMED_REPLY
-        return json.dumps(
-            canned_extraction(
-                title,
-                is_roundup=title in self.roundup_titles,
-                ungrounded=title in self.ungrounded_titles,
-            )
+        reply = canned_extraction(
+            title,
+            is_roundup=title in self.roundup_titles,
+            ungrounded=title in self.ungrounded_titles,
         )
+        if self.ticker_sentiment is not None:
+            sentiment = self.ticker_sentiment
+            reply["ticker_sentiment"] = sentiment(title) if callable(sentiment) else sentiment
+        return json.dumps(reply)
 
 
 class StubOllama:
@@ -158,6 +172,14 @@ class StubOllama:
     def section_reply(self, section: str, text: str) -> None:
         """Plain-text reply for a bakeoff request whose prompt starts ``Section: <section>``."""
         self._server.section_replies[section] = text
+
+    def set_filing_reply(self, reply: Any) -> None:
+        """Reply for filing-facts calls: a dict, a raw string, or ``callable(prompt)``."""
+        self._server.filing_reply = reply
+
+    def set_ticker_sentiment(self, value: Any) -> None:
+        """Add ``ticker_sentiment`` to every extraction reply: a value or ``callable(title)``."""
+        self._server.ticker_sentiment = value
 
     def malformed_next(self, n: int) -> None:
         """Return malformed JSON for the next *n* extraction calls."""

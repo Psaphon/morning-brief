@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,56 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 
+-- Filings lane (SIGNAL-SCHEMA section 12). Deliberately outside the 2-day article retention.
+CREATE TABLE IF NOT EXISTS filings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    accession TEXT UNIQUE NOT NULL,
+    cik TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    form TEXT NOT NULL,
+    items TEXT NOT NULL,
+    accepted_at TEXT NOT NULL,
+    origin TEXT NOT NULL DEFAULT 'edgar',
+    fetched_at TEXT NOT NULL,
+    primary_doc_url TEXT,
+    primary_html BLOB,
+    exhibits BLOB,
+    primary_text TEXT,
+    exhibit_text TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_filings_ticker ON filings(ticker, accepted_at);
+
+-- Verified earnings numbers and code-computed direction (one row per 2.02 filing).
+-- Values are base units (dollars, dollars per share). The model's raw output is not kept.
+CREATE TABLE IF NOT EXISTS filing_facts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    accession TEXT UNIQUE NOT NULL REFERENCES filings(accession),
+    status TEXT NOT NULL CHECK (status IN ('ok', 'partial', 'failed')),
+    period_label TEXT,
+    eps_diluted_current REAL,
+    eps_diluted_prior REAL,
+    revenue_current REAL,
+    revenue_prior REAL,
+    guidance_metric TEXT,
+    guidance_period_label TEXT,
+    guidance_low REAL,
+    guidance_high REAL,
+    guidance_basis TEXT,
+    guidance_base REAL,
+    guidance_low_pct REAL,
+    guidance_high_pct REAL,
+    unverified_count INTEGER NOT NULL DEFAULT 0,
+    eps_yoy REAL,
+    rev_yoy REAL,
+    rev_accel REAL,
+    guidance_change INTEGER,
+    direction REAL,
+    direction_n INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    extracted_at TEXT NOT NULL,
+    error TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_articles_url_hash ON articles(url_hash);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_fetched ON articles(fetched_at);
@@ -142,6 +193,10 @@ class Database:
                 "ALTER TABLE daily_briefings ADD COLUMN briefing_metadata TEXT",
                 "daily_briefings.briefing_metadata",
             ),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_basis TEXT", "guidance_basis"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_base REAL", "guidance_base"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_low_pct REAL", "guidance_low_pct"),
+            ("ALTER TABLE filing_facts ADD COLUMN guidance_high_pct REAL", "guidance_high_pct"),
         ]
         for sql, name in migrations:
             try:
@@ -267,6 +322,104 @@ class Database:
             "SELECT fetched_at FROM articles WHERE url_hash = ?", (url_hash,)
         ).fetchone()
         return row["fetched_at"] == now
+
+    def has_filing(self, accession: str) -> bool:
+        """True when this accession number is already stored."""
+        row = self.conn.execute(
+            "SELECT 1 FROM filings WHERE accession = ?", (accession,)
+        ).fetchone()
+        return row is not None
+
+    def insert_filing(
+        self,
+        *,
+        accession: str,
+        cik: str,
+        ticker: str,
+        form: str,
+        items: list[str],
+        accepted_at: str,
+        fetched_at: str,
+        primary_doc_url: str,
+        primary_html: bytes,
+        exhibits: list[dict[str, str]],
+        primary_text: str,
+        exhibit_text: str,
+        origin: str = "edgar",
+    ) -> bool:
+        """Store one filing. Returns False (and changes nothing) if the accession exists.
+
+        ``primary_html`` and ``exhibits`` (a JSON list of {type, document, url, html}) are
+        zlib-compressed; the text columns hold the plain-text rendering.
+        """
+        exhibits_blob = zlib.compress(json.dumps(exhibits).encode("utf-8"))
+        cursor = self.conn.execute(
+            """INSERT INTO filings
+               (accession, cik, ticker, form, items, accepted_at, origin, fetched_at,
+                primary_doc_url, primary_html, exhibits, primary_text, exhibit_text)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(accession) DO NOTHING""",
+            (
+                accession,
+                cik,
+                ticker,
+                form,
+                ",".join(items),
+                accepted_at,
+                origin,
+                fetched_at,
+                primary_doc_url,
+                zlib.compress(primary_html),
+                exhibits_blob,
+                primary_text,
+                exhibit_text,
+            ),
+        )
+        self.conn.commit()
+        return cursor.rowcount == 1
+
+    def filings_for_extraction(self, *, redo: bool = False) -> list[sqlite3.Row]:
+        """Stored 8-Ks with item 2.02, oldest first; without facts unless ``redo``."""
+        rows = self.conn.execute(
+            """SELECT f.* FROM filings f
+               LEFT JOIN filing_facts ff ON ff.accession = f.accession
+               WHERE (? OR ff.accession IS NULL)
+               ORDER BY f.accepted_at, f.id""",
+            (1 if redo else 0,),
+        ).fetchall()
+        return [r for r in rows if "2.02" in str(r["items"]).split(",")]
+
+    def previous_earnings_facts(self, ticker: str, accepted_at: str) -> sqlite3.Row | None:
+        """The same ticker's latest earlier 2.02 filing (facts columns NULL if none stored)."""
+        rows = self.conn.execute(
+            """SELECT f.accession, f.accepted_at, f.items, ff.rev_yoy
+               FROM filings f LEFT JOIN filing_facts ff ON ff.accession = f.accession
+               WHERE f.ticker = ? AND f.accepted_at < ?
+               ORDER BY f.accepted_at DESC, f.id DESC""",
+            (ticker, accepted_at),
+        ).fetchall()
+        return next((r for r in rows if "2.02" in str(r["items"]).split(",")), None)
+
+    def earlier_guidance(self, ticker: str, metric: str, accepted_at: str) -> list[sqlite3.Row]:
+        """Earlier guidance rows for the ticker and metric, most recent first."""
+        return self.conn.execute(
+            """SELECT f.accepted_at, ff.guidance_period_label, ff.guidance_low, ff.guidance_high
+               FROM filing_facts ff JOIN filings f ON f.accession = ff.accession
+               WHERE f.ticker = ? AND ff.guidance_metric = ? AND f.accepted_at < ?
+                 AND ff.guidance_low IS NOT NULL AND ff.guidance_high IS NOT NULL
+               ORDER BY f.accepted_at DESC, f.id DESC""",
+            (ticker, metric, accepted_at),
+        ).fetchall()
+
+    def save_filing_facts(self, row: dict[str, Any]) -> None:
+        """Insert or replace the facts row for ``row['accession']``."""
+        cols = list(row)
+        self.conn.execute(
+            f"INSERT OR REPLACE INTO filing_facts ({', '.join(cols)}) "  # noqa: S608
+            f"VALUES ({', '.join('?' for _ in cols)})",
+            tuple(row.values()),
+        )
+        self.conn.commit()
 
     def cleanup_old_articles(self, max_age_days: int = 2) -> int:
         """Delete articles not seen in the last max_age_days days. Returns count deleted."""
@@ -404,6 +557,30 @@ class Database:
                 except (json.JSONDecodeError, AttributeError):
                     details = []
                 out[row["article_id"]] = [d for d in details if isinstance(d, str)]
+        return out
+
+    def get_ticker_sentiment(self, article_ids: list[int]) -> dict[int, dict[str, int]]:
+        """Stored ``ticker_sentiment`` per article id (``{}`` when missing, old, or malformed)."""
+        out: dict[int, dict[str, int]] = {}
+        for i in range(0, len(article_ids), 500):  # stay under SQLite's variable limit
+            chunk = article_ids[i : i + 500]
+            marks = ",".join("?" * len(chunk))
+            rows = self.conn.execute(
+                f"SELECT article_id, json FROM extractions WHERE article_id IN ({marks})",
+                chunk,
+            ).fetchall()
+            for row in rows:
+                try:
+                    raw = json.loads(row["json"]).get("ticker_sentiment", {})
+                except (json.JSONDecodeError, AttributeError):
+                    raw = {}
+                if not isinstance(raw, dict):
+                    raw = {}
+                out[row["article_id"]] = {
+                    k: v
+                    for k, v in raw.items()
+                    if isinstance(k, str) and type(v) is int and v in (-1, 0, 1)
+                }
         return out
 
     def mark_extraction_failed(self, article_id: int) -> None:

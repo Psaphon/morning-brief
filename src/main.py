@@ -112,6 +112,56 @@ def _write_status(data_dir: Path, status: str, message: str, **extra) -> None:
         logger.warning("Could not write status file: %s", e)
 
 
+TICKER_MAP_PATH = Path("config/ticker_map.toml")
+
+
+def _load_ticker_map_or_none():
+    """The ticker map, or None (logged) when it cannot be loaded; never raises."""
+    from .publishers.signals import load_ticker_map
+
+    try:
+        return load_ticker_map(TICKER_MAP_PATH)
+    except Exception:
+        logger.exception("Ticker map unavailable; extraction asks for no ticker sentiment")
+        return None
+
+
+def _tickers_by_article(articles: list[dict], ticker_map) -> dict[int, list[str]]:
+    """``{article_id: [symbols]}`` using the same alias matching as signal emission."""
+    from .publishers.signals import match_articles_to_tickers
+
+    out: dict[int, list[str]] = {}
+    for symbol, matched in match_articles_to_tickers(articles, ticker_map).items():
+        for article in matched:
+            out.setdefault(article["id"], []).append(symbol)
+    return out
+
+
+def _emit_signals(config, db, todays: list[dict], lanes, ticker_map, timer: StageTimer) -> None:
+    """Stage 2.6: emit per-ticker signals for atrade (optional, non-fatal — §2).
+
+    Runs after extraction so ``direction`` can use the sentiment it stored. Never raises.
+    """
+    if config.signals_enabled:
+        try:
+            from .publishers.signals import emit_signals, load_ticker_map
+
+            ticker_map = ticker_map or load_ticker_map(TICKER_MAP_PATH)
+            articles = filter_lane(todays, "signals", lanes)
+            emit_signals(
+                articles=articles,
+                ticker_map=ticker_map,
+                signals_dir=config.signals_dir,
+                universe_ref=ticker_map.universe_ref,
+                sentiment=db.get_ticker_sentiment([a["id"] for a in articles]),
+            )
+        except Exception:
+            logger.exception("Signal emission failed; pipeline continues")
+    else:
+        logger.debug("Signal emission disabled (set SIGNALS_ENABLED=true to enable)")
+    timer.lap("signals")
+
+
 async def run_pipeline() -> None:
     """Execute the full Morning Brief pipeline."""
     config = load_config()
@@ -230,96 +280,136 @@ async def run_pipeline() -> None:
 
         timer.lap("score")
 
-        # Stage 2.6: Emit per-ticker signals for atrade (optional, non-fatal — §2)
-        if config.signals_enabled:
-            try:
-                from .publishers.signals import emit_signals, load_ticker_map
+        # Stage 2.6 (signal emission) runs after Stage 3, so it can use the per-ticker
+        # sentiment the extraction call returns. See _emit_signals below.
 
-                _ticker_map_path = Path("config/ticker_map.toml")
-                _ticker_map = load_ticker_map(_ticker_map_path)
-                emit_signals(
-                    articles=filter_lane(todays, "signals", lanes),
-                    ticker_map=_ticker_map,
-                    signals_dir=config.signals_dir,
-                    universe_ref=_ticker_map.universe_ref,
+        # Stage 2.7: EDGAR 8-K filings (optional, non-fatal; counts toward the run deadline)
+        if config.filings_enabled:
+            try:
+                from .fetchers.edgar import fetch_filings
+
+                filings_summary = await fetch_filings(config, db)
+                logger.info(filings_summary.line())
+            except Exception:
+                logger.exception("Filings fetch failed; pipeline continues")
+            timer.lap("filings")
+
+            # Stage 2.8: extract numbers from new earnings releases (local model, non-fatal)
+            try:
+                from .processors.filing_facts import extract_filings
+
+                facts_summary = await extract_filings(config, db)
+                logger.info(facts_summary.line())
+            except Exception:
+                logger.exception("Filing facts extraction failed; pipeline continues")
+            timer.lap("filings_extract")
+
+            # Stage 2.9: emit signals-filings.json for atrade (non-fatal)
+            try:
+                from .publishers.signals import load_ticker_map
+                from .publishers.signals_filings import emit_filings_signals
+
+                emit_filings_signals(
+                    db,
+                    config.signals_dir,
+                    load_ticker_map(Path("config/ticker_map.toml")),
+                    config,
                 )
             except Exception:
-                logger.exception("Signal emission failed; pipeline continues")
+                logger.exception("Filings signal emission failed; pipeline continues")
+            timer.lap("filings_emit")
         else:
-            logger.debug("Signal emission disabled (set SIGNALS_ENABLED=true to enable)")
-
-        timer.lap("signals")
+            logger.debug("Filings fetch disabled (set FILINGS_ENABLED=true to enable)")
 
         # Stage 3: Summarize (requires Ollama — skips gracefully if unavailable)
         logger.info("Stage 3: Summarizing articles...")
-        candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)
-        # Dedupe before selecting so duplicates never use an LLM call and the
-        # freed slot is refilled from the category's next article.
-        interests = load_interests()
-        candidates = filter_by_feed_minimum(candidates, interests)
-        duplicates = find_duplicates(candidates, config.dedupe_window_hours)
-        db.mark_duplicates(duplicates)
-        candidates = [a for a in candidates if a["id"] not in duplicates]
-        unsummarized = select_balanced_articles(
-            candidates,
-            per_category=config.reader_max_per_category,
-            total=config.reader_max_total,
-            interests=interests,
-        )
-        logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
-
-        if unsummarized:
-            # Posts are their own extraction (no model call); the rest go to Ollama.
-            is_post = [lanes.kind_for(a.get("source", "")) == "post" for a in unsummarized]
-            post_results = [extract_post(a) for a, p in zip(unsummarized, is_post) if p]
-            results, metrics = await summarize_articles(
-                config.ollama, [a for a, p in zip(unsummarized, is_post) if not p]
+        # Signals are emitted in the finally below, so every path reaches them: extraction
+        # skipped, nothing selected, a failure here, or a run past its deadline.
+        ticker_map = None
+        try:
+            candidates = filter_lane(db.get_unsummarized_articles(), "reader", lanes)
+            # Dedupe before selecting so duplicates never use an LLM call and the
+            # freed slot is refilled from the category's next article.
+            interests = load_interests()
+            candidates = filter_by_feed_minimum(candidates, interests)
+            duplicates = find_duplicates(candidates, config.dedupe_window_hours)
+            db.mark_duplicates(duplicates)
+            candidates = [a for a in candidates if a["id"] not in duplicates]
+            unsummarized = select_balanced_articles(
+                candidates,
+                per_category=config.reader_max_per_category,
+                total=config.reader_max_total,
+                interests=interests,
             )
-            results = post_results + results
-            by_id = {a["id"]: a for a in unsummarized}
-            saved = 0
-            for result in results:
-                if result.success and result.extraction:
-                    extraction = result.extraction
-                    if validator.mode != "off":
-                        article = by_id[result.article_id]
-                        cap = extraction_max_chars(config.ollama)
-                        text = truncate_text(article.get("full_text", ""), cap)
-                        source = f"{article.get('title', '')}\n{text}"
-                        kept = validator.apply(
-                            extraction["what_happened"], source, f"article {result.article_id}"
-                        )
-                        if not kept:
-                            # Every sentence was ungrounded: leave the article out of the
-                            # briefing (same flag as a failed extraction), save no summary.
-                            db.mark_extraction_failed(result.article_id)
-                            continue
-                        # Details are held to the same source; the article stands or falls
-                        # on what_happened alone.
-                        details = [
-                            d
-                            for d in (
-                                validator.apply(d, source, f"article {result.article_id} detail")
-                                for d in extraction["details"]
-                            )
-                            if d
-                        ]
-                        extraction = {**extraction, "what_happened": kept, "details": details}
-                    db.save_extraction(result.article_id, extraction, result.model)
-                    saved += 1
-                elif result.extraction_failed:
-                    db.mark_extraction_failed(result.article_id)
-            logger.info("Saved %d summaries to database", saved)
-            if metrics.total_articles > 0:
-                logger.info(
-                    "Summarization timing: %.1fs total, %.1f articles/min (%d/%d succeeded)",
-                    metrics.total_seconds,
-                    metrics.articles_per_minute,
-                    metrics.succeeded,
-                    metrics.total_articles,
-                )
+            logger.info("Found %d unsummarized articles (balanced selection)", len(unsummarized))
 
-        timer.lap("summarize")
+            # Tickers each signals-lane article matched, so the extraction call can also
+            # return a per-ticker direction (no extra model call). Only with signals on.
+            tickers_by_article: dict[int, list[str]] | None = None
+            if config.signals_enabled and unsummarized:
+                ticker_map = _load_ticker_map_or_none()
+                if ticker_map is not None:
+                    tickers_by_article = _tickers_by_article(
+                        filter_lane(unsummarized, "signals", lanes), ticker_map
+                    )
+
+            if unsummarized:
+                # Posts are their own extraction (no model call); the rest go to Ollama.
+                is_post = [lanes.kind_for(a.get("source", "")) == "post" for a in unsummarized]
+                post_results = [extract_post(a) for a, p in zip(unsummarized, is_post) if p]
+                results, metrics = await summarize_articles(
+                    config.ollama,
+                    [a for a, p in zip(unsummarized, is_post) if not p],
+                    tickers_by_article,
+                )
+                results = post_results + results
+                by_id = {a["id"]: a for a in unsummarized}
+                saved = 0
+                for result in results:
+                    if result.success and result.extraction:
+                        extraction = result.extraction
+                        if validator.mode != "off":
+                            article = by_id[result.article_id]
+                            cap = extraction_max_chars(config.ollama)
+                            text = truncate_text(article.get("full_text", ""), cap)
+                            source = f"{article.get('title', '')}\n{text}"
+                            kept = validator.apply(
+                                extraction["what_happened"], source, f"article {result.article_id}"
+                            )
+                            if not kept:
+                                # Every sentence was ungrounded: leave the article out of the
+                                # briefing (same flag as a failed extraction), save no summary.
+                                db.mark_extraction_failed(result.article_id)
+                                continue
+                            # Details are held to the same source; the article stands or falls
+                            # on what_happened alone.
+                            details = [
+                                d
+                                for d in (
+                                    validator.apply(
+                                        d, source, f"article {result.article_id} detail"
+                                    )
+                                    for d in extraction["details"]
+                                )
+                                if d
+                            ]
+                            extraction = {**extraction, "what_happened": kept, "details": details}
+                        db.save_extraction(result.article_id, extraction, result.model)
+                        saved += 1
+                    elif result.extraction_failed:
+                        db.mark_extraction_failed(result.article_id)
+                logger.info("Saved %d summaries to database", saved)
+                if metrics.total_articles > 0:
+                    logger.info(
+                        "Summarization timing: %.1fs total, %.1f articles/min (%d/%d succeeded)",
+                        metrics.total_seconds,
+                        metrics.articles_per_minute,
+                        metrics.succeeded,
+                        metrics.total_articles,
+                    )
+        finally:
+            timer.lap("summarize")
+            _emit_signals(config, db, todays, lanes, ticker_map, timer)
 
         # Generate daily briefing (after summarization, before publish).
         # SUMMARY_WRITER=local (default) is the single local briefing; claude writes

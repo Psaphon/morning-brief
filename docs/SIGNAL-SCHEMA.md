@@ -2,7 +2,7 @@
 
 **Status:** APPROVED 2026-09-01. Implementation may proceed on both sides
 (producer first — see §11).
-**Schema version:** `1.0.0`
+**Schema version:** `1.2.0`
 **Producer:** `morning-brief`, feature `signal-emit` (`src/publishers/signals.py`)
 **Consumer:** `atrade`, feature `signal-schema-and-ingest` (`src/atrade/signals/`)
 
@@ -84,6 +84,10 @@ the `.tmp` file must live in the same directory as the target.
 | `knowable_at` | string | yes | ISO-8601 UTC. **The point-in-time control.** See §5. |
 | `article_count` | integer | yes | Number of contributing articles. Must equal `len(provenance)`. |
 | `provenance` | array | yes | Non-empty. See §7. |
+| `direction` | number or `null` | no | In `[-1, 1]`. Mean per-ticker news sentiment over the contributing articles (each article counts −1, 0 or +1), rounded to 2 places. `null` when no article gave a usable sentiment. Absent in files below 1.2.0. |
+| `direction_n` | integer | no | Non-negative. How many articles contributed to `direction` (0 when `direction` is `null`). Absent in files below 1.2.0. |
+
+`score`, `knowable_at`, `article_count` and `provenance` keep their exact meaning; `direction` and `direction_n` do not alter them.
 
 **No free text anywhere in a signal record.** No headline, no summary, no model output.
 Article text reaches this file only as an opaque `url_hash` and a numeric score. This is
@@ -205,6 +209,11 @@ Semver on `schema_version`.
 - **Major** — anything else: removing a field, changing a type, changing the meaning of
   `knowable_at` or the aggregation rule. Consumer rejects unknown majors outright.
 
+1.1.0 added the filings-lane files (§12), a new artifact rather than a change to the
+existing one: `signals-<date>.json` and every field in §2–§7 are unchanged.
+
+1.2.0 added the optional `direction` and `direction_n` fields to `signals-<date>.json` records (§3). Consumers that ignore them are unaffected.
+
 Both repos bump in the same coordinated change. The producer must never emit a version the
 consumer has not shipped support for.
 
@@ -293,3 +302,95 @@ Both DEVPLANs require the producer to ship before the consumer:
 
 Then the atrade cascade: `strategy-and-risk-gate` → `backtest-harness` + `paper-loop` →
 `track-record-report` → `docs-and-readme`.
+
+---
+
+## 12. Filings lane
+
+Added in `1.1.0`. A second, independent artifact pair carrying structured events derived
+from SEC filings and wire press releases. Machine-checkable definition:
+`docs/schemas/signals-filings.schema.json`. Nothing emits these files yet; this section
+fixes the contract before any producer exists.
+
+### 12.1 Why a separate file
+
+atrade's current reader ignores unknown fields, so filings records placed in the existing
+`signals-<date>.json` would silently mix into the news shadow arm. A separate file makes
+that impossible. A consumer that only knows §2 cannot read these by accident.
+
+### 12.2 Artifacts
+
+| File | Path (relative to the data root) | Write mode |
+|---|---|---|
+| Daily | `data/signals/signals-filings.json` (next to the existing signals file) | Atomic, same rule as §2 |
+| History | `data/filings-history.jsonl` | One event record per line; rewritten atomically by the backfill |
+
+Encoding is UTF-8, LF line endings, as in §2.
+
+### 12.3 Daily file envelope
+
+| Field | Type | Rule |
+|---|---|---|
+| `schema_version` | string | Semver, as in §3. |
+| `emitted_at` | string | UTC timestamp, `Z`-suffixed. Never used as `knowable_at`. |
+| `universe_ref` | string | Same meaning as §3 and §6. |
+| `lane` | string | Constant `"filings"`. |
+| `events` | array | Event records (12.4). May be empty. |
+
+The history file has no envelope: each line is one event record plus `schema_version`.
+
+### 12.4 Event record
+
+Every field is required; nullable ones say so.
+
+| Field | Type | Rule |
+|---|---|---|
+| `ticker` | string | A symbol from the universe with `asset_class = "stock"` |
+| `cik` | string | `^[0-9]{10}$`, the filer CIK that produced this event (may be a `former_ciks` entry for old events) |
+| `event` | enum | `earnings`, `guidance`, `acquisition`, `agreement`, `exec_change` |
+| `origin` | enum | `edgar`, `wire`, `both` |
+| `accession` | string or null | EDGAR accession `^[0-9]{10}-[0-9]{2}-[0-9]{6}$`; null only when `origin = wire` |
+| `wire_id` | string or null | `^[0-9a-f]{64}$` (sha256 of the canonical release URL); null only when `origin = edgar` |
+| `knowable_at` | string | UTC timestamp with explicit `Z`, see 12.5 |
+| `period_end` | string or null | `YYYY-MM-DD` fiscal period end the numbers describe; null for non-earnings events |
+| `direction` | number or null | In [-1, 1]; null when `direction_n = 0` or the event type has no direction |
+| `direction_n` | integer | 0–4, count of verified components used |
+| `components` | object | Exactly the keys `eps_yoy`, `rev_yoy`, `rev_accel`, `guidance_change`, each number or null. `eps_yoy`/`rev_yoy`/`rev_accel` are percent-change values; `guidance_change` is one of -1, 0, 1 |
+| `in_model_window` | boolean | `knowable_at` earlier than the configured local model's training-data cutoff (runtime config, not in the file) |
+
+`direction` is computed by code from verified components, never by a model. Acquisitions,
+agreements and exec changes carry `direction = null`. This `direction` is defined
+independently of any future news-lane direction; the two may be unified later, but only by
+a version bump.
+
+### 12.5 `knowable_at` for filings
+
+- EDGAR filing: the acceptance time.
+- Wire item: its own publish time.
+- `origin = both`: the earlier of the two.
+
+Never fetch time, run time or `emitted_at`, and never a date without a time. A timestamp
+without an explicit zone, or later than the fetch time, is rejected at the producer and
+logged. Consumers apply §5's rule: no record is usable before its `knowable_at`.
+
+### 12.6 No free text
+
+Both files hold only enum values, numbers, booleans, timestamps, dates, tickers and
+pattern-checked IDs. There is no title, summary, URL or company name. Any other string is a
+contract violation; consumers reject the record and keep the rest of the file.
+
+### 12.7 Original values only
+
+Numbers come from the filing or release as first published, never from later-restated
+sources (for example XBRL company-facts).
+
+### 12.8 Universe binding
+
+`config/ticker_map.toml` carries `cik` for every stock and none for ETFs. It may also carry
+`former_ciks`, an optional list of 10-digit CIK strings for predecessor registrants, so the
+backfill can reach history filed before a reorganization. The `cik` of an event is the
+registrant that actually filed it, so it may be a `former_ciks` entry. Stock CIKs are unique
+across the map. Neither key affects alias matching or the existing signals.
+
+The cross-repo rule from §6 still holds: the symbol set must match atrade's
+`config/universe.toml`, and a change to either is reviewed together.
