@@ -78,7 +78,9 @@ markers for the page).
 | `WRITER_MAX_DROP_SHARE` | `0.3` |
 | `WRITER_TIMEOUT_S` | `120` |
 | `WRITER_MONTHLY_CAP_USD` | `10` |
-| `WRITER_PRICE_IN_PER_MTOK` / `WRITER_PRICE_OUT_PER_MTOK` | unset: set them in the host's `.env`; with either unset the writer logs one warning and runs local |
+| `WRITER_PRICE_IN_PER_MTOK` / `WRITER_PRICE_OUT_PER_MTOK` | unset: with either unset the writer logs one warning and runs local |
+
+Set these in the optional host-only file `~/.config/morning-brief/writer.env` (compose reads it after `.env`, like `contact.env`; never in git). Without it the brief keeps the local writer.
 
 **The API key is never in `.env` or the environment.** It is read from the file
 `$CREDENTIALS_DIRECTORY/anthropic_api_key` (systemd `LoadCredential=`). If the variable, file or its
@@ -86,8 +88,9 @@ content is missing the run uses the local writer and logs one line naming the cr
 value. `scripts/run-pipeline.sh` adds `docker-compose.credentials.yml` (a read-only mount at
 `/run/credentials`) only when that file exists on the host.
 
-The host-side `LoadCredential=anthropic_api_key:<path>` drop-in for `morning-brief.service` is not in
-this repo; the operator adds it in the hub repo once the key exists.
+The host side lives in the hub repo: a system unit loads the key from the host's secrets store and
+copies it to a user-readable tmpfs directory, and a `morning-brief.service` drop-in points
+`CREDENTIALS_DIRECTORY` at it. Without that drop-in the brief keeps the local writer.
 
 Spend guard: each call's tokens are priced from the settings above and stored in the `api_usage`
 table. When the UTC month-to-date total reaches `WRITER_MONTHLY_CAP_USD`, the remaining sections use

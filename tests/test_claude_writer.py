@@ -669,3 +669,15 @@ def test_pipeline_claude_without_credential_runs_local(
     assert status["writer"]["claude"] == 0 and "alerts" not in status
     assert "anthropic_api_key" in caplog.text
     assert any("daily intelligence briefing" in c["body"]["prompt"] for c in stub.generate_calls)
+
+
+def test_compose_reads_optional_host_writer_env():
+    """Writer settings (choice, cap, prices) come from a host-only file, never git."""
+    import yaml
+
+    compose_file = Path(__file__).resolve().parents[1] / "docker-compose.yml"
+    compose = yaml.safe_load(compose_file.read_text())
+    env_files = compose["services"]["morning-brief"]["env_file"]
+    entry = next(e for e in env_files if isinstance(e, dict) and "writer.env" in e["path"])
+    assert entry["path"] == "${HOME}/.config/morning-brief/writer.env"
+    assert entry["required"] is False

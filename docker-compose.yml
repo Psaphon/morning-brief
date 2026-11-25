@@ -22,6 +22,10 @@ services:
       # Host-only file, never in git; optional so hosts without it still run.
       - path: ${HOME}/.config/morning-brief/contact.env
         required: false
+      # Writer choice, model, spend cap and prices (claude-section-writer). Host-only,
+      # never in git; without it the brief keeps the local writer.
+      - path: ${HOME}/.config/morning-brief/writer.env
+        required: false
     environment:
       # Default: reach Ollama on the host.  `environment` beats `env_file`, so the
       # override comes through interpolation: set OLLAMA_HOST in .env.
