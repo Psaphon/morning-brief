@@ -220,4 +220,4 @@ def test_ticker_map_version_and_universe_ref_are_unchanged():
 def test_doc_header_and_schema_versions_agree():
     match = re.search(r"^\*\*Schema version:\*\* `([^`]+)`", DOC_PATH.read_text("utf-8"), re.M)
     assert match, "SIGNAL-SCHEMA.md has no Schema version header"
-    assert match.group(1) == _schema()["x-schema-version"] == "1.1.0"
+    assert match.group(1) == _schema()["x-schema-version"] == "1.2.0"

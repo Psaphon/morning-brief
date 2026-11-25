@@ -3,7 +3,7 @@
   "$id": "https://morning-brief.invalid/schemas/signals-filings.schema.json",
   "title": "Filings lane (docs/SIGNAL-SCHEMA.md §12)",
   "description": "Validates signals-filings.json (use #/$defs/daily_file) and each line of filings-history.jsonl (use #/$defs/history_line). No free text is permitted anywhere.",
-  "x-schema-version": "1.1.0",
+  "x-schema-version": "1.2.0",
   "$ref": "#/$defs/daily_file",
   "$defs": {
     "timestamp_utc": {
