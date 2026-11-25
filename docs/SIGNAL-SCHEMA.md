@@ -2,7 +2,7 @@
 
 **Status:** APPROVED 2026-09-01. Implementation may proceed on both sides
 (producer first — see §11).
-**Schema version:** `1.1.0`
+**Schema version:** `1.2.0`
 **Producer:** `morning-brief`, feature `signal-emit` (`src/publishers/signals.py`)
 **Consumer:** `atrade`, feature `signal-schema-and-ingest` (`src/atrade/signals/`)
 
@@ -84,6 +84,10 @@ the `.tmp` file must live in the same directory as the target.
 | `knowable_at` | string | yes | ISO-8601 UTC. **The point-in-time control.** See §5. |
 | `article_count` | integer | yes | Number of contributing articles. Must equal `len(provenance)`. |
 | `provenance` | array | yes | Non-empty. See §7. |
+| `direction` | number or `null` | no | In `[-1, 1]`. Mean per-ticker news sentiment over the contributing articles (each article counts −1, 0 or +1), rounded to 2 places. `null` when no article gave a usable sentiment. Absent in files below 1.2.0. |
+| `direction_n` | integer | no | Non-negative. How many articles contributed to `direction` (0 when `direction` is `null`). Absent in files below 1.2.0. |
+
+`score`, `knowable_at`, `article_count` and `provenance` keep their exact meaning; `direction` and `direction_n` do not alter them.
 
 **No free text anywhere in a signal record.** No headline, no summary, no model output.
 Article text reaches this file only as an opaque `url_hash` and a numeric score. This is
@@ -207,6 +211,8 @@ Semver on `schema_version`.
 
 1.1.0 added the filings-lane files (§12), a new artifact rather than a change to the
 existing one: `signals-<date>.json` and every field in §2–§7 are unchanged.
+
+1.2.0 added the optional `direction` and `direction_n` fields to `signals-<date>.json` records (§3). Consumers that ignore them are unaffected.
 
 Both repos bump in the same coordinated change. The producer must never emit a version the
 consumer has not shipped support for.
