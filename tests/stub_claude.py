@@ -30,6 +30,8 @@ class Reply:
         delay: float = 0.0,
         raw: bytes | None = None,
         error_body: str = "",
+        thinking: bool = True,
+        stop_reason: str = "end_turn",
     ) -> None:
         self.text, self.status, self.delay, self.raw, self.error_body = (
             text,
@@ -38,6 +40,8 @@ class Reply:
             raw,
             error_body,
         )
+        # Like current models: a thinking block (empty text, the API default) comes first.
+        self.thinking, self.stop_reason = thinking, stop_reason
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -67,9 +71,14 @@ class _Handler(BaseHTTPRequestHandler):
                     "id": "msg_test",
                     "type": "message",
                     "role": "assistant",
-                    "content": [{"type": "text", "text": reply.text}],
+                    "content": (
+                        [{"type": "thinking", "thinking": "", "signature": "sig"}]
+                        if reply.thinking
+                        else []
+                    )
+                    + [{"type": "text", "text": reply.text}],
                     "model": body.get("model"),
-                    "stop_reason": "end_turn",
+                    "stop_reason": reply.stop_reason,
                     "usage": {"input_tokens": TOKENS_IN, "output_tokens": TOKENS_OUT},
                 }
             ).encode()
