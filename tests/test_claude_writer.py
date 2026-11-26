@@ -283,6 +283,31 @@ async def test_bad_reply_falls_back(db, credentials, claude, ollama, reply):
     assert run.claude == 2
 
 
+async def test_text_is_read_after_a_thinking_block(db, credentials, claude, ollama):
+    """Current models open the reply with a thinking block; the text after it is used.
+
+    The stub's default reply leads with an empty thinking block, as the API does."""
+    _, segments = await _write(db, _config(claude, ollama))
+    assert {s["writer"] for s in segments.values()} == {"claude"}
+
+
+@pytest.mark.parametrize("stop_reason", ["refusal", "max_tokens"])
+async def test_refusal_or_truncation_falls_back(db, credentials, claude, ollama, stop_reason):
+    claude.reply("Tech", Reply(good_chunks(1), stop_reason=stop_reason))
+    run, segments = await _write(db, _config(claude, ollama))
+    assert segments["Tech"]["writer"] == "local fallback"
+    assert segments["World"]["writer"] == "claude"
+    # The unusable reply was still billed, so it counts toward the monthly cap.
+    assert run.tokens_in == len(SECTIONS) * TOKENS_IN
+
+
+async def test_request_sets_low_effort_and_thinking_headroom(db, credentials, claude, ollama):
+    await _write(db, _config(claude, ollama))
+    body = claude.requests[0]["body"]
+    assert body["output_config"] == {"effort": "low"}
+    assert body["max_tokens"] > 4000
+
+
 async def test_local_fallback_without_ollama_is_a_plain_cited_list(db, credentials, claude):
     claude.reply("Tech", Reply(status=500))
     _, segments = await _write(db, _config(claude, None))
@@ -428,7 +453,13 @@ async def test_requests_hold_extractions_only(db, credentials, claude, ollama):
             assert "distinctive paragraph" not in raw
             assert _url(n) not in raw
         assert "http" not in raw and "example.test" not in raw
-        assert set(request["body"]) == {"model", "max_tokens", "system", "messages"}
+        assert set(request["body"]) == {
+            "model",
+            "max_tokens",
+            "system",
+            "messages",
+            "output_config",
+        }
     contents = [r["body"]["messages"][0]["content"] for r in claude.requests]
     content = next(c for c in contents if c.startswith("Section: Tech"))
     assert "[1] Widget report 1" in content and "Source: Source 1" in content

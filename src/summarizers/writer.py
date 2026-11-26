@@ -181,6 +181,17 @@ def _cap_reached(db, config: Config, run: WriterRun) -> bool:
     return True
 
 
+def _record_usage(db, writer, run: WriterRun, tokens_in: int, tokens_out: int) -> None:
+    """Count a billed call toward the monthly cap, including replies that weren't usable."""
+    if not tokens_in and not tokens_out:
+        return
+    cost = cost_usd(writer, tokens_in, tokens_out)
+    db.record_api_usage(writer.model, tokens_in, tokens_out, cost)
+    run.tokens_in += tokens_in
+    run.tokens_out += tokens_out
+    run.cost_usd += cost
+
+
 async def _claude_section(
     client: httpx.AsyncClient,
     db,
@@ -198,12 +209,9 @@ async def _claude_section(
         reply = await request_section(client, writer, api_key, section, articles)
     except WriterError as e:
         logger.warning("Section %r: Claude call failed (%s); falling back to local", section, e)
+        _record_usage(db, writer, run, e.tokens_in, e.tokens_out)
         return None
-    cost = cost_usd(writer, reply.tokens_in, reply.tokens_out)
-    db.record_api_usage(writer.model, reply.tokens_in, reply.tokens_out, cost)
-    run.tokens_in += reply.tokens_in
-    run.tokens_out += reply.tokens_out
-    run.cost_usd += cost
+    _record_usage(db, writer, run, reply.tokens_in, reply.tokens_out)
     before = dict(run.dropped)
     draft = check_section(reply.text, articles, writer, validator, run)
     # Counted before dropped chunks are removed, so Claude's pass rate is measurable.

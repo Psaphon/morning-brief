@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 CREDENTIAL_NAME = "anthropic_api_key"
 ANTHROPIC_VERSION = "2023-06-01"
+THINKING_HEADROOM_TOKENS = 4000
 DROP_REASONS = ("uncited", "unknown_id", "number", "name", "banned")
 
 _MARKER_RE = re.compile(r"\[\[([^\[\]]*)\]\]")
@@ -46,7 +47,15 @@ no preamble."""
 
 
 class WriterError(Exception):
-    """A Claude call failed. The message is safe to log (it never holds the key)."""
+    """A Claude call failed. The message is safe to log (it never holds the key).
+
+    ``tokens_in`` / ``tokens_out`` are set when the API billed the call anyway (a reply
+    that arrived but can't be used), so the spend guard still counts it.
+    """
+
+    def __init__(self, message: str, *, tokens_in: int = 0, tokens_out: int = 0) -> None:
+        super().__init__(message)
+        self.tokens_in, self.tokens_out = tokens_in, tokens_out
 
 
 @dataclass
@@ -151,7 +160,10 @@ def build_request(config: WriterConfig, section: str, articles: list[dict]) -> d
         lines.append("")
     return {
         "model": config.model,
-        "max_tokens": config.max_words * 3 + 300,
+        # Thinking tokens count toward max_tokens, so leave room beyond the answer.
+        "max_tokens": config.max_words * 3 + 300 + THINKING_HEADROOM_TOKENS,
+        # A grounded rewrite of given extractions needs little reasoning.
+        "output_config": {"effort": "low"},
         "system": SYSTEM_PROMPT.format(min_words=config.min_words, max_words=config.max_words),
         "messages": [{"role": "user", "content": "\n".join(lines).rstrip()}],
     }
@@ -187,13 +199,22 @@ async def request_section(
     except ValueError:
         raise WriterError("response is not valid JSON") from None
     try:
-        text = data["content"][0]["text"]
+        # Current models think by default, so the reply can open with a ``thinking``
+        # block (empty text by default); the answer is the ``text`` blocks, in order.
+        blocks = data["content"]
+        text = "".join(b["text"] for b in blocks if b.get("type") == "text")
+        stop_reason = data.get("stop_reason")
         usage = data["usage"]
         tokens_in, tokens_out = int(usage["input_tokens"]), int(usage["output_tokens"])
-    except (KeyError, IndexError, TypeError, ValueError):
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         raise WriterError("response has an unexpected shape") from None
-    if not isinstance(text, str) or not text.strip():
-        raise WriterError("response text is empty")
+    billed = {"tokens_in": tokens_in, "tokens_out": tokens_out}
+    if stop_reason == "refusal":
+        raise WriterError("model declined the request (refusal)", **billed)
+    if stop_reason == "max_tokens":
+        raise WriterError("response was cut off at max_tokens", **billed)
+    if not text.strip():
+        raise WriterError("response text is empty", **billed)
     return ClaudeReply(text, tokens_in, tokens_out)
 
 
